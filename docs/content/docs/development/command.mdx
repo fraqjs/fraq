@@ -302,10 +302,40 @@ ctx.router.command({
 
 ## `Session` 对象
 
-`Session` 对象代表了一个会话。它包含以下字段：
+`Session` 对象代表了当前触发指令的消息上下文。指令处理函数可以通过它读取原始消息、回复当前会话，或对当前消息添加回应：
+
+```typescript
+interface Session {
+  raw: milky.IncomingMessage;
+  reply(
+    segments: milky.OutgoingSegment_ZodInput[],
+    options?: {
+      withQuote?: boolean;
+      withMention?: boolean;
+    },
+  ): Promise<{ messageSeq: number }>;
+  reaction(type: 'face' | 'emoji', reactionId: string): Promise<void>;
+}
+```
 
 - `raw`：触发该指令的原始 Milky 消息对象，包含来源、发送者、消息段等信息。
-- `reply`：一个函数，用于回复消息。它接受一个消息段数组作为参数，并将其发送回原会话。
+- `reply`：回复当前会话。第一个参数是要发送的消息段数组，第二个参数可以控制是否自动引用原消息或提及发送者。它会返回发送成功后的消息序号。
+- `reaction`：给触发该指令的消息添加表情回应，仅在群聊场景下生效。`type` 可以是 `'face'` 或 `'emoji'`，`reactionId` 是对应的表情 ID。
+
+例如：
+
+```typescript
+ctx.router.command('ping').execute(async (session) => {
+  await session.reply(msg`pong`, {
+    withQuote: true,
+    withMention: true,
+  });
+
+  await session.reaction('face', '42');
+});
+```
+
+如果需要更底层或更完整的协议能力，可以直接使用 `ctx.client` 调用 Milky API。
 
 ## 定义过滤器
 

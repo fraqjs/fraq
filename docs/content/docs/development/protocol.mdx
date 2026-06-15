@@ -9,7 +9,7 @@ Milky 协议定义了许多种类的[事件](https://milky.ntqqrev.org/struct/Ev
 1. 协议端接收到消息；
 2. 协议端向 Fraq 推送一个 `message_receive` 事件，事件对象中包含了消息的来源、发送者、消息内容等；
 3. Fraq 根据事件对象中的信息，匹配到对应的指令处理函数，并调用它；
-4. 指令处理函数通过 `Session` 对象来回复消息。
+4. 指令处理函数通过 `Session` 对象来读取原始消息、回复消息，或对当前消息添加回应。
 
 `message_receive` 事件不止可以被当作指令处理，我们也可以通过 `ctx.on` 直接监听这个事件：
 
@@ -53,7 +53,7 @@ off();
 
 ## 调用 API
 
-在前面的例子中，我们的响应操作仅限于调用 `session.reply` 来回复消息。Milky 协议定义了丰富的 [API](https://milky.ntqqrev.org/api/system)，我们可以通过 `ctx.client` 来调用它们：
+在前面的例子中，我们主要通过 `session.reply` 回复消息，也可以用 `session.reaction` 给当前消息添加回应。Milky 协议定义了丰富的 [API](https://milky.ntqqrev.org/api/system)，如果需要调用 `Session` 没有封装的能力，可以通过 `ctx.client` 直接访问它们：
 
 ```typescript
 // 获取登录信息
