@@ -2,6 +2,7 @@ import mitt, { type WildcardHandler } from 'mitt';
 
 import { createMilkyClient, type MilkyClient, type MilkyEventSubscription } from '../protocol/client';
 import type { EventMap } from '../protocol/endpoint';
+import { seg } from '../protocol/segment';
 import type { Event, IncomingMessage } from '../protocol/types';
 import type { Session } from '../routing/command';
 import { Router } from '../routing/router';
@@ -193,27 +194,44 @@ and implement the dispose method to clean up resources when the context stops.
   createSession(message: IncomingMessage): Session {
     return {
       raw: message,
-      reply: async (segments) => {
-        try {
-          switch (message.message_scene) {
-            case 'friend':
-              await this.client.send_private_message({
-                user_id: message.peer_id,
-                message: segments,
-              });
-              break;
-            case 'group':
-              await this.client.send_group_message({
-                group_id: message.peer_id,
-                message: segments,
-              });
-              break;
+      reply: async (segments, options) => {
+        const actualSegments = [...segments];
+        if (options?.withMention && message.message_scene === 'group') {
+          actualSegments.unshift(seg.mention(message.sender_id));
+          // group: [mention, ...rest]
+        }
+        if (options?.withQuote) {
+          actualSegments.unshift(seg.reply(message.message_seq));
+          // friend: [reply, ...rest]
+          // group: [reply, (mention,) ...rest]
+        }
+
+        switch (message.message_scene) {
+          case 'friend': {
+            const { message_seq } = await this.client.send_private_message({
+              user_id: message.peer_id,
+              message: actualSegments,
+            });
+            return { messageSeq: message_seq };
           }
-        } catch (error) {
-          this.logger.error(
-            `Error sending reply (source msg: scene=${message.message_scene} peer=${message.peer_id} sender=${message.sender_id} seq=${message.message_seq})`,
-            error,
-          );
+          case 'group': {
+            const { message_seq } = await this.client.send_group_message({
+              group_id: message.peer_id,
+              message: actualSegments,
+            });
+            return { messageSeq: message_seq };
+          }
+        }
+        return { messageSeq: 0 };
+      },
+      reaction: async (type, reactionId) => {
+        if (message.message_scene === 'group') {
+          await this.client.send_group_message_reaction({
+            group_id: message.peer_id,
+            message_seq: message.message_seq,
+            reaction_type: type,
+            reaction: reactionId,
+          });
         }
       },
     };

@@ -10,7 +10,10 @@ const inbox = createMockInbox();
 function session(raw: milky.IncomingMessage): Session {
   return {
     raw,
-    async reply() {},
+    async reply() {
+      return { messageSeq: 0 };
+    },
+    async reaction() {},
   };
 }
 
@@ -756,7 +759,10 @@ test('hidden command via builder is not listed in branches', () => {
   const router = new Router();
 
   router.command('show').execute(() => {});
-  router.command('hide').hide().execute(() => {});
+  router
+    .command('hide')
+    .hide()
+    .execute(() => {});
 
   const raw = message(inmsg`anything`);
   const branches = router.branches(session(raw));

@@ -21,9 +21,15 @@ export interface RawPattern<P extends Pattern> {
   execute: Executor<P>;
 }
 
+export interface SessionReplyOptions {
+  withQuote?: boolean;
+  withMention?: boolean;
+}
+
 export interface Session {
   raw: types.IncomingMessage;
-  reply(segments: types.OutgoingSegment_ZodInput[]): Promise<void>;
+  reply(segments: types.OutgoingSegment_ZodInput[], options?: SessionReplyOptions): Promise<{ messageSeq: number }>;
+  reaction(type: 'face' | 'emoji', reactionId: string): Promise<void>;
 }
 
 export class CommandBuilder<P extends Pattern = {}, S = Command<P>> {
