@@ -119,8 +119,8 @@ test('session replies through the client API', async () => {
   ctx.router.command({
     name: 'ping',
     pattern: {},
-    execute(session) {
-      return session.reply(replyMessage);
+    async execute(session) {
+      await session.reply(replyMessage);
     },
   });
 
@@ -161,25 +161,25 @@ test('retries the event stream after startup failures', async () => {
   assert.deepEqual(logs.map(snapshotLog), [
     {
       level: 'debug',
-      module: 'root',
+      module: 'context:root',
       message: 'Connecting event stream (attempt=1)',
       error: undefined,
     },
     {
       level: 'error',
-      module: 'root',
+      module: 'context:root',
       message: 'Error connecting event stream; reconnecting in 0ms',
       error: startError,
     },
     {
       level: 'debug',
-      module: 'root',
+      module: 'context:root',
       message: 'Connecting event stream (attempt=2)',
       error: undefined,
     },
     {
       level: 'info',
-      module: 'root',
+      module: 'context:root',
       message: 'Event stream connected',
       error: undefined,
     },

@@ -76,7 +76,7 @@ export class Context {
     this.maxReconnectDelayMs = options?.reconnect?.maxDelayMs ?? DEFAULT_MAX_RECONNECT_DELAY_MS;
     this.logHandler = options?.logHandler ?? parent?.logHandler;
     this.name = name ?? 'root';
-    this.logger = new Logger((message) => this.logHandler?.(message), this.name);
+    this.logger = new Logger((message) => this.logHandler?.(message), `context:${this.name}`);
 
     this.parent = parent;
     this.filter = filter;
@@ -631,7 +631,10 @@ and implement the dispose method to clean up resources when the context stops.
     plugin: Plugin<ParameterList, Injection | undefined, Injection | undefined>,
   ): Context {
     // Proxied logger with plugin name as prefix
-    const proxyLogger = new Logger((message) => this.logHandler?.(message), plugin.name);
+    const proxyLogger = new Logger(
+      (message) => this.logHandler?.(message),
+      `plugin:${this.name ? `${this.name}/` : ''}${plugin.name}`,
+    );
 
     let proxyInjections: undefined | Record<string, object | undefined>;
     if (plugin.inject) {

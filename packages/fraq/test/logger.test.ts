@@ -32,25 +32,25 @@ test('logger emits structured log messages', () => {
   assert.deepEqual(logs.map(snapshot), [
     {
       level: 'debug',
-      module: 'root',
+      module: 'context:root',
       message: 'debug message',
       error: undefined,
     },
     {
       level: 'info',
-      module: 'root',
+      module: 'context:root',
       message: 'info message',
       error: undefined,
     },
     {
       level: 'warn',
-      module: 'root',
+      module: 'context:root',
       message: 'warn message',
       error: warnError,
     },
     {
       level: 'error',
-      module: 'root',
+      module: 'context:root',
       message: 'error message',
       error: errorDetail,
     },
@@ -69,7 +69,7 @@ test('plugin receives a logger proxy scoped to the plugin name', async () => {
 
   child.install(
     definePlugin({
-      name: 'plugin-logger',
+      name: 'logger',
       apply(ctx) {
         pluginLogger = ctx.logger;
 
@@ -86,14 +86,14 @@ test('plugin receives a logger proxy scoped to the plugin name', async () => {
   assert.ok(pluginLogger);
   assert.deepEqual(logs.map(snapshot), [
     {
-      level: 'debug',
-      module: 'child',
-      message: 'Applying plugin plugin-logger',
+      level: 'info',
+      module: 'context:child',
+      message: 'Applying plugin logger',
       error: undefined,
     },
     {
       level: 'info',
-      module: 'plugin-logger',
+      module: 'plugin:child/logger',
       message: 'plugin message',
       error: undefined,
     },

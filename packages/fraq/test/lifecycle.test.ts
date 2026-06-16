@@ -246,7 +246,7 @@ test('logs timer callback errors', async () => {
 
   assert.deepEqual(logs.map(snapshotLog).at(-1), {
     level: 'error',
-    module: 'root',
+    module: 'context:root',
     message: 'Error handling timer callback',
     error,
   });
