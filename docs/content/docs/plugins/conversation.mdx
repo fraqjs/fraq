@@ -56,7 +56,7 @@ definePlugin({
 
 ```typescript
 ctx.conversation.command('天气').execute(async (session, _, { open }) => {
-  await session.reply(msg`你想查询哪个城市的天气呢？`);
+  await session.reply('你想查询哪个城市的天气呢？');
 
   const city = await open<string>(({ router, done }) => {
     router
@@ -71,7 +71,7 @@ ctx.conversation.command('天气').execute(async (session, _, { open }) => {
   }
 
   const weatherInfo = await getWeatherForCity(city);
-  await session.reply(msg`${weatherInfo}`);
+  await session.reply(weatherInfo);
 });
 ```
 

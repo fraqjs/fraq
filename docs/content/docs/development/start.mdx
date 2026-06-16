@@ -31,14 +31,7 @@ ctx.router
   .command('echo')
   .arg('content', param.str())
   .execute((session, { content }) => {
-    session.reply([
-      {
-        type: 'text',
-        data: {
-          text: `You said: ${content}`,
-        },
-      },
-    ]);
+    session.reply(`You said: ${content}`);
   });
 
 ctx.start();
@@ -68,14 +61,7 @@ ctx.router
   .command('echo')
   .arg('content', param.str())
   .execute((session, { content }) => {
-    session.reply([
-      {
-        type: 'text',
-        data: {
-          text: `You said: ${content}`,
-        },
-      },
-    ]);
+    session.reply(`You said: ${content}`);
   });
 ```
 
@@ -95,4 +81,4 @@ ctx.start();
 
 ## 下一步
 
-如果一切正常，恭喜你，你已经成功创建了一个简单的 Fraq 机器人！你可能会觉得上面回复消息的代码有些啰嗦，毕竟我们只是想回复一条简单的文本消息，却用了足足 8 行代码来表示这条消息。别担心，下一节就会介绍更加简洁的写法。祝你玩得开心！
+如果一切正常，恭喜你，你已经成功创建了一个简单的 Fraq 机器人。下一节将会介绍如何构建更多类型的消息段。祝你玩得开心！

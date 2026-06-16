@@ -21,25 +21,10 @@ import { Accordions, Accordion } from 'fumadocs-ui/components/accordion';
 从上一节的例子中，我们已经见过了这样一个发送消息段的例子：
 
 ```typescript
-[
-  {
-    type: 'text',
-    data: {
-      text: `You said: ${content}`,
-    },
-  },
-];
+session.reply(`You said: ${content}`);
 ```
 
-有没有更简单一些的构造方式呢？答案是有的。Fraq 提供了一个 `msg` 函数来帮助我们更方便地构造消息段数组。我们首先从 Fraq 中引入 `msg` 函数，然后用它来构造上面的消息段数组：
-
-```typescript
-import { msg } from '@fraqjs/fraq';
-
-msg`You said: ${content}`;
-```
-
-那么既然能插入字符串 `content` 了，能不能插入别的消息段呢？你当然可以使用
+它的实际作用是构造了一个 `text` 消息段，内容为 `You said: ${content}`。能不能插入一些其他的消息段呢？答案是可以的。Fraq 提供了一个 `msg` 函数来帮助我们更方便地构造消息段数组。你当然可以使用
 
 ```typescript
 msg`This is an image: ${{ type: 'image', data: { uri: '...' } }}`;

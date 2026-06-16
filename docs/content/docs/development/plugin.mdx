@@ -18,7 +18,7 @@ export const EchoPlugin = definePlugin({
       .command('echo')
       .arg('content', param.str())
       .execute((session, { content }) => {
-        session.reply(msg`You said: ${content}`);
+        session.reply(`You said: ${content}`);
       });
   },
 });
