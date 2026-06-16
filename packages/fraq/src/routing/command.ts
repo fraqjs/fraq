@@ -28,7 +28,7 @@ export interface SessionReplyOptions {
 
 export interface Session {
   raw: types.IncomingMessage;
-  reply(segments: types.OutgoingSegment_ZodInput[], options?: SessionReplyOptions): Promise<{ messageSeq: number }>;
+  reply(textOrSegments: string | types.OutgoingSegment_ZodInput[], options?: SessionReplyOptions): Promise<{ messageSeq: number }>;
   reaction(type: 'face' | 'emoji', reactionId: string): Promise<void>;
 }
 

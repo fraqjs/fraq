@@ -3,7 +3,7 @@ import mitt, { type WildcardHandler } from 'mitt';
 import { createMilkyClient, type MilkyClient, type MilkyEventSubscription } from '../protocol/client';
 import type { EventMap } from '../protocol/endpoint';
 import { seg } from '../protocol/segment';
-import type { Event, IncomingMessage } from '../protocol/types';
+import type { Event, IncomingMessage, OutgoingSegment_ZodInput } from '../protocol/types';
 import type { Session } from '../routing/command';
 import { Router } from '../routing/router';
 import type { Filter } from './filter';
@@ -194,8 +194,16 @@ and implement the dispose method to clean up resources when the context stops.
   createSession(message: IncomingMessage): Session {
     return {
       raw: message,
-      reply: async (segments, options) => {
-        const actualSegments = [...segments];
+      reply: async (textOrSegments, options) => {
+        const actualSegments: OutgoingSegment_ZodInput[] = [];
+        if (typeof textOrSegments === 'string') {
+          actualSegments.push({
+            type: 'text',
+            data: { text: textOrSegments },
+          });
+        } else {
+          actualSegments.push(...textOrSegments);
+        }
         if (options?.withMention && message.message_scene === 'group') {
           actualSegments.unshift(seg.mention(message.sender_id));
           // group: [mention, ...rest]
