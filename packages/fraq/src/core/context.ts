@@ -49,7 +49,7 @@ export class Context {
   private readonly eventBus = mitt<EventMap>();
   private readonly plugins: InstalledPlugin[] = [];
   private readonly services = new Map<ServiceClass, object>();
-  private readonly subContexts: Context[] = [];
+  private readonly subContexts = new Map<string, Context>();
   private readonly parentEventForwarder?: WildcardHandler<EventMap>;
   private readonly timers = new Set<NodeJS.Timeout>();
 
@@ -167,8 +167,17 @@ and implement the dispose method to clean up resources when the context stops.
   }
 
   fork(name: string, filter?: Filter): Context {
+    if (this.subContexts.has(name)) {
+      if (filter) {
+        throw new Error(
+          `Sub context "${name}" already exists, so the provided filter cannot be applied. Please use fork('${name}') without a filter to get the existing subcontext.`,
+        );
+      }
+      // biome-ignore lint/style/noNonNullAssertion: we just checked that the subcontext exists
+      return this.subContexts.get(name)!;
+    }
     const subContext = new Context(this.client, undefined, name, this, filter);
-    this.subContexts.push(subContext);
+    this.subContexts.set(name, subContext);
     return subContext;
   }
 
@@ -326,7 +335,7 @@ and implement the dispose method to clean up resources when the context stops.
 
     this.clearTimers();
 
-    for (const subContext of [...this.subContexts].reverse()) {
+    for (const subContext of [...this.subContexts.values()].reverse()) {
       try {
         await subContext.stop();
       } catch (error) {
@@ -481,7 +490,7 @@ and implement the dispose method to clean up resources when the context stops.
     await this.applyPlugins(sortedPlugins);
     appliedContextPlugins.push({ context: this, sortedPlugins });
 
-    for (const subContext of this.subContexts) {
+    for (const subContext of this.subContexts.values()) {
       await subContext.recursiveApplyPlugins(appliedContextPlugins, startingContexts);
     }
   }
