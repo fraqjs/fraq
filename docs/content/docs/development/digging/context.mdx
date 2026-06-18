@@ -138,6 +138,22 @@ ctx.start();
 
 这段代码的输出将会是 `omega fork one`，而不是 `omega parent context`，因为在 `fork1` 上提供了一个新的 `OmegaService` 实例，它会覆盖掉父 `Context` 上的实例。
 
+重复用同一个名称调用 `ctx.fork` 会返回同一个 `Context` 实例，例如：
+
+```typescript
+const fork1 = ctx.fork('fork1');
+const fork1Again = ctx.fork('fork1');
+console.log(fork1 === fork1Again); // true
+```
+
+但有一种特殊情况：如果第一次调用 `ctx.fork` 时传入了过滤器，而后续用同一个名称调用 `ctx.fork` 时传入了另一个过滤器（无论这个过滤器是否与第一次的过滤器相同），都会抛出错误，因为 `ctx.fork` 无法确定应该使用哪个过滤器。正确的做法是，后续用同一个名称调用 `ctx.fork` 时不要传入过滤器，例如：
+
+```typescript
+ctx.fork('fork1', filter.group(123456));
+ctx.fork('fork1', filter.group(654321)); // Error
+ctx.fork('fork1'); // Right, returns the existing fork1 context
+```
+
 总之，`Context` 的继承与隔离特性使得我们可以在不同的 `Context` 上提供不同配置的服务，并且保证了这些服务之间不会互相干扰。这对于构建复杂的机器人应用非常有用。
 
 ## 事件过滤
