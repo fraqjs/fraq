@@ -4,6 +4,8 @@ import { TakumiService, type TakumiServiceOptions } from './service';
 
 import { createRequire } from 'node:module';
 
+const fontsBase = '@fraqjs/takumi-builtin-fonts/files';
+
 export interface TakumiPluginOptions extends TakumiServiceOptions {
   loadBuiltinFonts?: boolean;
 }
@@ -11,14 +13,14 @@ export interface TakumiPluginOptions extends TakumiServiceOptions {
 export async function loadBuiltinFontsForService(service: TakumiService) {
   const require = createRequire(import.meta.url);
   await service.registerFontFamily('Inter', [
-    require.resolve('../fonts/Inter-VariableFont_opsz,wght.ttf'),
-    require.resolve('../fonts/Inter-Italic-VariableFont_opsz,wght.ttf'),
+    require.resolve(`${fontsBase}/Inter-VariableFont_opsz,wght.ttf`),
+    require.resolve(`${fontsBase}/Inter-Italic-VariableFont_opsz,wght.ttf`),
   ]);
   await service.registerFontFamily('Roboto Mono', [
-    require.resolve('../fonts/RobotoMono-VariableFont_wght.ttf'),
-    require.resolve('../fonts/RobotoMono-Italic-VariableFont_wght.ttf'),
+    require.resolve(`${fontsBase}/RobotoMono-VariableFont_wght.ttf`),
+    require.resolve(`${fontsBase}/RobotoMono-Italic-VariableFont_wght.ttf`),
   ]);
-  await service.registerFontFamily('Noto Sans SC', [require.resolve('../fonts/NotoSansSC-VariableFont_wght.ttf')]);
+  await service.registerFontFamily('Noto Sans SC', [require.resolve(`${fontsBase}/NotoSansSC-VariableFont_wght.ttf`)]);
 }
 
 export const TakumiPlugin = definePlugin({

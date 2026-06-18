@@ -27,6 +27,7 @@
     "react": "^19.0.0"
   },
   "dependencies": {
+    "@fraqjs/takumi-builtin-fonts": "^1.0.0",
     "@takumi-rs/core": "^1.7.0",
     "@takumi-rs/helpers": "^1.7.0"
   },
