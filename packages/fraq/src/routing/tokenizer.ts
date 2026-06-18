@@ -2,6 +2,8 @@ import type { IncomingSegment } from '../protocol/types';
 
 export type Token = string | Exclude<IncomingSegment, { type: 'text' }>;
 
+const WHITESPACE_CHARS = new Set([' ', '\t', '\n', '\r', '\v', '\f', '\u00A0', '\u3000']);
+
 export interface TokenizerState {
   offset: number;
   subOffset?: number;
@@ -168,7 +170,7 @@ export class Tokenizer {
 
   private findTextTokenStart(text: string, from: number): number {
     let offset = from;
-    while (offset < text.length && text[offset] === ' ') {
+    while (offset < text.length && WHITESPACE_CHARS.has(text[offset])) {
       offset += 1;
     }
 
@@ -177,7 +179,7 @@ export class Tokenizer {
 
   private readTextToken(text: string, from: number): string {
     let offset = from;
-    while (offset < text.length && text[offset] !== ' ') {
+    while (offset < text.length && !WHITESPACE_CHARS.has(text[offset])) {
       offset += 1;
     }
 

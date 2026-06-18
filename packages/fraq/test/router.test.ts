@@ -47,6 +47,28 @@ test('dispatches a command and captures typed parameters', async () => {
   assert.deepEqual(calls, [{ count: 3, label: 'apples' }]);
 });
 
+test('dispatches a command separated by supported whitespace characters', async () => {
+  const whitespaceChars = [' ', '\t', '\n', '\r', '\v', '\f', '\u00A0', '\u3000'];
+
+  for (const whitespace of whitespaceChars) {
+    const router = new Router();
+    const calls: Array<{ count: number; label: string }> = [];
+
+    router.command({
+      name: 'add',
+      pattern: { count: param.num(), label: param.str() },
+      execute(_session, params) {
+        calls.push(params);
+      },
+    });
+
+    const handled = await dispatch(router, [inseg.text(`add${whitespace}3${whitespace}apples`)]);
+
+    assert.equal(handled, true);
+    assert.deepEqual(calls, [{ count: 3, label: 'apples' }]);
+  }
+});
+
 test('dispatches a command registered with the builder syntax', async () => {
   const router = new Router();
   let captured: { count: number; label: string } | undefined;
