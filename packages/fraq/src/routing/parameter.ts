@@ -24,6 +24,24 @@ export class Parameter<T> {
     this.description = description;
     return this;
   }
+
+  refine<U extends T>(predicate: (value: T) => value is U): Parameter<U>;
+  refine(predicate: (value: T) => boolean): Parameter<T>;
+  refine(predicate: (value: T) => boolean): Parameter<T> {
+    const capturer = this.capturer;
+    const refined = new Parameter<T>({
+      typeInstruction: capturer.typeInstruction,
+      capture(tokenizer: Tokenizer) {
+        const value = capturer.capture(tokenizer);
+        if (value === undefined || predicate(value)) {
+          return value;
+        }
+        return undefined;
+      },
+    });
+    refined.description = this.description;
+    return refined;
+  }
 }
 
 export namespace param {

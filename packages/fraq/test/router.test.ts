@@ -547,6 +547,28 @@ test('dispatches a command via alias registered with builder', async () => {
   assert.equal(called, 'world');
 });
 
+test('refine filters captured parameter values and narrows their type', async () => {
+  const router = new Router();
+  const calls: Array<{ userId: number }> = [];
+
+  router.command({
+    name: 'ban',
+    pattern: {
+      userId: param.num().refine((userId): userId is number & { readonly __positive: true } => userId > 0),
+    },
+    execute(_session, params) {
+      calls.push(params);
+    },
+  });
+
+  const accepted = await dispatch(router, inmsg`ban 42`);
+  const rejected = await dispatch(router, inmsg`ban -42`);
+
+  assert.equal(accepted, true);
+  assert.equal(rejected, false);
+  assert.deepEqual(calls, [{ userId: 42 }]);
+});
+
 test('matches command by name when name matches an earlier alias entry', async () => {
   const router = new Router();
   const calls: string[] = [];
