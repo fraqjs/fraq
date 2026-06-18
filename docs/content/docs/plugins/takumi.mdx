@@ -31,9 +31,10 @@ ctx.install(TakumiPlugin, {
 
 `TakumiPlugin` 有如下配置项：
 
-- `renderer`：传递给 Takumi 渲染器（`Renderer`）的选项，包含如下字段：
+- `renderer`：传递给 Takumi 渲染器（`Renderer`）的构造器的选项，包含如下字段：
   - `persistentImages`：预先加载的图像。
   - `fonts` 和 `loadDefaultFonts`：通常情况下无需设置，Fraq 会自动加载内置字体，详见后续部分。
+- `renderDefaults`：一个对象，用于指定 `renderJsx` 等方法的默认渲染选项，这些选项会与调用时传入的选项进行合并，后者会覆盖前者。
 - `onFontRegisterConflict`：当注册字体时发生冲突（即尝试注册一个已存在的字体名称）时的处理方法，可选值有：
   - `error`：抛出错误。
   - `warn-and-ignore`：发出警告并忽略新的注册，这是默认行为。
