@@ -3,6 +3,7 @@ import {
   type ConstructRendererOptions,
   extractResourceUrls,
   type Font,
+  type ImageSource,
   Renderer,
   type RenderOptions,
 } from '@takumi-rs/core';
@@ -14,20 +15,13 @@ import type { ReactNode } from 'react';
 
 import fs from 'node:fs/promises';
 
-function withMergedStylesheets(stylesheets: string[], renderOptions?: RenderOptions): RenderOptions {
-  const extraStylesheets = renderOptions?.stylesheets ?? [];
-  return {
-    ...renderOptions,
-    stylesheets: [...stylesheets, ...extraStylesheets],
-  };
-}
-
 function combineAbortSignals(...signals: (AbortSignal | undefined)[]): AbortSignal {
   return AbortSignal.any(signals.filter((signal): signal is AbortSignal => signal !== undefined));
 }
 
 export interface TakumiServiceOptions {
   renderer?: ConstructRendererOptions;
+  renderDefaults?: RenderOptions;
   onFontRegisterConflict?: 'error' | 'warn-and-ignore' | 'warn-and-replace';
 }
 
@@ -47,7 +41,7 @@ export class TakumiService implements Disposable {
   private onFontRegisterConflict: 'error' | 'warn-and-ignore' | 'warn-and-replace';
 
   constructor(
-    options?: TakumiServiceOptions,
+    private readonly options?: TakumiServiceOptions,
     private readonly ctx?: Context,
   ) {
     this.renderer = new Renderer(options?.renderer);
@@ -105,7 +99,7 @@ export class TakumiService implements Disposable {
     const { node, stylesheets } = await fromJsx(jsx);
     return this.renderer.render(
       node,
-      withMergedStylesheets(stylesheets, renderOptions),
+      this.mergeRenderOptions({ stylesheets, userOptions: renderOptions }),
       combineAbortSignals(signal, this.abortController.signal),
     );
   }
@@ -120,10 +114,7 @@ export class TakumiService implements Disposable {
     const { node: processedNode, fetchedResources } = await this.processEmoji(node, emojiType);
     return this.renderer.render(
       processedNode,
-      withMergedStylesheets(stylesheets, {
-        ...renderOptions,
-        fetchedResources: [...fetchedResources, ...(renderOptions?.fetchedResources ?? [])],
-      }),
+      this.mergeRenderOptions({ stylesheets, fetchedResources, userOptions: renderOptions }),
       combineAbortSignals(signal, this.abortController.signal),
     );
   }
@@ -132,7 +123,7 @@ export class TakumiService implements Disposable {
     const { node, stylesheets } = fromHtml(html);
     return this.renderer.render(
       node,
-      withMergedStylesheets(stylesheets, renderOptions),
+      this.mergeRenderOptions({ stylesheets, userOptions: renderOptions }),
       combineAbortSignals(signal, this.abortController.signal),
     );
   }
@@ -147,12 +138,30 @@ export class TakumiService implements Disposable {
     const { node: processedNode, fetchedResources } = await this.processEmoji(node, emojiType);
     return this.renderer.render(
       processedNode,
-      withMergedStylesheets(stylesheets, {
-        ...renderOptions,
-        fetchedResources: [...fetchedResources, ...(renderOptions?.fetchedResources ?? [])],
-      }),
+      this.mergeRenderOptions({ stylesheets, fetchedResources, userOptions: renderOptions }),
       combineAbortSignals(signal, this.abortController.signal),
     );
+  }
+
+  private mergeRenderOptions(components: {
+    stylesheets?: string[];
+    fetchedResources?: ImageSource[];
+    userOptions?: RenderOptions;
+  }): RenderOptions {
+    return {
+      ...this.options?.renderDefaults,
+      ...components.userOptions,
+      stylesheets: [
+        ...(this.options?.renderDefaults?.stylesheets ?? []),
+        ...(components.stylesheets ?? []),
+        ...(components.userOptions?.stylesheets ?? []),
+      ],
+      fetchedResources: [
+        ...(this.options?.renderDefaults?.fetchedResources ?? []),
+        ...(components.fetchedResources ?? []),
+        ...(components.userOptions?.fetchedResources ?? []),
+      ],
+    };
   }
 
   private async processEmoji(node: Node, emojiType: EmojiType = 'twemoji') {
