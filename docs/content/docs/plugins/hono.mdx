@@ -1,0 +1,58 @@
+---
+title: '@fraqjs/plugin-hono'
+---
+
+<NpmBadge packageName="@fraqjs/plugin-hono" />
+
+`@fraqjs/plugin-hono` 提供了基于 [Hono](https://hono.dev/) 的 HTTP 服务器集成。
+
+## 安装与配置
+
+将插件添加至 `dependencies`，然后在创建 `Context` 时引入并配置插件：
+
+```typescript
+import HonoPlugin from '@fraqjs/plugin-hono';
+
+ctx.install(HonoPlugin, {
+  // 在这里传入 HonoPlugin 的配置选项
+});
+```
+
+`HonoPlugin` 有如下配置项：
+
+- `host`：HTTP 服务监听的主机名，默认值为 `127.0.0.1`。
+- `port`：HTTP 服务监听的端口，默认值为 `4649`。
+- `serveOptions`：传递给 [`@hono/node-server`](https://www.npmjs.com/package/@hono/node-server) 的其他启动选项，除了 `fetch`、`port` 和 `hostname` 之外的字段都可以在这里配置。
+
+如果你是插件开发者，请将本插件添加到项目的 `peerDependencies` 中，并在自己的插件中声明依赖：
+
+```typescript
+import { HonoService } from '@fraqjs/plugin-hono';
+
+definePlugin({
+  name: 'my-plugin',
+  inject: {
+    hono: HonoService,
+  },
+  apply(ctx) {
+    // 使用 ctx.hono 来访问 HonoService
+  },
+});
+```
+
+## 定义 API 路由
+
+`ctx.hono.app` 暴露了一个 Hono 实例，你可以直接在上面定义路由，例如：
+
+```typescript
+ctx.hono.app.get('/hello', (c) => {
+  return c.text('Hello, world!');
+});
+
+ctx.hono.app.post('/echo', async (c) => {
+  const body = await c.req.text();
+  return c.text(`You said: ${body}`);
+});
+```
+
+更多说明请参考 [Hono 官方文档](https://hono.dev/docs/getting-started/nodejs)。
