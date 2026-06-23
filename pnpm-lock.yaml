@@ -152,6 +152,22 @@ importers:
         specifier: workspace:^
         version: link:../../packages/mock
 
+  plugins/hono:
+    dependencies:
+      '@fraqjs/fraq':
+        specifier: workspace:^
+        version: link:../../packages/fraq
+      '@hono/node-server':
+        specifier: ^2.0.5
+        version: 2.0.5(hono@4.12.26)
+      hono:
+        specifier: ^4.12.26
+        version: 4.12.26
+    devDependencies:
+      '@fraqjs/mock':
+        specifier: workspace:^
+        version: link:../../packages/mock
+
   plugins/kysely:
     dependencies:
       '@fraqjs/fraq':
@@ -537,6 +553,12 @@ packages:
         optional: true
       tailwindcss:
         optional: true
+
+  '@hono/node-server@2.0.5':
+    resolution: {integrity: sha512-yQFvDmyDo3y6rEOJZDUYPJ49DIKTPpIk4kGvm40xx4Ejne0Pu9a1+exxPN+C1UppWK/WGZX9F++/Xs231tE86g==}
+    engines: {node: '>=20'}
+    peerDependencies:
+      hono: ^4
 
   '@img/colour@1.1.0':
     resolution: {integrity: sha512-Td76q7j57o/tLVdgS746cYARfSyxk8iEfRxewL9h4OMzYhbW4TAcppl0mT4eyqXddh6L/jwoM75mo7ixa/pCeQ==}
@@ -2255,6 +2277,10 @@ packages:
   hastscript@9.0.1:
     resolution: {integrity: sha512-g7df9rMFX/SPi34tyGCyUBREQoKkapwdY/T04Qn9TDWfHhAYt4/I0gMVirzK5wEzeUqIjEB+LXC/ypb7Aqno5w==}
 
+  hono@4.12.26:
+    resolution: {integrity: sha512-uyZtpnYxM9CmQ7QsQknM4zN8EftNqhON1qYeIKM0Se67CCEe2c44xyGURwB0axX2fBDu1dqHrHAc1hmNT8ITkw==}
+    engines: {node: '>=16.9.0'}
+
   hookable@6.1.1:
     resolution: {integrity: sha512-U9LYDy1CwhMCnprUfeAZWZGByVbhd54hwepegYTK7Pi5NvqEj63ifz5z+xukznehT7i6NIZRu89Ay1AZmRsLEQ==}
 
@@ -3414,6 +3440,10 @@ snapshots:
     optionalDependencies:
       '@tailwindcss/oxide': 4.3.0
       tailwindcss: 4.3.0
+
+  '@hono/node-server@2.0.5(hono@4.12.26)':
+    dependencies:
+      hono: 4.12.26
 
   '@img/colour@1.1.0':
     optional: true
@@ -4924,6 +4954,8 @@ snapshots:
       hast-util-parse-selector: 4.0.0
       property-information: 7.1.0
       space-separated-tokens: 2.0.2
+
+  hono@4.12.26: {}
 
   hookable@6.1.1: {}
 

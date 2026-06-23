@@ -1,0 +1,34 @@
+{
+  "name": "@fraqjs/plugin-hono",
+  "type": "module",
+  "version": "0.1.0",
+  "description": "Hono integration plugin for Fraq",
+  "files": [
+    "dist"
+  ],
+  "main": "dist/index.mjs",
+  "typings": "dist/index.d.mts",
+  "scripts": {
+    "build": "tsdown",
+    "test": "tsx --test test/*.test.ts",
+    "prepack": "pnpm build"
+  },
+  "keywords": [],
+  "author": "fraqjs",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fraqjs/fraq.git"
+  },
+  "homepage": "https://fraq.ntqqrev.org/",
+  "license": "MIT",
+  "peerDependencies": {
+    "@fraqjs/fraq": "workspace:^"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.0.5",
+    "hono": "^4.12.26"
+  },
+  "devDependencies": {
+    "@fraqjs/mock": "workspace:^"
+  }
+}
