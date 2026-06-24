@@ -3,9 +3,7 @@
     "target": "ESNext",
     "useDefineForClassFields": true,
     "module": "esnext",
-    "lib": [
-      "ESNext"
-    ],
+    "lib": ["ESNext"],
     "skipLibCheck": true,
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": false,
