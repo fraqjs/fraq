@@ -30,7 +30,16 @@ const ctx = Context.fromUrl('http://localhost:30001', {
 const ctx = Context.fromClient(client);
 ```
 
-这种方式只要求客户端提供 Milky API 调用能力和事件流入口，具体通信方式可以由客户端自行决定。
+这种方式只要求客户端提供 Milky API 调用能力，具体通信方式可以由客户端自行决定。
+
+{/* prettier-ignore */}
+<Callout>
+Fraq 将客户端能力分为两个接口：`MilkyClient` 和 `MilkyEventSource`。前者用于调用 Milky API，后者用于接收 Milky 推送的事件。`Context.fromClient` 只要求客户端实现 `MilkyClient` 接口，但如果客户端也实现了 `MilkyEventSource` 接口，那么 `Context` 会自动订阅客户端的事件流，并触发相应的事件监听器。而 `fromUrl` 方法会自动创建一个默认的 `MilkyEventSource`，并订阅事件流。
+
+如果你需要在使用 `fromUrl` 或 `fromClient` 创建 `Context` 时传入自定义的 `MilkyEventSource`，可以在调用上述方法时将 `installEventSource` 选项设置为 `false`，然后在创建 `Context` 后调用 `ctx.installEventSource` 来安装自定义的事件源。
+
+</Callout>
+{/* pretty-ignore-end */}
 
 ## 设定计时任务
 
