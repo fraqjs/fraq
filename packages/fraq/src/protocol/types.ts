@@ -1,7 +1,7 @@
-// Generated from Milky 1.3 (1.3.0-rc.1)
+// Generated from Milky 1.3 (1.3.0-rc.2)
 
 export const milkyVersion = '1.3';
-export const milkyPackageVersion = '1.3.0-rc.1';
+export const milkyPackageVersion = '1.3.0-rc.2';
 
 // ####################################
 // Common Structs
@@ -2593,7 +2593,7 @@ export interface GetImplInfoOutput {
   qq_protocol_version: string;
   /** 协议端使用的 QQ 协议平台 */
   qq_protocol_type: 'windows' | 'linux' | 'macos' | 'android_pad' | 'android_phone' | 'ipad' | 'iphone' | 'harmony' | 'watch';
-  /** 协议端实现的 Milky 协议版本，目前为 "1.2" */
+  /** 协议端实现的 Milky 协议版本，目前为 "1.3" */
   milky_version: string;
 }
 
@@ -2607,7 +2607,7 @@ export interface GetImplInfoOutput_ZodInput {
   qq_protocol_version: string;
   /** 协议端使用的 QQ 协议平台 */
   qq_protocol_type: 'windows' | 'linux' | 'macos' | 'android_pad' | 'android_phone' | 'ipad' | 'iphone' | 'harmony' | 'watch';
-  /** 协议端实现的 Milky 协议版本，目前为 "1.2" */
+  /** 协议端实现的 Milky 协议版本，目前为 "1.3" */
   milky_version: string;
 }
 
@@ -4103,6 +4103,8 @@ export interface GetPrivateFileDownloadUrlInput {
   file_id: string;
   /** 文件的 TriSHA1 哈希值 */
   file_hash: string;
+  /** 是否为自己发送的文件 */
+  is_self_send: boolean;
 }
 
 /** 获取私聊文件下载链接 API 请求参数 */
@@ -4113,6 +4115,8 @@ export interface GetPrivateFileDownloadUrlInput_ZodInput {
   file_id: string;
   /** 文件的 TriSHA1 哈希值 */
   file_hash: string;
+  /** 是否为自己发送的文件 */
+  is_self_send?: boolean | null | undefined;
 }
 
 /** 获取私聊文件下载链接 API 响应数据 */
