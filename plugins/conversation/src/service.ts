@@ -146,8 +146,8 @@ export class ConversationService {
     assertPositiveTimeout(this.defaultTimeout, 'defaultTimeout');
     this.onCollision = options?.onCollision ?? 'reject-incoming';
 
-    ctx.on('message_receive', ({ data }) => {
-      void this.accept(data);
+    ctx.on('message_receive', ({ self_id, data }) => {
+      void this.accept(self_id, data);
     });
   }
 
@@ -234,8 +234,8 @@ export class ConversationService {
     });
   }
 
-  private async accept(raw: milky.IncomingMessage): Promise<void> {
-    const session = this.ctx.createSession(raw);
+  private async accept(selfId: number, raw: milky.IncomingMessage): Promise<void> {
+    const session = this.ctx.createSession(selfId, raw);
     const commandMatch = this.router.match(session, raw);
     const commandBranch = commandMatch ? branchFromMatch(commandMatch) : undefined;
     const active = this.activeConversations.get(conversationKey(raw));
