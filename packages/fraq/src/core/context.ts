@@ -95,12 +95,12 @@ export class Context {
       };
       parent.eventBus.on('*', this.parentEventForwarder);
     }
-    this.eventBus.on('message_receive', async ({ data: message }) => {
+    this.eventBus.on('message_receive', async ({ self_id, data: message }) => {
       try {
         if (this.state === 'stopping' || this.state === 'stopped') {
           return;
         }
-        await this.router.dispatch(this.createSession(message), message);
+        await this.router.dispatch(this.createSession(self_id, message), message);
       } catch (error) {
         this.logger.error(
           `Error routing command (scene=${message.message_scene} peer=${message.peer_id} sender=${message.sender_id} seq=${message.message_seq})`,
@@ -216,8 +216,9 @@ and implement the dispose method to clean up resources when the context stops.
     return interval;
   }
 
-  createSession(message: IncomingMessage): Session {
+  createSession(selfId: number, message: IncomingMessage): Session {
     return {
+      selfId,
       raw: message,
       reply: async (textOrSegments, options) => {
         const actualSegments: OutgoingSegment_ZodInput[] = [];

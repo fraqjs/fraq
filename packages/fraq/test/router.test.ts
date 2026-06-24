@@ -9,6 +9,7 @@ const inbox = createMockInbox();
 
 function session(raw: milky.IncomingMessage): Session {
   return {
+    selfId: 10001,
     raw,
     async reply() {
       return { messageSeq: 0 };

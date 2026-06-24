@@ -27,6 +27,7 @@ export interface SessionReplyOptions {
 }
 
 export interface Session {
+  selfId: number;
   raw: types.IncomingMessage;
   reply(
     textOrSegments: string | types.OutgoingSegment_ZodInput[],
