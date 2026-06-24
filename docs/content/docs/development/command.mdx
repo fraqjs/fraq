@@ -329,6 +329,7 @@ ctx.router.command({
 
 ```typescript
 interface Session {
+  selfId: number;
   raw: milky.IncomingMessage;
   reply(
     textOrSegments: string | milky.OutgoingSegment_ZodInput[],
@@ -341,6 +342,7 @@ interface Session {
 }
 ```
 
+- `selfId`：当前机器人的 QQ 号。
 - `raw`：触发该指令的原始 Milky 消息对象，包含来源、发送者、消息段等信息。
 - `reply`：回复当前会话。第一个参数可以是一个字符串或消息段数组，第二个参数可以控制是否自动引用原消息或提及发送者。它会返回发送成功后的消息序号。
 - `reaction`：给触发该指令的消息添加表情回应，仅在群聊场景下生效。`type` 可以是 `'face'` 或 `'emoji'`，`reactionId` 是对应的表情 ID。
