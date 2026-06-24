@@ -5,6 +5,7 @@ export * from './core/plugin';
 export * from './core/service';
 export * from './protocol/client';
 export * from './protocol/endpoint';
+export * from './protocol/event';
 export * from './protocol/segment';
 export type * as milky from './protocol/types';
 export { milkyPackageVersion, milkyVersion } from './protocol/types';

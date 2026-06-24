@@ -1,5 +1,4 @@
 import type { ApiEndpoints } from './endpoint';
-import type { Event } from './types';
 
 interface MilkyApiResponseRoot {
   status: 'ok' | 'failed';
@@ -8,14 +7,7 @@ interface MilkyApiResponseRoot {
   data?: unknown;
 }
 
-export interface MilkyEventSubscription {
-  closed: Promise<void>;
-  stop(): void | Promise<void>;
-}
-
-export interface MilkyClient extends ApiEndpoints {
-  startEvents(onEvent: (event: Event) => void | Promise<void>): Promise<MilkyEventSubscription>;
-}
+export interface MilkyClient extends ApiEndpoints {}
 
 class MilkyClientBase {
   readonly baseUrl: string;
@@ -55,47 +47,6 @@ class MilkyClientBase {
       throw new Error(`API call ${endpoint} failed with retcode ${json.retcode}: ${json.message}`);
     }
     return json.data;
-  }
-
-  async startEvents(onEvent: (event: Event) => void | Promise<void>): Promise<MilkyEventSubscription> {
-    const ws = new WebSocket(`${this.wsBaseUrl}/event${this.accessToken ? `?access_token=${this.accessToken}` : ''}`);
-    let closeSubscription: (error?: unknown) => void = () => {};
-    const closed = new Promise<void>((resolve, reject) => {
-      closeSubscription = (error?: unknown) => {
-        if (error) {
-          reject(error);
-        } else {
-          resolve();
-        }
-      };
-    });
-
-    ws.addEventListener('message', async (event) => {
-      try {
-        if (typeof event.data !== 'string') {
-          throw new Error(`Expected text frame, got ${typeof event.data}`);
-        }
-        await onEvent(JSON.parse(event.data) as Event);
-      } catch (error) {
-        closeSubscription(error);
-        ws.close();
-      }
-    });
-
-    await new Promise<void>((resolve, reject) => {
-      ws.addEventListener('open', () => resolve(), { once: true });
-      ws.addEventListener('error', (event) => reject(new Error(`WebSocket error: ${event}`)));
-    });
-
-    ws.addEventListener('error', (event) => closeSubscription(new Error(`WebSocket error: ${event}`)));
-    ws.addEventListener('close', () => closeSubscription(), { once: true });
-
-    return {
-      closed,
-      stop() {
-        ws.close();
-      },
-    };
   }
 }
 

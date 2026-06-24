@@ -1,4 +1,4 @@
-import type { MilkyClient, MilkyEventSubscription, milky } from '@fraqjs/fraq';
+import type { MilkyClient, MilkyEventSource, MilkyEventSubscription, milky } from '@fraqjs/fraq';
 
 import {
   type MockFriendMessageOptions,
@@ -25,7 +25,7 @@ export interface MockMilkyClientOptions {
   inbox?: MockInbox;
 }
 
-export class MockMilkyClientBase {
+export class MockMilkyClientBase implements MilkyEventSource {
   readonly inbox: MockInbox;
 
   readonly apiCalls: MockApiCall[] = [];
@@ -47,7 +47,7 @@ export class MockMilkyClientBase {
     this.stubApi('get_group_member_info', (params) => this.inbox.getGroupMemberInfo(params));
   }
 
-  async startEvents(handler: (event: milky.Event) => void | Promise<void>): Promise<MilkyEventSubscription> {
+  async start(handler: (event: milky.Event) => void | Promise<void>): Promise<MilkyEventSubscription> {
     this.startEventCalls += 1;
     if (this.nextStartError) {
       const error = this.nextStartError;

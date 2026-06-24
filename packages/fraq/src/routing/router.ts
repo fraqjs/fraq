@@ -149,7 +149,7 @@ export class Router {
 
   private matchCommand(command: Command<Pattern>, tokenizer: Tokenizer, path: string[]): RouteMatchResult | undefined {
     const token = tokenizer.peek();
-    if (typeof token !== 'string' || (token !== command.name && !(command.aliases?.includes(token)))) {
+    if (typeof token !== 'string' || (token !== command.name && !command.aliases?.includes(token))) {
       return undefined;
     }
 

@@ -1,13 +1,6 @@
 import { createMockMilkyClient } from '@fraqjs/mock';
 
-import {
-  Context,
-  type Disposable,
-  definePlugin,
-  type LogMessage,
-  type MilkyClient,
-  type MilkyEventSubscription,
-} from '../src';
+import { Context, type Disposable, definePlugin, type LogMessage, type MilkyClient } from '../src';
 
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -68,7 +61,7 @@ function createSlowStoppingClient(): {
     resolveStopped = resolve;
   });
 
-  client.startEvents = async (): Promise<MilkyEventSubscription> => ({
+  (client as MilkyClient & { start: typeof client.start }).start = async () => ({
     closed: stopped,
     async stop() {
       resolveStopStarted();

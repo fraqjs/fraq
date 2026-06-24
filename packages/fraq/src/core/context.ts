@@ -1,7 +1,8 @@
 import mitt, { type WildcardHandler } from 'mitt';
 
-import { createMilkyClient, type MilkyClient, type MilkyEventSubscription } from '../protocol/client';
+import { createMilkyClient, type MilkyClient } from '../protocol/client';
 import type { EventMap } from '../protocol/endpoint';
+import { createMilkyWebSocketEventSource, type MilkyEventSource, type MilkyEventSubscription } from '../protocol/event';
 import { seg } from '../protocol/segment';
 import type { Event, IncomingMessage, OutgoingSegment_ZodInput } from '../protocol/types';
 import type { Session } from '../routing/command';
@@ -27,6 +28,13 @@ type AppliedContextPlugins = {
   sortedPlugins: InstalledPlugin[];
 };
 
+type EventSourceRuntime = {
+  subscription?: MilkyEventSubscription;
+  task?: Promise<void>;
+  reconnectTimer?: ReturnType<typeof setTimeout>;
+  resolveReconnectTimer?: () => void;
+};
+
 export interface ContextOptions {
   reconnect?: {
     initialDelayMs?: number;
@@ -37,6 +45,7 @@ export interface ContextOptions {
 
 export interface ContextUrlOptions {
   accessToken?: string;
+  installEventSource?: boolean;
 }
 
 export class Context {
@@ -50,6 +59,7 @@ export class Context {
   private readonly plugins: InstalledPlugin[] = [];
   private readonly services = new Map<ServiceClass, object>();
   private readonly subContexts = new Map<string, Context>();
+  private readonly eventSourceRuntimes = new Map<MilkyEventSource, EventSourceRuntime>();
   private readonly parentEventForwarder?: WildcardHandler<EventMap>;
   private readonly timers = new Set<NodeJS.Timeout>();
 
@@ -60,10 +70,6 @@ export class Context {
   private state: ContextState = 'idle';
   private startPromise?: Promise<void>;
   private stopPromise?: Promise<void>;
-  private eventSubscription?: MilkyEventSubscription;
-  private eventStreamTask?: Promise<void>;
-  private reconnectTimer?: ReturnType<typeof setTimeout>;
-  private resolveReconnectTimer?: () => void;
 
   private constructor(
     readonly client: MilkyClient,
@@ -126,6 +132,16 @@ export class Context {
     ...args: T
   ): void {
     this.plugins.push({ plugin: plugin as Plugin<ParameterList, Injection | undefined, Injection | undefined>, args });
+  }
+
+  installEventSource(eventSource: MilkyEventSource): void {
+    if (this.eventSourceRuntimes.has(eventSource)) {
+      return;
+    }
+    this.eventSourceRuntimes.set(eventSource, {});
+    if (this.state === 'started') {
+      this.startEventSource(eventSource);
+    }
   }
 
   provide<T extends object>(service: ServiceClass<T>, instance: T): void {
@@ -320,9 +336,9 @@ and implement the dispose method to clean up resources when the context stops.
     }
     for (const { context } of appliedContextPlugins) {
       context.state = 'started';
-    }
-    if (!this.parent) {
-      this.eventStreamTask = this.runEventStream();
+      for (const eventSource of context.eventSourceRuntimes.keys()) {
+        context.startEventSource(eventSource);
+      }
     }
   }
 
@@ -343,7 +359,7 @@ and implement the dispose method to clean up resources when the context stops.
       }
     }
 
-    await this.stopEventStream(errors);
+    await this.stopEventSources(errors);
 
     if (this.parent && this.parentEventForwarder) {
       this.parent.eventBus.off('*', this.parentEventForwarder);
@@ -395,25 +411,30 @@ and implement the dispose method to clean up resources when the context stops.
     this.timers.clear();
   }
 
-  private async stopEventStream(errors: unknown[]): Promise<void> {
-    this.resolveReconnectDelay();
-
-    const subscription = this.eventSubscription;
-    if (subscription) {
+  private async stopEventSources(errors: unknown[]): Promise<void> {
+    for (const [_, runtime] of this.eventSourceRuntimes) {
+      this.resolveReconnectDelay(runtime);
+      const subscription = runtime.subscription;
+      if (!subscription) {
+        continue;
+      }
       try {
         await subscription.stop();
       } catch (error) {
         errors.push(error);
       }
+      runtime.subscription = undefined;
     }
-
-    if (this.eventStreamTask) {
+    for (const runtime of this.eventSourceRuntimes.values()) {
+      if (!runtime.task) {
+        continue;
+      }
       try {
-        await this.eventStreamTask;
+        await runtime.task;
       } catch (error) {
         errors.push(error);
       } finally {
-        this.eventStreamTask = undefined;
+        runtime.task = undefined;
       }
     }
   }
@@ -672,13 +693,21 @@ and implement the dispose method to clean up resources when the context stops.
     });
   }
 
-  private async runEventStream(): Promise<void> {
+  private startEventSource(eventSource: MilkyEventSource): void {
+    const runtime = this.eventSourceRuntimes.get(eventSource);
+    if (!runtime) {
+      return;
+    }
+    runtime.task = this.runEventSource(eventSource, runtime);
+  }
+
+  private async runEventSource(eventSource: MilkyEventSource, runtime: EventSourceRuntime): Promise<void> {
     let reconnectDelay = this.initialReconnectDelayMs;
     let reconnectAttempt = 1;
     while (this.state === 'started') {
       try {
-        this.logger.debug(`Connecting event stream (attempt=${reconnectAttempt})`);
-        const subscription = await this.client.startEvents((event: Event) => {
+        this.logger.debug(`Connecting ${eventSource.name ?? 'event source'} (attempt=${reconnectAttempt})`);
+        const subscription = await eventSource.start((event: Event) => {
           try {
             if (this.state !== 'started') {
               return;
@@ -692,56 +721,73 @@ and implement the dispose method to clean up resources when the context stops.
           await subscription.stop();
           break;
         }
-        this.eventSubscription = subscription;
-        this.logger.info('Event stream connected');
+        runtime.subscription = subscription;
+        this.logger.info(`${eventSource.name ?? 'Event source'} connected`);
         reconnectDelay = this.initialReconnectDelayMs;
         reconnectAttempt = 1;
         await subscription.closed;
-        this.eventSubscription = undefined;
+        if (runtime.subscription === subscription) {
+          runtime.subscription = undefined;
+        }
         if (this.state !== 'started') {
           break;
         }
-        this.logger.warn(`Event stream disconnected; reconnecting in ${reconnectDelay}ms`);
+        this.logger.warn(`${eventSource.name ?? 'Event source'} disconnected; reconnecting in ${reconnectDelay}ms`);
       } catch (error) {
-        this.eventSubscription = undefined;
         if (this.state !== 'started') {
           break;
         }
-        this.logger.error(`Error connecting event stream; reconnecting in ${reconnectDelay}ms`, error);
+        this.logger.error(
+          `Error connecting ${eventSource.name ?? 'event source'}; reconnecting in ${reconnectDelay}ms`,
+          error,
+        );
       }
-      await this.waitForReconnectDelay(reconnectDelay);
+      await this.waitForReconnectDelay(runtime, reconnectDelay);
       reconnectDelay = Math.min(reconnectDelay * 2, this.maxReconnectDelayMs);
       reconnectAttempt += 1;
     }
   }
 
-  private waitForReconnectDelay(delay: number): Promise<void> {
+  private waitForReconnectDelay(runtime: EventSourceRuntime, delay: number): Promise<void> {
     return new Promise((resolve) => {
-      this.resolveReconnectTimer = resolve;
-      this.reconnectTimer = setTimeout(() => {
-        this.reconnectTimer = undefined;
-        this.resolveReconnectTimer = undefined;
+      runtime.resolveReconnectTimer = resolve;
+      runtime.reconnectTimer = setTimeout(() => {
+        runtime.reconnectTimer = undefined;
+        runtime.resolveReconnectTimer = undefined;
         resolve();
       }, delay);
     });
   }
 
-  private resolveReconnectDelay(): void {
-    if (this.reconnectTimer) {
-      clearTimeout(this.reconnectTimer);
-      this.reconnectTimer = undefined;
+  private resolveReconnectDelay(runtime: EventSourceRuntime): void {
+    if (runtime.reconnectTimer) {
+      clearTimeout(runtime.reconnectTimer);
+      runtime.reconnectTimer = undefined;
     }
-    const resolve = this.resolveReconnectTimer;
-    this.resolveReconnectTimer = undefined;
+    const resolve = runtime.resolveReconnectTimer;
+    runtime.resolveReconnectTimer = undefined;
     resolve?.();
   }
 
   static fromUrl(baseUrl: string | URL, options?: ContextOptions & ContextUrlOptions): Context {
     const client = createMilkyClient(baseUrl, { accessToken: options?.accessToken });
-    return new Context(client, options);
+    const context = new Context(client, options);
+    if (options?.installEventSource ?? true) {
+      context.installEventSource(
+        createMilkyWebSocketEventSource(baseUrl, {
+          accessToken: options?.accessToken,
+        }),
+      );
+    }
+    return context;
   }
 
   static fromClient(client: MilkyClient, options?: ContextOptions): Context {
-    return new Context(client, options);
+    const context = new Context(client, options);
+    const eventSourceLike = client as Partial<MilkyEventSource>;
+    if (typeof eventSourceLike.start === 'function') {
+      context.installEventSource(eventSourceLike as MilkyEventSource);
+    }
+    return context;
   }
 }

@@ -1,5 +1,4 @@
-import { Context, type milky } from '@fraqjs/fraq';
-
+import { Context, type milky } from '../../fraq/src';
 import { createMockMilkyClient, inmsg, MockInbox } from '../src';
 
 import assert from 'node:assert/strict';
@@ -19,6 +18,20 @@ test('mock client receives inbox-backed friend messages through the event stream
 
   assert.equal(received.length, 1);
   assert.equal(received[0], message);
+});
+
+test('mock client implements the event source start contract', async () => {
+  const client = createMockMilkyClient();
+  const received: milky.Event[] = [];
+  const subscription = await client.start((event) => {
+    received.push(event);
+  });
+
+  await client.receiveFriend({ userId: 10001 }, inmsg`ping`);
+  await subscription.stop();
+  await subscription.closed;
+
+  assert.equal(received.length, 1);
 });
 
 test('built-in message query APIs read from the inbox state', async () => {
