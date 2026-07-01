@@ -19,7 +19,7 @@
     "type": "git",
     "url": "git+https://github.com/fraqjs/fraq.git"
   },
-  "homepage": "https://fraq.ntqqrev.org/",
+  "homepage": "https://fraq.dev/",
   "license": "MIT",
   "devDependencies": {
     "@fraqjs/plugin-random": "workspace:^"

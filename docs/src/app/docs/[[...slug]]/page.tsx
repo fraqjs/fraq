@@ -55,7 +55,7 @@ export async function generateMetadata(props: PageProps<'/docs/[[...slug]]'>): P
   if (!page) notFound();
 
   return {
-    metadataBase: new URL('https://fraq.ntqqrev.org'),
+    metadataBase: new URL('https://fraq.dev'),
     title: `Fraq | ${page.data.title}`,
     description: page.data.description,
     openGraph: {

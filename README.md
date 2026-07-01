@@ -60,7 +60,7 @@ ctx.fork("Group B", filter.group(987654321)).install(PluginB);
 
 ## Documentation
 
-前往[官方文档](https://fraq.ntqqrev.org)查看详细的使用指南。
+前往[官方文档](https://fraq.dev)查看详细的使用指南。
 
 ## See Also
 

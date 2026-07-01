@@ -50,4 +50,4 @@ npx tsx index.ts
 
 上面的例子只是 Fraq 的最小使用方式，你还可以继续了解如何构造更丰富的消息、定义更复杂的指令参数、编写可复用的插件等。
 
-完整文档请见 [fraq.ntqqrev.org](https://fraq.ntqqrev.org/)。
+完整文档请见 [fraq.dev](https://fraq.dev/)。
