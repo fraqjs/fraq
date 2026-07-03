@@ -167,7 +167,9 @@ export class TakumiService implements Disposable {
   private async processEmoji(node: Node, emojiType: EmojiType = 'twemoji') {
     const processedNode = extractEmojis(node, emojiType);
     const resourceUrls = extractResourceUrls(processedNode);
-    const fetchedResources = await fetchResources(resourceUrls);
+    const fetchedResources = await fetchResources(resourceUrls, {
+      throwOnError: false,
+    });
     return { node: processedNode, fetchedResources };
   }
 
