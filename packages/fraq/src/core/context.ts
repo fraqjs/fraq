@@ -54,6 +54,7 @@ export class Context {
   readonly router = new Router();
   readonly logger: Logger;
   readonly name: string;
+  readonly routeActivationResolver: RouteActivationResolver;
 
   private readonly parent?: Context;
   private readonly filter?: Filter;
@@ -68,7 +69,6 @@ export class Context {
   private readonly initialReconnectDelayMs: number;
   private readonly maxReconnectDelayMs: number;
   private readonly logHandler?: LogHandler;
-  private readonly routeActivationResolver: RouteActivationResolver;
 
   private state: ContextState = 'idle';
   private startPromise?: Promise<void>;
