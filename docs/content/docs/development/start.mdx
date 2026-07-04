@@ -16,15 +16,30 @@ You said: <任意文本>
 
 的消息。下面我们开始编写这个机器人。
 
+## 创建项目
+
+Fraq 提供了一个[模板仓库](https://github.com/fraqjs/starter-template)方便你快速创建一个新的 Fraq 项目。你可以点击 "Use this template" 按钮来创建一个新的仓库，然后克隆到本地。
+
+模板仓库使用 `pnpm` 作为包管理器，因此你需要先安装 `pnpm`。如果你还没有安装，可以参考 [pnpm 官方文档](https://pnpm.io/zh/installation)来安装。确保 `pnpm` 可用之后，在项目根目录下运行以下命令来安装依赖：
+
+```bash
+pnpm install
+```
+
+强烈建议使用 TypeScript 来编写 Fraq 代码。
+
 ## 编写代码
 
-首先，启动你的 Milky 协议端，并确认它监听的地址与端口。然后，在你的项目中创建一个 `index.ts` 文件，并添加以下代码：
+首先，启动你的 Milky 协议端，并确认它监听 `127.0.0.1` 地址的 `30001` 端口。然后，打开你的项目的 `src/index.ts` 文件，你会看到以下的代码：
 
 ```typescript
+import { createColoredLogHandler } from '@fraqjs/color-log';
 import { Context, param } from '@fraqjs/fraq';
 
-const ctx = Context.fromUrl('<替换成你的 Milky 协议端地址>', {
-  // accessToken: '<如果你的 Milky 协议端配置了 token，请在这里添加>',
+const ctx = Context.fromUrl('http://127.0.0.1:30001/', {
+  logHandler: createColoredLogHandler({
+    minLevel: 'debug',
+  }),
 });
 
 ctx.router
@@ -37,21 +52,22 @@ ctx.router
 ctx.start();
 ```
 
-在一切完成之后，用 `tsx` 执行你的 `index.ts` 文件：
+用以下命令启动你的 Fraq 项目：
 
 ```bash
-npx tsx index.ts
-# 或 tsx index.ts, 如果你全局安装了 tsx
+pnpm start
 ```
 
-你可以在任何一个包含它的会话中发送 `echo Hello` 来测试它是否正常工作。
+你可以在任何一个包含机器人的会话中发送 `echo Hello` 来测试它是否正常工作。
 
 ## 到底做了些什么？
 
 我们来逐行解释一下上面的代码：
 
 ```typescript
-const ctx = Context.fromUrl('<替换成你的 Milky 协议端地址>');
+const ctx = Context.fromUrl('http://localhost:30001/', {
+  // logHandler 的配置
+});
 ```
 
 `Context` 是 Fraq 的核心类，代表了一个机器人实例，它包含了机器人的配置、状态、路由等信息。我们通过 `Context.fromUrl` 方法来创建一个新的 `Context` 实例，并传入 Milky 协议端的地址。
