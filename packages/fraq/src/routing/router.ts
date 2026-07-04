@@ -1,10 +1,34 @@
 /** biome-ignore-all lint/suspicious/noExplicitAny: This file is meant to be used by users of the library, so we want to allow any types for flexibility. */
 /** biome-ignore-all lint/complexity/noBannedTypes: {} is used in CommandBuilder to allow flexible pattern definitions. */
 import type * as types from '../protocol/types';
-import { type Command, CommandBuilder, type ParamsOf, type Pattern, type RawPattern, type Session } from './command';
+import {
+  type Command,
+  CommandBuilder,
+  mergeRouteMeta,
+  type ParamsOf,
+  type Pattern,
+  type RawPattern,
+  type RouteMeta,
+  type Session,
+} from './command';
 import { Tokenizer } from './tokenizer';
 
 export type SessionPredicate = (session: Session) => boolean;
+
+export type RouteActivation = { type: 'direct' } | { type: 'mention' } | { type: 'prefix'; prefix: string };
+
+export type RouteDescriptor =
+  | { type: 'command'; path: readonly string[]; name: string; aliases?: readonly string[]; meta?: RouteMeta }
+  | { type: 'rawPattern'; path: readonly string[]; meta?: RouteMeta };
+
+export type RouteActivationResolver = (
+  route: RouteDescriptor,
+  session: Session,
+) => readonly RouteActivation[] | undefined;
+
+const DEFAULT_ACTIVATIONS: readonly RouteActivation[] = [{ type: 'direct' }];
+
+export const defaultRouteActivationResolver: RouteActivationResolver = () => DEFAULT_ACTIVATIONS;
 
 export type RouteEntry =
   | { type: 'command'; command: Command<Pattern> }
@@ -13,16 +37,31 @@ export type RouteEntry =
   | { type: 'rawPattern'; rawPattern: RawPattern<Pattern> };
 
 export type RouteBranch =
-  | { type: 'command'; path: string[]; command: Command<Pattern> }
-  | { type: 'rawPattern'; path: string[]; rawPattern: RawPattern<Pattern> };
+  | { type: 'command'; path: string[]; command: Command<Pattern>; meta?: RouteMeta }
+  | { type: 'rawPattern'; path: string[]; rawPattern: RawPattern<Pattern>; meta?: RouteMeta };
 
 export type RouteMatchResult =
-  | { type: 'command'; path: string[]; command: Command<Pattern>; params: any }
-  | { type: 'rawPattern'; path: string[]; rawPattern: RawPattern<Pattern>; params: any };
+  | { type: 'command'; path: string[]; command: Command<Pattern>; params: any; activation?: RouteActivation }
+  | { type: 'rawPattern'; path: string[]; rawPattern: RawPattern<Pattern>; params: any; activation?: RouteActivation };
 
 export class Router {
-  private readonly entries: RouteEntry[] = [];
-  private readonly groups = new Map<string, Router>();
+  private entries: RouteEntry[] = [];
+  private groups = new Map<string, Router>();
+  private activationResolver: RouteActivationResolver = defaultRouteActivationResolver;
+  private scopeMeta?: RouteMeta;
+
+  setActivationResolver(resolver: RouteActivationResolver): this {
+    this.activationResolver = resolver;
+    return this;
+  }
+
+  withMeta(meta: RouteMeta): Router {
+    const router = new Router();
+    router.entries = this.entries;
+    router.groups = this.groups;
+    router.scopeMeta = mergeRouteMeta(this.scopeMeta, meta);
+    return router;
+  }
 
   command(name: string): CommandBuilder;
   command<P extends Pattern>(command: Command<P>): this;
@@ -33,10 +72,11 @@ export class Router {
         return builtCommand;
       });
     }
-    this.validatePattern(command.pattern);
-    this.resolveAliasConflicts(command);
+    const scopedCommand = this.applyScopeMeta(command);
+    this.validatePattern(scopedCommand.pattern);
+    this.resolveAliasConflicts(scopedCommand);
     // @ts-expect-error
-    this.entries.push({ type: 'command', command });
+    this.entries.push({ type: 'command', command: scopedCommand });
     return this;
   }
 
@@ -50,9 +90,10 @@ export class Router {
         return builtCommand;
       });
     }
-    this.validatePattern(rawPattern.pattern, { rawPattern: true });
+    const scopedRawPattern = this.applyScopeMeta(rawPattern);
+    this.validatePattern(scopedRawPattern.pattern, { rawPattern: true });
     // @ts-expect-error
-    this.entries.push({ type: 'rawPattern', rawPattern });
+    this.entries.push({ type: 'rawPattern', rawPattern: scopedRawPattern });
     return this;
   }
 
@@ -63,13 +104,13 @@ export class Router {
       this.groups.set(name, router);
       this.entries.push({ type: 'group', name, router });
     }
-    return router;
+    return this.scopeMeta ? router.withMeta(this.scopeMeta) : router;
   }
 
   filter(predicate: SessionPredicate): Router {
     const router = new Router();
     this.entries.push({ type: 'filter', predicate: predicate, router });
-    return router;
+    return this.scopeMeta ? router.withMeta(this.scopeMeta) : router;
   }
 
   routes(): RouteEntry[] {
@@ -86,12 +127,27 @@ export class Router {
   }
 
   branches(session: Session): RouteBranch[] {
-    return this.branchesFrom(session, []);
+    return [...this.branchesFrom(session, [], { includeHidden: false })];
   }
 
   match(session: Session, message: types.IncomingMessage): RouteMatchResult | undefined {
-    const tokenizer = new Tokenizer(message.segments);
-    return this.matchFrom(session, tokenizer, []);
+    for (const branch of this.branchesFrom(session, [], { includeHidden: true })) {
+      const descriptor = this.describeBranch(branch);
+      const activations = this.activationResolver(descriptor, session) ?? DEFAULT_ACTIVATIONS;
+      for (const activation of activations) {
+        const tokenizer = new Tokenizer(message.segments);
+        if (!this.consumeActivation(tokenizer, activation, session)) {
+          continue;
+        }
+
+        const match = this.matchBranch(branch, tokenizer, activation);
+        if (match !== undefined) {
+          return match;
+        }
+      }
+    }
+
+    return undefined;
   }
 
   async dispatch(session: Session, message: types.IncomingMessage): Promise<boolean> {
@@ -110,44 +166,81 @@ export class Router {
     return true;
   }
 
-  private matchFrom(session: Session, tokenizer: Tokenizer, path: string[]): RouteMatchResult | undefined {
-    const initialState = tokenizer.getState();
-
-    for (const entry of this.entries) {
-      tokenizer.setState(initialState);
-
-      const match = this.matchEntry(entry, session, tokenizer, path);
-      if (match !== undefined) {
-        return match;
+  private describeBranch(branch: RouteBranch): RouteDescriptor {
+    switch (branch.type) {
+      case 'command': {
+        const descriptor: RouteDescriptor = {
+          type: 'command',
+          path: [...branch.path],
+          name: branch.command.name,
+        };
+        if (branch.command.aliases !== undefined) {
+          descriptor.aliases = [...branch.command.aliases];
+        }
+        if (branch.command.meta !== undefined) {
+          descriptor.meta = branch.command.meta;
+        }
+        return descriptor;
+      }
+      case 'rawPattern': {
+        const descriptor: RouteDescriptor = {
+          type: 'rawPattern',
+          path: [...branch.path],
+        };
+        if (branch.rawPattern.meta !== undefined) {
+          descriptor.meta = branch.rawPattern.meta;
+        }
+        return descriptor;
       }
     }
-
-    tokenizer.setState(initialState);
-    return undefined;
   }
 
-  private matchEntry(
-    entry: RouteEntry,
-    session: Session,
-    tokenizer: Tokenizer,
-    path: string[],
-  ): RouteMatchResult | undefined {
-    switch (entry.type) {
-      case 'command':
-        return this.matchCommand(entry.command, tokenizer, path);
-      case 'group':
-        return this.matchGroup(entry.name, entry.router, session, tokenizer, path);
-      case 'filter':
-        if (entry.predicate(session) !== true) {
-          return undefined;
-        }
-        return entry.router.matchFrom(session, tokenizer, path);
-      case 'rawPattern':
-        return this.matchRawPattern(entry.rawPattern, tokenizer, path);
+  private consumeActivation(tokenizer: Tokenizer, activation: RouteActivation, session: Session): boolean {
+    switch (activation.type) {
+      case 'direct':
+        return true;
+      case 'mention':
+        return tokenizer.consumeMention(session.selfId);
+      case 'prefix':
+        return tokenizer.consumeTextPrefix(activation.prefix);
     }
   }
 
-  private matchCommand(command: Command<Pattern>, tokenizer: Tokenizer, path: string[]): RouteMatchResult | undefined {
+  private matchBranch(
+    branch: RouteBranch,
+    tokenizer: Tokenizer,
+    activation: RouteActivation,
+  ): RouteMatchResult | undefined {
+    if (!this.matchPath(branch.path, tokenizer)) {
+      return undefined;
+    }
+
+    switch (branch.type) {
+      case 'command':
+        return this.matchCommand(branch.command, tokenizer, branch.path, activation);
+      case 'rawPattern':
+        return this.matchRawPattern(branch.rawPattern, tokenizer, branch.path, activation);
+    }
+  }
+
+  private matchPath(path: string[], tokenizer: Tokenizer): boolean {
+    for (const name of path) {
+      const token = tokenizer.peek();
+      if (typeof token !== 'string' || token !== name) {
+        return false;
+      }
+      tokenizer.next();
+    }
+
+    return true;
+  }
+
+  private matchCommand(
+    command: Command<Pattern>,
+    tokenizer: Tokenizer,
+    path: string[],
+    activation: RouteActivation,
+  ): RouteMatchResult | undefined {
     const token = tokenizer.peek();
     if (typeof token !== 'string' || (token !== command.name && !command.aliases?.includes(token))) {
       return undefined;
@@ -159,63 +252,65 @@ export class Router {
       return undefined;
     }
 
-    return { type: 'command', path: [...path], command, params };
-  }
-
-  private matchGroup(
-    name: string,
-    router: Router,
-    session: Session,
-    tokenizer: Tokenizer,
-    path: string[],
-  ): RouteMatchResult | undefined {
-    const token = tokenizer.peek();
-    if (typeof token !== 'string' || token !== name) {
-      return undefined;
-    }
-
-    tokenizer.next();
-    return router.matchFrom(session, tokenizer, [...path, name]);
+    return { type: 'command', path: [...path], command, params, activation };
   }
 
   private matchRawPattern(
     rawPattern: RawPattern<Pattern>,
     tokenizer: Tokenizer,
     path: string[],
+    activation: RouteActivation,
   ): RouteMatchResult | undefined {
     const params = this.capturePattern(rawPattern.pattern, tokenizer);
     if (params === undefined || tokenizer.hasNext()) {
       return undefined;
     }
 
-    return { type: 'rawPattern', path: [...path], rawPattern, params };
+    return { type: 'rawPattern', path: [...path], rawPattern, params, activation };
   }
 
-  private branchesFrom(session: Session, path: string[]): RouteBranch[] {
-    const branches: RouteBranch[] = [];
-
+  private *branchesFrom(
+    session: Session,
+    path: string[],
+    options: { includeHidden: boolean },
+  ): IterableIterator<RouteBranch> {
     for (const entry of this.entries) {
       switch (entry.type) {
         case 'command':
-          if (!entry.command.hidden) {
-            branches.push({ type: 'command', path: [...path], command: entry.command });
+          if (options.includeHidden || !entry.command.hidden) {
+            yield { type: 'command', path: [...path], command: entry.command, meta: entry.command.meta };
           }
           break;
         case 'group':
-          branches.push(...entry.router.branchesFrom(session, [...path, entry.name]));
+          yield* entry.router.branchesFrom(session, [...path, entry.name], options);
           break;
         case 'filter':
           if (entry.predicate(session) === true) {
-            branches.push(...entry.router.branchesFrom(session, path));
+            yield* entry.router.branchesFrom(session, path, options);
           }
           break;
         case 'rawPattern':
-          branches.push({ type: 'rawPattern', path: [...path], rawPattern: entry.rawPattern });
+          yield {
+            type: 'rawPattern',
+            path: [...path],
+            rawPattern: entry.rawPattern,
+            meta: entry.rawPattern.meta,
+          };
           break;
       }
     }
+  }
 
-    return branches;
+  private applyScopeMeta<T extends { meta?: RouteMeta }>(route: T): T {
+    if (this.scopeMeta === undefined) {
+      return route;
+    }
+
+    const meta = mergeRouteMeta(route.meta, this.scopeMeta);
+    if (meta === undefined) {
+      return route;
+    }
+    return { ...route, meta };
   }
 
   private resolveAliasConflicts<P extends Pattern>(command: Command<P>): void {

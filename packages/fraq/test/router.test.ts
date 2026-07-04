@@ -1,6 +1,6 @@
 import { createMockInbox, inmsg, inseg } from '@fraqjs/mock';
 
-import { type milky, param, Router, type Session } from '../src';
+import { type milky, param, type RouteDescriptor, Router, type Session } from '../src';
 
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -151,6 +151,27 @@ test('tries later routes after a command pattern fails', async () => {
   assert.deepEqual(calls, ['blue']);
 });
 
+test('does not evaluate later filters after an earlier route matches', async () => {
+  const router = new Router();
+  let checkedLaterFilter = false;
+
+  router.command({
+    name: 'ping',
+    pattern: {},
+    execute() {},
+  });
+  router
+    .filter(() => {
+      checkedLaterFilter = true;
+      return true;
+    })
+    .command('secret')
+    .execute(() => {});
+
+  assert.equal(await dispatch(router, inmsg`ping`), true);
+  assert.equal(checkedLaterFilter, false);
+});
+
 test('dispatches grouped commands after matching the group prefix', async () => {
   const router = new Router();
   let captured = 0;
@@ -167,6 +188,107 @@ test('dispatches grouped commands after matching the group prefix', async () => 
 
   assert.equal(handled, true);
   assert.equal(captured, 42);
+});
+
+test('dispatches commands only after mentioning the current bot when mention activation is required', async () => {
+  const router = new Router();
+  let called = 0;
+
+  router.setActivationResolver(() => [{ type: 'mention' }]);
+  router.command({
+    name: 'ping',
+    pattern: {},
+    execute() {
+      called += 1;
+    },
+  });
+
+  assert.equal(await dispatch(router, [inseg.mention(10001, 'bot'), inseg.text(' ping')]), true);
+  assert.equal(await dispatch(router, [inseg.mention(42, 'alice'), inseg.text(' ping')]), false);
+  assert.equal(await dispatch(router, inmsg`ping`), false);
+  assert.equal(called, 1);
+});
+
+test('dispatches commands after consuming a configured text prefix', async () => {
+  const router = new Router();
+  const calls: string[] = [];
+
+  router.setActivationResolver(() => [
+    { type: 'prefix', prefix: '/' },
+    { type: 'prefix', prefix: '!' },
+  ]);
+  router.command({
+    name: 'say',
+    pattern: { content: param.greedy() },
+    execute(_session, params) {
+      calls.push(params.content);
+    },
+  });
+
+  assert.equal(await dispatch(router, inmsg`/say hello`), true);
+  assert.equal(await dispatch(router, inmsg`/ say spaced`), true);
+  assert.equal(await dispatch(router, inmsg`!say loud`), true);
+  assert.equal(await dispatch(router, inmsg`say ignored`), false);
+  assert.deepEqual(calls, ['hello', 'spaced', 'loud']);
+});
+
+test('does not dispatch routes when the activation resolver returns no activations', async () => {
+  const router = new Router();
+  let called = false;
+
+  router.setActivationResolver(() => []);
+  router.command({
+    name: 'ping',
+    pattern: {},
+    execute() {
+      called = true;
+    },
+  });
+
+  assert.equal(await dispatch(router, inmsg`ping`), false);
+  assert.equal(called, false);
+});
+
+test('dispatches grouped commands with activation before the full route path', async () => {
+  const router = new Router();
+  const calls: number[] = [];
+
+  router.setActivationResolver(() => [{ type: 'mention' }, { type: 'prefix', prefix: '/' }]);
+  router
+    .group('admin')
+    .command('ban')
+    .arg('userId', param.num())
+    .execute((_session, { userId }) => {
+      calls.push(userId);
+    });
+
+  assert.equal(await dispatch(router, [inseg.mention(10001, 'bot'), inseg.text(' admin ban 42')]), true);
+  assert.equal(await dispatch(router, inmsg`/admin ban 7`), true);
+  assert.equal(await dispatch(router, inmsg`admin ban 1`), false);
+  assert.deepEqual(calls, [42, 7]);
+});
+
+test('activation resolver settings are entry-local and not inherited by group routers', async () => {
+  const root = new Router();
+  const admin = root.group('admin');
+  const calls: string[] = [];
+
+  root.setActivationResolver(() => [{ type: 'mention' }]);
+  admin.setActivationResolver(() => [{ type: 'prefix', prefix: '/' }]);
+  admin.command({
+    name: 'ping',
+    pattern: {},
+    execute() {
+      calls.push('ping');
+    },
+  });
+
+  assert.equal(await dispatch(root, [inseg.mention(10001, 'bot'), inseg.text(' admin ping')]), true);
+  assert.equal(await dispatch(root, inmsg`/admin ping`), false);
+  assert.equal(await dispatch(root, inmsg`admin ping`), false);
+  assert.equal(await dispatch(admin, inmsg`/ping`), true);
+  assert.equal(await dispatch(admin, [inseg.mention(10001, 'bot'), inseg.text(' ping')]), false);
+  assert.deepEqual(calls, ['ping', 'ping']);
 });
 
 test('dispatches builder commands under groups and filters', async () => {
@@ -299,6 +421,37 @@ test('lists branches that can pass session filters', () => {
   );
 });
 
+test('route metadata is available to activation resolvers', async () => {
+  const router = new Router();
+  const descriptors: RouteDescriptor[] = [];
+  let called = false;
+
+  router.setActivationResolver((route) => {
+    descriptors.push(route);
+    return route.meta?.plugin === 'alpha' && route.meta.tags?.includes('ops')
+      ? [{ type: 'prefix', prefix: '/' }]
+      : [{ type: 'direct' }];
+  });
+  router
+    .withMeta({ plugin: 'alpha' })
+    .group('admin')
+    .command('ping')
+    .tag('ops')
+    .execute(() => {
+      called = true;
+    });
+
+  assert.equal(await dispatch(router, inmsg`admin ping`), false);
+  assert.equal(await dispatch(router, inmsg`/admin ping`), true);
+  assert.equal(called, true);
+  assert.deepEqual(descriptors.at(-1), {
+    type: 'command',
+    path: ['admin'],
+    name: 'ping',
+    meta: { plugin: 'alpha', tags: ['ops'] },
+  });
+});
+
 test('dispatches raw patterns without a command prefix', async () => {
   const router = new Router();
   let captured = '';
@@ -313,6 +466,25 @@ test('dispatches raw patterns without a command prefix', async () => {
   const handled = await dispatch(router, inmsg`anything goes here`);
 
   assert.equal(handled, true);
+  assert.equal(captured, 'anything goes here');
+});
+
+test('activation policies apply to raw patterns', async () => {
+  const router = new Router();
+  let captured = '';
+
+  router.setActivationResolver((route) =>
+    route.type === 'rawPattern' ? [{ type: 'prefix', prefix: '/' }] : [{ type: 'direct' }],
+  );
+  router.rawPattern({
+    pattern: { content: param.greedy() },
+    execute(_session, params) {
+      captured = params.content;
+    },
+  });
+
+  assert.equal(await dispatch(router, inmsg`anything goes here`), false);
+  assert.equal(await dispatch(router, inmsg`/anything goes here`), true);
   assert.equal(captured, 'anything goes here');
 });
 

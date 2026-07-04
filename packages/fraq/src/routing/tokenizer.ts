@@ -146,6 +146,49 @@ export class Tokenizer {
     return segments;
   }
 
+  consumeMention(userId: number): boolean {
+    const token = this.peek();
+    if (typeof token === 'object' && token !== null && token.type === 'mention' && token.data.user_id === userId) {
+      this.next();
+      return true;
+    }
+
+    return false;
+  }
+
+  consumeTextPrefix(prefix: string): boolean {
+    if (prefix.length === 0) {
+      return false;
+    }
+
+    const position = this.findNextPosition();
+    if (position === undefined) {
+      return false;
+    }
+
+    const segment = this.segments[position.offset];
+    if (segment.type !== 'text') {
+      return false;
+    }
+
+    const prefixStart = this.findTextTokenStart(segment.data.text, position.subOffset ?? 0);
+    if (!segment.data.text.startsWith(prefix, prefixStart)) {
+      return false;
+    }
+
+    const prefixEnd = prefixStart + prefix.length;
+    const nextSubOffset = this.findTextTokenStart(segment.data.text, prefixEnd);
+    if (nextSubOffset < segment.data.text.length) {
+      this.offset = position.offset;
+      this.subOffset = nextSubOffset;
+    } else {
+      this.offset = position.offset + 1;
+      this.subOffset = undefined;
+    }
+
+    return true;
+  }
+
   private findNextPosition(): TokenizerState | undefined {
     let offset = this.offset;
     let subOffset = this.subOffset;

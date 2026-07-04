@@ -666,6 +666,10 @@ and implement the dispose method to clean up resources when the context stops.
       (message) => this.logHandler?.(message),
       `plugin:${this.name ? `${this.name}/` : ''}${plugin.name}`,
     );
+    const proxyRouter = this.router.withMeta({
+      context: this.name,
+      plugin: plugin.name,
+    });
 
     let proxyInjections: undefined | Record<string, object | undefined>;
     if (plugin.inject) {
@@ -685,6 +689,8 @@ and implement the dispose method to clean up resources when the context stops.
       get(target, prop, receiver) {
         if (prop === 'logger') {
           return proxyLogger;
+        } else if (prop === 'router') {
+          return proxyRouter;
         } else if (proxyInjections && prop in proxyInjections) {
           return proxyInjections[prop as keyof typeof proxyInjections];
         } else {

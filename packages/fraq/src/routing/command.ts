@@ -6,6 +6,9 @@ import type { Parameter } from './parameter';
 export type Pattern = Record<string, Parameter<any>>;
 export type ParamsOf<P extends Pattern> = { [K in keyof P]: P[K] extends Parameter<infer T> ? T : never };
 export type Executor<P extends Pattern> = (session: Session, params: ParamsOf<P>) => void | Promise<void>;
+export type RouteMeta = Record<string, unknown> & {
+  tags?: readonly string[];
+};
 
 export interface Command<P extends Pattern> {
   name: string;
@@ -14,11 +17,13 @@ export interface Command<P extends Pattern> {
   description?: string;
   aliases?: string[];
   hidden?: boolean;
+  meta?: RouteMeta;
 }
 
 export interface RawPattern<P extends Pattern> {
   pattern: P;
   execute: Executor<P>;
+  meta?: RouteMeta;
 }
 
 export interface SessionReplyOptions {
@@ -42,6 +47,7 @@ export class CommandBuilder<P extends Pattern = {}, S = Command<P>> {
   private description?: string;
   private aliases?: string[];
   private hidden?: boolean;
+  private routeMeta?: RouteMeta;
 
   constructor(
     readonly name: string,
@@ -78,6 +84,16 @@ export class CommandBuilder<P extends Pattern = {}, S = Command<P>> {
     return this as CommandBuilder<P, S>;
   }
 
+  meta(meta: RouteMeta) {
+    this.routeMeta = mergeRouteMeta(this.routeMeta, meta);
+    return this as CommandBuilder<P, S>;
+  }
+
+  tag(...tags: string[]) {
+    this.routeMeta = mergeRouteMeta(this.routeMeta, { tags });
+    return this as CommandBuilder<P, S>;
+  }
+
   execute(executor: Executor<P>): S {
     this.executor = executor;
     const command: Command<P> = {
@@ -94,6 +110,44 @@ export class CommandBuilder<P extends Pattern = {}, S = Command<P>> {
     if (this.hidden !== undefined) {
       command.hidden = this.hidden;
     }
+    if (this.routeMeta !== undefined) {
+      command.meta = this.routeMeta;
+    }
     return this.sink(command);
   }
+}
+
+export function mergeRouteMeta(left?: RouteMeta, right?: RouteMeta): RouteMeta | undefined {
+  if (left === undefined && right === undefined) {
+    return undefined;
+  }
+
+  const merged = {
+    ...(left ?? {}),
+    ...(right ?? {}),
+  } as RouteMeta;
+
+  const tags = uniqueTags(left?.tags, right?.tags);
+  if (tags.length > 0) {
+    merged.tags = tags;
+  } else {
+    delete merged.tags;
+  }
+
+  return Object.keys(merged).length > 0 ? merged : undefined;
+}
+
+function uniqueTags(...tagLists: Array<readonly string[] | undefined>): string[] {
+  const tags: string[] = [];
+  const seen = new Set<string>();
+  for (const tagList of tagLists) {
+    for (const tag of tagList ?? []) {
+      if (seen.has(tag)) {
+        continue;
+      }
+      seen.add(tag);
+      tags.push(tag);
+    }
+  }
+  return tags;
 }

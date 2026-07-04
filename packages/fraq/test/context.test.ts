@@ -1,6 +1,6 @@
 import { createMockMilkyClient, inmsg } from '@fraqjs/mock';
 
-import { Context, filter, type LogMessage, type milky } from '../src';
+import { Context, definePlugin, filter, type LogMessage, type milky, type RouteDescriptor } from '../src';
 
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -62,6 +62,41 @@ test('fork filters pass events when the predicate accepts them', async () => {
   await client.receiveFriend({ userId: 1 }, []);
 
   assert.equal(receivedMessageEvents, 1);
+});
+
+test('plugin context registers routes with plugin metadata', async () => {
+  const client = createMockMilkyClient();
+  const ctx = Context.fromClient(client);
+  const descriptors: RouteDescriptor[] = [];
+  let calls = 0;
+
+  ctx.router.setActivationResolver((route) => {
+    descriptors.push(route);
+    return route.meta?.plugin === 'meta-plugin' ? [{ type: 'prefix', prefix: '/' }] : [];
+  });
+  ctx.install(
+    definePlugin({
+      name: 'meta-plugin',
+      apply(ctx) {
+        ctx.router.command('hello').execute(() => {
+          calls += 1;
+        });
+      },
+    }),
+  );
+
+  await ctx.start();
+  await client.receiveFriend({ userId: 1 }, inmsg`hello`);
+  await client.receiveFriend({ userId: 1 }, inmsg`/hello`);
+  await ctx.stop();
+
+  assert.equal(calls, 1);
+  assert.deepEqual(descriptors.at(-1), {
+    type: 'command',
+    path: [],
+    name: 'hello',
+    meta: { context: 'root', plugin: 'meta-plugin' },
+  });
 });
 
 test('creates contexts from client instances and starts event streams on the root context', async () => {
