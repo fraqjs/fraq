@@ -6,7 +6,8 @@ import { createMilkyWebSocketEventSource, type MilkyEventSource, type MilkyEvent
 import { seg } from '../protocol/segment';
 import type { Event, IncomingMessage, OutgoingSegment_ZodInput } from '../protocol/types';
 import type { Session } from '../routing/command';
-import { Router } from '../routing/router';
+import { type RouteActivationResolver, Router } from '../routing/router';
+import { type ContextRoutingOptions, createContextRouteActivationResolver } from './activation';
 import type { Filter } from './filter';
 import { Logger, type LogHandler } from './logging';
 import type { Injection, ParameterList, Plugin } from './plugin';
@@ -41,6 +42,7 @@ export interface ContextOptions {
     maxDelayMs?: number;
   };
   logHandler?: LogHandler;
+  routing?: ContextRoutingOptions;
 }
 
 export interface ContextUrlOptions {
@@ -66,6 +68,7 @@ export class Context {
   private readonly initialReconnectDelayMs: number;
   private readonly maxReconnectDelayMs: number;
   private readonly logHandler?: LogHandler;
+  private readonly routeActivationResolver: RouteActivationResolver;
 
   private state: ContextState = 'idle';
   private startPromise?: Promise<void>;
@@ -83,6 +86,11 @@ export class Context {
     this.logHandler = options?.logHandler ?? parent?.logHandler;
     this.name = name ?? 'root';
     this.logger = new Logger((message) => this.logHandler?.(message), `context:${this.name}`);
+    this.routeActivationResolver = createContextRouteActivationResolver(
+      options?.routing,
+      parent?.routeActivationResolver,
+    );
+    this.router.setActivationResolver(this.routeActivationResolver);
 
     this.parent = parent;
     this.filter = filter;

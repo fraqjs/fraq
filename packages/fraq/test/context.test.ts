@@ -1,4 +1,4 @@
-import { createMockMilkyClient, inmsg } from '@fraqjs/mock';
+import { createMockMilkyClient, inmsg, inseg } from '@fraqjs/mock';
 
 import { Context, definePlugin, filter, type LogMessage, type milky, type RouteDescriptor } from '../src';
 
@@ -97,6 +97,138 @@ test('plugin context registers routes with plugin metadata', async () => {
     name: 'hello',
     meta: { context: 'root', plugin: 'meta-plugin' },
   });
+});
+
+test('context routing activation applies scene-specific defaults', async () => {
+  const client = createMockMilkyClient();
+  const ctx = Context.fromClient(client, {
+    routing: {
+      activation: {
+        default: {
+          friend: [{ type: 'direct' }],
+          group: [{ type: 'mention' }],
+        },
+      },
+    },
+  });
+  let calls = 0;
+
+  ctx.router.command('ping').execute(() => {
+    calls += 1;
+  });
+
+  await ctx.start();
+  await client.receiveFriend({ userId: 1 }, inmsg`ping`);
+  await client.receiveGroup({ groupId: 10, userId: 1 }, inmsg`ping`);
+  await client.receiveGroup({ groupId: 10, userId: 1 }, inmsg`${inseg.mention(10000)} ping`);
+  await ctx.stop();
+
+  assert.equal(calls, 2);
+});
+
+test('context routing activation rules use singular activation field', async () => {
+  const client = createMockMilkyClient();
+  const ctx = Context.fromClient(client, {
+    routing: {
+      activation: {
+        default: [],
+        rules: {
+          match: { plugin: 'help' },
+          activation: {
+            friend: [{ type: 'prefix', prefix: '/' }],
+          },
+        },
+      },
+    },
+  });
+  let calls = 0;
+
+  ctx.install(
+    definePlugin({
+      name: 'help',
+      apply(ctx) {
+        ctx.router.command('hello').execute(() => {
+          calls += 1;
+        });
+      },
+    }),
+  );
+
+  await ctx.start();
+  await client.receiveFriend({ userId: 1 }, inmsg`hello`);
+  await client.receiveFriend({ userId: 1 }, inmsg`/hello`);
+  await ctx.stop();
+
+  assert.equal(calls, 1);
+});
+
+test('context routing accepts a low-level activationResolver', async () => {
+  const client = createMockMilkyClient();
+  const ctx = Context.fromClient(client, {
+    routing: {
+      activationResolver(route) {
+        return route.type === 'command' && route.name === 'ping' ? [{ type: 'prefix', prefix: '/' }] : [];
+      },
+    },
+  });
+  let calls = 0;
+
+  ctx.router.command('ping').execute(() => {
+    calls += 1;
+  });
+
+  await ctx.start();
+  await client.receiveFriend({ userId: 1 }, inmsg`ping`);
+  await client.receiveFriend({ userId: 1 }, inmsg`/ping`);
+  await ctx.stop();
+
+  assert.equal(calls, 1);
+});
+
+test('forked contexts inherit context routing activation from their parent context', async () => {
+  const client = createMockMilkyClient();
+  const parent = Context.fromClient(client, {
+    routing: {
+      activation: {
+        default: {
+          group: [{ type: 'mention' }],
+        },
+      },
+    },
+  });
+  const child = parent.fork(
+    'child',
+    filter.define({
+      message_receive: () => true,
+    }),
+  );
+  let calls = 0;
+
+  child.router.command('ping').execute(() => {
+    calls += 1;
+  });
+
+  await parent.start();
+  await client.receiveGroup({ groupId: 10, userId: 1 }, inmsg`ping`);
+  await client.receiveGroup({ groupId: 10, userId: 1 }, inmsg`${inseg.mention(10000)} ping`);
+  await parent.stop();
+
+  assert.equal(calls, 1);
+});
+
+test('context routing rejects activation config combined with activationResolver', () => {
+  const client = createMockMilkyClient();
+
+  assert.throws(
+    () =>
+      Context.fromClient(client, {
+        routing: {
+          activation: {},
+          activationResolver: () => [],
+        },
+      }),
+    /cannot specify both activation and activationResolver/,
+  );
 });
 
 test('creates contexts from client instances and starts event streams on the root context', async () => {
