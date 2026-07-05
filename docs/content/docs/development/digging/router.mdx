@@ -41,7 +41,7 @@ router.setActivationResolver((route, session) => {
 
 如果 resolver 返回数组，`Router` 会按照数组顺序依次尝试。每次尝试时，`Router` 都会创建一个新的分词器，先消费触发方式，再继续匹配指令组路径、指令名和参数模式。如果 resolver 返回 `undefined`，则使用默认触发方式；如果返回空数组 `[]`，则表示当前路由在当前会话下没有任何触发方式。
 
-Fraq 的 `Context` 已经把常见的触发方式配置封装成了 [`routing.activation`](./context.mdx#配置指令触发方式)。除非你正在编写更底层的路由逻辑，通常不需要直接调用 `router.setActivationResolver`。
+Fraq 的 `Context` 已经把常见的触发方式配置封装成了 [`routing.activation`](./context.mdx#配置指令触发规则)。除非你正在编写更底层的路由逻辑，通常不需要直接调用 `router.setActivationResolver`。
 
 ## 路由规则
 
