@@ -16,15 +16,13 @@ import { Tokenizer } from './tokenizer';
 export type SessionPredicate = (session: Session) => boolean;
 
 export type RouteActivation = { type: 'direct' } | { type: 'mention' } | { type: 'prefix'; prefix: string };
+export type RouteActivationInput = RouteActivation | readonly RouteActivation[];
 
 export type RouteDescriptor =
   | { type: 'command'; path: readonly string[]; name: string; aliases?: readonly string[]; meta?: RouteMeta }
   | { type: 'rawPattern'; path: readonly string[]; meta?: RouteMeta };
 
-export type RouteActivationResolver = (
-  route: RouteDescriptor,
-  session: Session,
-) => readonly RouteActivation[] | undefined;
+export type RouteActivationResolver = (route: RouteDescriptor, session: Session) => RouteActivationInput | undefined;
 
 const DEFAULT_ACTIVATIONS: readonly RouteActivation[] = [{ type: 'direct' }];
 
@@ -134,7 +132,7 @@ export class Router {
     for (const branch of this.branchesFrom(session, [], { includeHidden: true })) {
       const descriptor = this.describeBranch(branch);
       const activations = this.activationResolver(descriptor, session) ?? DEFAULT_ACTIVATIONS;
-      for (const activation of activations) {
+      for (const activation of routeActivationInputs(activations)) {
         const tokenizer = new Tokenizer(message.segments);
         if (!this.consumeActivation(tokenizer, activation, session)) {
           continue;
@@ -383,4 +381,12 @@ export class Router {
 
     return params;
   }
+}
+
+function routeActivationInputs(activations: RouteActivationInput): readonly RouteActivation[] {
+  return isRouteActivationArray(activations) ? activations : [activations];
+}
+
+function isRouteActivationArray(activations: RouteActivationInput): activations is readonly RouteActivation[] {
+  return Array.isArray(activations);
 }

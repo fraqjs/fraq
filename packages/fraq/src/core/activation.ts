@@ -3,15 +3,16 @@ import type { Session } from '../routing/command';
 import {
   defaultRouteActivationResolver,
   type RouteActivation,
+  type RouteActivationInput,
   type RouteActivationResolver,
   type RouteDescriptor,
 } from '../routing/router';
 
 export type ContextRouteActivationByScene = Partial<
-  Record<IncomingMessage['message_scene'] | 'default', readonly RouteActivation[]>
+  Record<IncomingMessage['message_scene'] | 'default', RouteActivationInput>
 >;
 
-export type ContextRouteActivation = readonly RouteActivation[] | ContextRouteActivationByScene;
+export type ContextRouteActivation = RouteActivationInput | ContextRouteActivationByScene;
 
 export interface ContextRouteActivationMatcher {
   type?: RouteDescriptor['type'] | readonly RouteDescriptor['type'][];
@@ -102,15 +103,19 @@ function isContextRouteActivationRuleArray(
 function resolveContextRouteActivation(
   activation: ContextRouteActivation,
   scene: IncomingMessage['message_scene'],
-): readonly RouteActivation[] | undefined {
-  if (isRouteActivationArray(activation)) {
+): RouteActivationInput | undefined {
+  if (isRouteActivationInput(activation)) {
     return activation;
   }
   return activation[scene] ?? activation.default;
 }
 
-function isRouteActivationArray(activation: ContextRouteActivation): activation is readonly RouteActivation[] {
-  return Array.isArray(activation);
+function isRouteActivationInput(activation: ContextRouteActivation): activation is RouteActivationInput {
+  return Array.isArray(activation) || isRouteActivation(activation);
+}
+
+function isRouteActivation(activation: ContextRouteActivation): activation is RouteActivation {
+  return 'type' in activation;
 }
 
 function matchesContextRouteActivationRule(

@@ -105,8 +105,8 @@ test('context routing activation applies scene-specific defaults', async () => {
     routing: {
       activation: {
         default: {
-          friend: [{ type: 'direct' }],
-          group: [{ type: 'mention' }],
+          friend: { type: 'direct' },
+          group: { type: 'mention' },
         },
       },
     },
@@ -135,7 +135,7 @@ test('context routing activation rules use singular activation field', async () 
         rules: {
           match: { plugin: 'help' },
           activation: {
-            friend: [{ type: 'prefix', prefix: '/' }],
+            friend: { type: 'prefix', prefix: '/' },
           },
         },
       },
@@ -167,7 +167,7 @@ test('context routing accepts a low-level activationResolver', async () => {
   const ctx = Context.fromClient(client, {
     routing: {
       activationResolver(route) {
-        return route.type === 'command' && route.name === 'ping' ? [{ type: 'prefix', prefix: '/' }] : [];
+        return route.type === 'command' && route.name === 'ping' ? { type: 'prefix', prefix: '/' } : [];
       },
     },
   });

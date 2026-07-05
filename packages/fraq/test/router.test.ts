@@ -194,7 +194,7 @@ test('dispatches commands only after mentioning the current bot when mention act
   const router = new Router();
   let called = 0;
 
-  router.setActivationResolver(() => [{ type: 'mention' }]);
+  router.setActivationResolver(() => ({ type: 'mention' }));
   router.command({
     name: 'ping',
     pattern: {},
