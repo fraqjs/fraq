@@ -41,6 +41,85 @@ Fraq 将客户端能力分为两个接口：`MilkyClient` 和 `MilkyEventSource`
 </Callout>
 {/* pretty-ignore-end */}
 
+## 配置指令触发规则
+
+默认情况下，`Router` 会直接从消息开头匹配指令或模式。例如定义了 `ping` 指令之后，用户发送 `ping` 就可以触发它。在群聊中，我们常常希望用户必须先提及机器人，或者使用特定前缀，避免普通聊天内容误触发指令。可以在创建 `Context` 时通过 `routing.activation` 配置这类规则：
+
+```typescript
+const ctx = Context.fromUrl('http://localhost:30001', {
+  routing: {
+    activation: {
+      default: {
+        friend: { type: 'direct' },
+        temp: { type: 'direct' },
+        group: { type: 'mention' },
+      },
+    },
+  },
+});
+```
+
+上面的配置表示：私聊和临时会话中可以直接输入 `ping`，群聊中则需要先 `@` 当前机器人再输入 `ping`。
+
+Fraq 支持三种触发方式：
+
+| 触发方式                          | 含义                                            |
+| --------------------------------- | ----------------------------------------------- |
+| `{ type: 'direct' }`              | 不需要任何先导条件即可触发                      |
+| `{ type: 'mention' }`             | 需要 `@` 当前机器人触发                         |
+| `{ type: 'prefix', prefix: '/' }` | 需要用指定文本前缀触发，例如 `/ping` 中的 `/`。 |
+
+`activation.default` 可以直接写成一个触发方式或触发方式数组，也可以像上面的例子一样按照 `message_scene` 分别配置。按场景配置时，可用的键包括 `friend`、`group`、`temp` 和 `default`；其中场景表里的 `default` 用于兜底未列出的消息场景。无论是 `activation.default`，还是场景表中的 `friend`、`group` 等字段，都可以使用单个触发方式或触发方式数组。
+
+如果需要让不同指令、插件或标签使用不同触发方式，可以使用 `rules`：
+
+```typescript
+const ctx = Context.fromUrl('http://localhost:30001', {
+  routing: {
+    activation: {
+      default: {
+        friend: { type: 'direct' },
+        temp: { type: 'direct' },
+        group: { type: 'mention' },
+      },
+      rules: [
+        {
+          match: { plugin: 'help' },
+          activation: {
+            friend: { type: 'prefix', prefix: '/' },
+            group: [{ type: 'mention' }, { type: 'prefix', prefix: '/' }],
+          },
+        },
+        {
+          match: { tag: 'admin' },
+          activation: {
+            friend: { type: 'prefix', prefix: '/' },
+            group: { type: 'mention' },
+          },
+        },
+      ],
+    },
+  },
+});
+```
+
+`rules` 会按照定义顺序依次尝试。第一条匹配当前路由和会话、并且能为当前 `message_scene` 解析出触发方式的规则会生效；如果没有任何规则生效，则继续使用 `activation.default`；如果也没有配置 `activation.default`，则继续使用父 `Context` 继承来的规则，或 Fraq 默认的直接触发方式。当 `rules` 只有一条规则时，也可以直接写成对象，不必包在数组中。
+
+`match` 支持以下字段：
+
+| 字段        | 含义                                                                                 |
+| ----------- | ------------------------------------------------------------------------------------ |
+| `type`      | 匹配路由类型，可为 `command` 或 `rawPattern`。                                       |
+| `plugin`    | 匹配路由元信息中的插件名。插件中的 `ctx.router` 会自动带有插件名。                   |
+| `context`   | 匹配路由元信息中的 `Context` 名。插件中的 `ctx.router` 会自动带有当前 `Context` 名。 |
+| `tag`       | 匹配通过 `.tag(...)` 添加的路由标签。                                                |
+| `command`   | 匹配指令名，仅对 `command` 路由有效。                                                |
+| `path`      | 匹配指令组路径，不包含最终的指令名。                                                 |
+| `route`     | 匹配完整路由；对指令而言是 `path + command`，对 `rawPattern` 而言就是 `path`。       |
+| `predicate` | 接收 `(route, session)`，返回 `true` 时匹配。                                        |
+
+例如，`ctx.router.group('admin').command('ban')` 的 `path` 是 `['admin']`，`route` 是 `['admin', 'ban']`。
+
 ## 设定计时任务
 
 `Context` 提供了 `timeout` 和 `interval` 方法来设定计时任务，例如：
@@ -59,7 +138,7 @@ ctx.interval(() => {
 
 ## 继承与隔离
 
-我们可以通过 `ctx.fork` 来创建一个继承当前 `ctx` 的新 `Context` 实例。这个新实例会与父 `Context` 使用同一个协议客户端，并且可以访问父 `Context` 提供的服务；但在新创建出的这个 `Context` 上进行配置、定义路由以及安装插件等操作不会影响到父 `Context`。我们结合上一节的依赖注入来看看这个特性：
+我们可以通过 `ctx.fork` 来创建一个继承当前 `ctx` 的新 `Context` 实例。这个新实例会与父 `Context` 使用同一个协议客户端，并且可以访问父 `Context` 提供的服务；但在新创建出的这个 `Context` 上进行配置、定义路由以及安装插件等操作不会影响到父 `Context`。父 `Context` 上配置的[指令触发规则](#配置指令触发规则)也会被子 `Context` 继承。我们结合上一节的依赖注入来看看这个特性：
 
 ```typescript
 const PluginA = definePlugin({

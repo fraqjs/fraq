@@ -273,6 +273,34 @@ ctx.router
   });
 ```
 
+### 路由标签与元信息
+
+可以使用 `.tag()` 给指令或模式添加标签。标签不会改变指令本身的解析规则，但可以供帮助生成、路由查询以及 [`routing.activation`](./digging/context.mdx#配置指令触发方式) 等功能使用：
+
+```typescript
+ctx.router
+  .command('ban')
+  .tag('admin', 'moderation')
+  .execute((session) => {
+    // ...
+  });
+```
+
+例如，部署方可以通过 `match: { tag: 'admin' }` 让所有带有 `admin` 标签的指令在群聊中必须先提及机器人，或者必须使用 `/` 前缀。
+
+如果需要附加更通用的路由元信息，可以使用 `.meta()`：
+
+```typescript
+ctx.router
+  .command('status')
+  .meta({ category: 'system' })
+  .execute((session) => {
+    // ...
+  });
+```
+
+自定义元信息可以在 `activationResolver`、`match.predicate` 或 [`router.branches`](./digging/router.mdx#白盒函数) 这类白盒函数中读取。插件中的 `ctx.router` 会自动带有插件名和当前 `Context` 名，因此插件作者通常不需要手动写入 `plugin` 或 `context` 元信息。
+
 ### 指令别名
 
 可以使用 `.alias()` 方法为指令添加别名。当用户通过别名触发指令时，行为与使用原名完全相同：
