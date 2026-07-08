@@ -23,14 +23,15 @@
   "license": "MIT",
   "peerDependencies": {
     "@fraqjs/fraq": "workspace:^",
-    "ai": "^6.0.0"
+    "ai": "^7.0.0"
   },
   "devDependencies": {
-    "@ai-sdk/anthropic": "^3.0.81",
-    "@ai-sdk/deepseek": "^2.0.35",
-    "@ai-sdk/google": "^3.0.80",
-    "@ai-sdk/openai": "^3.0.68",
-    "@ai-sdk/provider": "^3.0.10",
+    "@ai-sdk/anthropic": "^4",
+    "@ai-sdk/deepseek": "^3",
+    "@ai-sdk/google": "^4",
+    "@ai-sdk/openai": "^4",
+    "@ai-sdk/openai-compatible": "^3",
+    "@ai-sdk/provider": "^4",
     "@fraqjs/mock": "workspace:^"
   },
   "engines": {

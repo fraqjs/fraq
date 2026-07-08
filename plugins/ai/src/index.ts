@@ -23,7 +23,7 @@ export const AiPlugin = definePlugin({
     const models: Record<string, LanguageModel> = {};
     for (const [name, config] of Object.entries(options.providers)) {
       if (isProviderConfig(config)) {
-        const resolvedModels = await resolveLanguageModels(config);
+        const resolvedModels = await resolveLanguageModels(name, config);
         resolvedModels.forEach((model, idx) => {
           const modelName = `${name}/${config.models[idx]}`;
           models[modelName] = model;
