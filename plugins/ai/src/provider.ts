@@ -11,7 +11,7 @@ export interface ProviderConfig {
   sdk: SupportedSDK;
   options: {
     apiKey: string;
-    baseUrl?: string;
+    baseURL?: string;
     [key: string]: unknown;
   };
   models: string[];
