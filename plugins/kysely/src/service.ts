@@ -4,14 +4,14 @@ import type { Kysely } from 'kysely';
 import { SchemaRegistry } from './schema';
 import type { FraqDatabase } from './types';
 
-export class DatabaseService implements Disposable {
+export class KyselyService implements Disposable {
   readonly schemas: SchemaRegistry;
 
-  constructor(readonly kysely: Kysely<FraqDatabase>) {
-    this.schemas = new SchemaRegistry(kysely);
+  constructor(readonly db: Kysely<FraqDatabase>) {
+    this.schemas = new SchemaRegistry(db);
   }
 
   async dispose() {
-    await this.kysely.destroy();
+    await this.db.destroy();
   }
 }

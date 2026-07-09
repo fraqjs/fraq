@@ -2,7 +2,7 @@ import { Context, definePlugin } from '@fraqjs/fraq';
 import { createSimpleLogHandler } from '@fraqjs/mock';
 import type { Kysely } from 'kysely';
 
-import KyselyPlugin, { DatabaseService } from '../src';
+import KyselyPlugin, { KyselyService } from '../src';
 
 interface TestDatabase {
   user_account: {
@@ -23,7 +23,7 @@ ctx.install(
   definePlugin({
     name: 'kysely-smoke-test',
     inject: {
-      db: DatabaseService,
+      db: KyselyService,
     },
     apply(ctx) {
       ctx.db.schemas.register({
@@ -42,7 +42,7 @@ ctx.install(
       });
     },
     async start(ctx) {
-      const kysely = ctx.db.kysely as unknown as Kysely<TestDatabase>;
+      const kysely = ctx.db.db as unknown as Kysely<TestDatabase>;
       await kysely.insertInto('user_account').values({ id: 1, name: 'alpha' }).execute();
 
       const results = await kysely.selectFrom('user_account').selectAll().execute();

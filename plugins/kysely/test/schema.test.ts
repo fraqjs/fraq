@@ -2,7 +2,7 @@ import { Context, definePlugin } from '@fraqjs/fraq';
 import { createMockMilkyClient } from '@fraqjs/mock';
 import type { Kysely } from 'kysely';
 
-import KyselyPlugin, { DatabaseService } from '../src';
+import KyselyPlugin, { KyselyService } from '../src';
 
 import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -24,9 +24,9 @@ test('registers schemas and migrates them to latest during startup', async () =>
   ctx.install(
     definePlugin({
       name: 'test-schema',
-      requires: [DatabaseService],
+      requires: [KyselyService],
       apply(ctx) {
-        ctx.resolve(DatabaseService).schemas.register({
+        ctx.resolve(KyselyService).schemas.register({
           name: 'test',
           migrations: {
             '001_create_user_account': {
@@ -46,11 +46,11 @@ test('registers schemas and migrates them to latest during startup', async () =>
 
   await ctx.start();
 
-  const db = ctx.resolve(DatabaseService).kysely as unknown as Kysely<TestDatabase>;
+  const db = ctx.resolve(KyselyService).db as unknown as Kysely<TestDatabase>;
   await db.insertInto('user_account').values({ id: 1, name: 'alpha' }).execute();
 
   const row = await db.selectFrom('user_account').selectAll().executeTakeFirst();
-  const status = await ctx.resolve(DatabaseService).schemas.getStatus('test');
+  const status = await ctx.resolve(KyselyService).schemas.getStatus('test');
 
   assert.ok(row);
   assert.equal(row.id, 1);
@@ -74,9 +74,9 @@ test('migrateToLatest can be called again after migrations have already run', as
   ctx.install(
     definePlugin({
       name: 'repeatable-schema',
-      requires: [DatabaseService],
+      requires: [KyselyService],
       apply(ctx) {
-        ctx.resolve(DatabaseService).schemas.register({
+        ctx.resolve(KyselyService).schemas.register({
           name: 'repeatable',
           migrations: {
             '001_create_repeatable_item': {
@@ -96,7 +96,7 @@ test('migrateToLatest can be called again after migrations have already run', as
 
   await ctx.start();
 
-  const schema = ctx.resolve(DatabaseService).schemas;
+  const schema = ctx.resolve(KyselyService).schemas;
   const firstStatus = await schema.getStatus('repeatable');
 
   await schema.migrateToLatest();
@@ -117,9 +117,9 @@ test('runs migrations in the order they are registered', async () => {
   ctx.install(
     definePlugin({
       name: 'ordered-schema',
-      requires: [DatabaseService],
+      requires: [KyselyService],
       apply(ctx) {
-        ctx.resolve(DatabaseService).schemas.register({
+        ctx.resolve(KyselyService).schemas.register({
           name: 'ordered',
           migrations: {
             '002_create_ordered_item': {
@@ -145,7 +145,7 @@ test('runs migrations in the order they are registered', async () => {
 
   await ctx.start();
 
-  const status = await ctx.resolve(DatabaseService).schemas.getStatus('ordered');
+  const status = await ctx.resolve(KyselyService).schemas.getStatus('ordered');
 
   assert.deepEqual(calls, ['002_create_ordered_item', '001_insert_ordered_item']);
   assert.deepEqual(status, [
@@ -171,9 +171,9 @@ test('migrateToLatest applies newly registered migrations after schema changes',
   firstCtx.install(
     definePlugin({
       name: 'evolving-schema-v1',
-      requires: [DatabaseService],
+      requires: [KyselyService],
       apply(ctx) {
-        ctx.resolve(DatabaseService).schemas.register({
+        ctx.resolve(KyselyService).schemas.register({
           name: 'evolving',
           migrations: {
             '001_create_evolving_item': {
@@ -192,7 +192,7 @@ test('migrateToLatest applies newly registered migrations after schema changes',
   );
 
   await firstCtx.start();
-  const firstStatus = await firstCtx.resolve(DatabaseService).schemas.getStatus('evolving');
+  const firstStatus = await firstCtx.resolve(KyselyService).schemas.getStatus('evolving');
   assert.deepEqual(firstStatus, [
     {
       name: 'evolving',
@@ -209,9 +209,9 @@ test('migrateToLatest applies newly registered migrations after schema changes',
   secondCtx.install(
     definePlugin({
       name: 'evolving-schema-v2',
-      requires: [DatabaseService],
+      requires: [KyselyService],
       apply(ctx) {
-        ctx.resolve(DatabaseService).schemas.register({
+        ctx.resolve(KyselyService).schemas.register({
           name: 'evolving',
           migrations: {
             '001_create_evolving_item': {
@@ -246,11 +246,11 @@ test('migrateToLatest applies newly registered migrations after schema changes',
     };
   }
 
-  const db = secondCtx.resolve(DatabaseService).kysely as unknown as Kysely<EvolvedDatabase>;
+  const db = secondCtx.resolve(KyselyService).db as unknown as Kysely<EvolvedDatabase>;
   await db.insertInto('evolving_item').values({ id: 1, name: 'alpha', description: 'migrated' }).execute();
 
   const row = await db.selectFrom('evolving_item').selectAll().executeTakeFirst();
-  const secondStatus = await secondCtx.resolve(DatabaseService).schemas.getStatus('evolving');
+  const secondStatus = await secondCtx.resolve(KyselyService).schemas.getStatus('evolving');
 
   assert.equal(createTableRuns, 0);
   assert.equal(addColumnRuns, 1);

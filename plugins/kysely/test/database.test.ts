@@ -2,7 +2,7 @@ import { Context } from '@fraqjs/fraq';
 import { createMockMilkyClient } from '@fraqjs/mock';
 import type { Kysely } from 'kysely';
 
-import KyselyPlugin, { DatabaseService } from '../src';
+import KyselyPlugin, { KyselyService } from '../src';
 
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -20,7 +20,7 @@ test('provides a working Kysely database service backed by node:sqlite', async (
   ctx.install(KyselyPlugin, { sqliteUrl: ':memory:' });
   await ctx.start();
 
-  const db = ctx.resolve(DatabaseService).kysely as unknown as Kysely<TestDatabase>;
+  const db = ctx.resolve(KyselyService).db as unknown as Kysely<TestDatabase>;
 
   await db.schema
     .createTable('user_account')
