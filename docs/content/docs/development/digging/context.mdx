@@ -41,6 +41,10 @@ Fraq 将客户端能力分为两个接口：`MilkyClient` 和 `MilkyEventSource`
 </Callout>
 {/* pretty-ignore-end */}
 
+了解了如何创建新的 `Context` 之后，我们接下来重新从头看一下事件进入 `Context` 之后会发生什么。当协议端向 Fraq 推送事件时，`Context` 会接收这个事件，并触发通过 `ctx.on` 注册的事件监听器。对于 `message_receive` 事件，`Context` 还会把消息交给自己的 `router`，尝试匹配已经定义好的指令和模式。在同一个 `router` 中，Fraq 会按照指令和模式的定义顺序依次尝试匹配，详细的匹配规则可以参考[命令路由 (Router)](./router.mdx) 中的介绍。
+
+如果通过 `ctx.fork` 创建了新的 `Context`，父 `Context` 接收到的事件会按照新 `Context` 上配置的过滤器继续传递下去。每个 `Context` 都有自己独立的 `router`，因此同一条消息可能会被多个满足过滤条件的 `Context` 分别处理；而在每个 `Context` 内部，指令仍然遵循上面提到的顺序匹配规则。
+
 ## 配置指令触发规则
 
 默认情况下，`Router` 会直接从消息开头匹配指令或模式。例如定义了 `ping` 指令之后，用户发送 `ping` 就可以触发它。在群聊中，我们常常希望用户必须先提及机器人，或者使用特定前缀，避免普通聊天内容误触发指令。可以在创建 `Context` 时通过 `routing.activation` 配置这类规则：
@@ -301,6 +305,38 @@ ctx.fork('fork2', filter4).install(pluginB); // pluginB 只会监听来自群聊
 ctx.start();
 ```
 
+## 替换或拦截 API 调用
+
+在 Fraq 中，可以通过 `ctx.hookApi` 方法来替换或拦截 API 调用。例如，我们可以在调用 `get_friend_info` API 时打印出传入的参数：
+
+```typescript
+ctx.hookApi('get_friend_info', (params, next) => {
+  console.log('get_friend_info called with params:', params);
+  return next(params);
+});
+```
+
+也可以直接替换 API 调用，例如我们可以在调用 `get_friend_info` API 时返回一个固定的结果，而不再调用 Milky 的 API：
+
+```typescript
+ctx.hookApi('get_friend_info', (params, next) => {
+  return {
+    user_id: params.user_id,
+    nickname: 'Mocked User',
+    // some other fixed fields
+  };
+});
+```
+
+此外，还可以 Hook 所有的 API 调用，例如：
+
+```typescript
+ctx.hookApi((call, next) => {
+  console.log(`API called: ${call.endpoint} with params:`, call.params);
+  return next(call);
+});
+```
+
 ## 停止 `Context`
 
 调用 `ctx.stop` 方法可以停止 `Context`，此后 `Context` 将不再响应任何事件，也无法调用 Milky API。`Context` 在调用 `stop` 后无法再次启动。`stop` 的流程是：
@@ -339,9 +375,3 @@ dispose [ServiceA]
 ```
 
 在调用各个 `dispose` 方法时，Fraq 会捕获并记录任何可能发生的错误，并继续调用下一个 `dispose` 方法，而不会因为某个服务的 `dispose` 方法抛出错误而中断整个停止流程。如果有多个 `dispose` 方法抛出错误，Fraq 会把它们包装成一个 [`AggregateError`](https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Global_Objects/AggregateError) 来抛出。
-
-## 触发规则
-
-了解了如何创建新的 `Context` 之后，我们接下来重新从头看一下事件进入 `Context` 之后会发生什么。当协议端向 Fraq 推送事件时，`Context` 会接收这个事件，并触发通过 `ctx.on` 注册的事件监听器。对于 `message_receive` 事件，`Context` 还会把消息交给自己的 `router`，尝试匹配已经定义好的指令和模式。在同一个 `router` 中，Fraq 会按照指令和模式的定义顺序依次尝试匹配，详细的匹配规则可以参考[命令路由 (Router)](./router.mdx) 中的介绍。
-
-如果通过 `ctx.fork` 创建了新的 `Context`，父 `Context` 接收到的事件会按照新 `Context` 上配置的过滤器继续传递下去。每个 `Context` 都有自己独立的 `router`，因此同一条消息可能会被多个满足过滤条件的 `Context` 分别处理；而在每个 `Context` 内部，指令仍然遵循上面提到的顺序匹配规则。
