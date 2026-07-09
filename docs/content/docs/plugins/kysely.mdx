@@ -153,8 +153,8 @@ ctx.kysely.schemas.register({
   name: 'my_plugin_schema',
   migrations: {
     '001_create_person_table': {
-      async up(kysely) {
-        await kysely.schema
+      async up(db) {
+        await db.schema
           .createTable('my_plugin_person')
           .addColumn('id', 'integer', (col) => col.primaryKey())
           .addColumn('first_name', 'text', (col) => col.notNull())
@@ -210,8 +210,8 @@ ctx.kysely.schemas.register({
   migrations: {
     // 上面已经发布过的 001_create_person_table 迁移脚本
     '002_add_person_nickname': {
-      async up(kysely) {
-        await kysely.schema
+      async up(db) {
+        await db.schema
           .alterTable('my_plugin_person')
           .addColumn('nickname', 'text')
           .execute();
