@@ -1,7 +1,7 @@
 {
   "name": "@fraqjs/plugin-kysely",
   "type": "module",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "Kysely integration plugin for Fraq",
   "files": [
     "dist"
@@ -25,7 +25,7 @@
     "@fraqjs/fraq": "workspace:^"
   },
   "dependencies": {
-    "kysely": "^0.29.2"
+    "kysely": "^0.29.3"
   },
   "devDependencies": {
     "@fraqjs/mock": "workspace:^"
