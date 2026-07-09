@@ -31,10 +31,7 @@ ctx.install(TakumiPlugin, {
 
 `TakumiPlugin` 有如下配置项：
 
-- `renderer`：传递给 Takumi 渲染器（`Renderer`）的构造器的选项，包含如下字段：
-  - `persistentImages`：预先加载的图像。
-  - `fonts` 和 `loadDefaultFonts`：通常情况下无需设置，Fraq 会自动加载内置字体，详见后续部分。
-- `renderDefaults`：一个对象，用于指定 `renderJsx` 等方法的默认渲染选项，这些选项会与调用时传入的选项进行合并，后者会覆盖前者。
+- `renderDefaults`：一个对象，用于指定 `renderJsx` 等方法的默认渲染选项。这些选项会与调用时传入的选项进行合并，后者会覆盖前者；其中 `stylesheets`、`fonts` 和 `images` 会按顺序追加。
 - `onFontRegisterConflict`：当注册字体时发生冲突（即尝试注册一个已存在的字体名称）时的处理方法，可选值有：
   - `error`：抛出错误。
   - `warn-and-ignore`：发出警告并忽略新的注册，这是默认行为。
@@ -83,7 +80,21 @@ const img2 = await ctx.takumi.renderHtml(`
 
 在使用 `renderJsx` 时，可以使用 Tailwind CSS 的语法来快速设置样式，例如 `tw="p-4 bg-gray-100 rounded"`；当然，也可以使用 `style` 属性来直接设置样式。Takumi 支持的样式列表见 [“Reference“ 章节](https://takumi.kane.tw/docs/reference#style-properties)。
 
-`renderJsx` 和 `renderHtml` 都接受三个参数。第一个参数是需要渲染的内容，后两个参数分别是传递给 `Renderer` 的渲染选项和可选的 `AbortSignal`。
+`renderJsx` 和 `renderHtml` 都接受四个参数。第一个参数是需要渲染的内容，第二个参数是传递给 `Renderer` 的渲染选项，第三个参数是可选的 `AbortSignal`，第四个参数是可选的 Emoji 风格。不传第四个参数时，文本中的 Emoji 会按普通文本处理。
+
+常用渲染选项包括 `width`、`height`、`devicePixelRatio`、`format`、`quality`、`lossless`、`fonts` 和 `images`。其中 `format` 使用字符串形式，例如 `'png'`、`'jpeg'` 或 `'webp'`；`quality` 用于 JPEG 和有损 WebP，`lossless` 用于 WebP。
+
+```tsx
+const img = await ctx.takumi.renderJsx(
+  <div style={{ fontFamily: 'Inter, Noto Sans SC' }}>Hello, Takumi!</div>,
+  {
+    width: 1200,
+    height: 630,
+    format: 'webp',
+    quality: 90,
+  },
+);
+```
 
 ## 使用字体
 
@@ -115,23 +126,58 @@ const img = await ctx.takumi.renderJsx(
 );
 ```
 
-此外，也可以在插件加载阶段使用 `ctx.takumi.registerFontFamily` 来注册自定义字体，在注册时需要提供完整的字体数据，例如从 TTF 文件中读取或从网络获取。
+也可以在插件加载阶段使用 `ctx.takumi.registerFontFamily` 来注册自定义字体。注册时可以传入本地字体路径、带有 `path` 的字体描述对象、字体数据，或远程字体 URL。字体会在渲染时通过 `fonts` 选项传递给 Takumi，并由渲染器按需加载。
+
+```ts
+await ctx.takumi.registerFontFamily('Brand Sans', [
+  '/app/fonts/BrandSans-Regular.ttf',
+  {
+    path: '/app/fonts/BrandSans-Bold.ttf',
+    weight: 700,
+  },
+]);
+```
+
+单次渲染需要额外字体时，也可以直接在渲染选项里传入 `fonts`。远程字体可以使用 URL 字符串：
+
+```tsx
+const img = await ctx.takumi.renderJsx(
+  <div style={{ fontFamily: 'Example Sans, Inter, Noto Sans SC' }}>Hello!</div>,
+  {
+    fonts: ['https://example.com/fonts/ExampleSans.woff2'],
+  },
+);
+```
 
 ## Emoji 支持
 
-`TakumiService` 还提供了 `renderJsxWithEmoji` 和 `renderHtmlWithEmoji` 方法，用于渲染包含 Emoji 的内容。这两个方法与 `renderJsx` 和 `renderHtml` 相比，在末尾多了一个 `emojiType: EmojiType` 参数，用于指定使用哪种 Emoji 风格。
+`renderJsx` 和 `renderHtml` 的第四个参数用于指定 Emoji 风格。默认值为 `undefined`，表示不处理 Emoji；传入具体风格后，Emoji 会被转换为图片节点，并在渲染前自动准备所需图片资源。
 
 ```typescript
 type EmojiType =
   | 'twemoji'
   | 'blobmoji'
-  | 'noto' // 默认值
+  | 'noto'
   | 'openmoji'
   | 'fluent'
   | 'fluentFlat';
 ```
 
-为了保持与 Noto Sans SC 字体的风格一致，`renderJsxWithEmoji` 和 `renderHtmlWithEmoji` 默认使用 `noto` 作为 Emoji 风格。
+为了保持与 Noto Sans SC 字体的风格一致，通常可以使用 `noto` 作为 Emoji 风格：
+
+```tsx
+const img = await ctx.takumi.renderJsx(
+  <div style={{ fontFamily: 'Inter, Noto Sans SC' }}>你好 👋</div>,
+  {
+    width: 800,
+    height: 400,
+  },
+  undefined,
+  'noto',
+);
+```
+
+调用时仍然可以通过 `images` 传入已经获取好的图片资源，它们会和 Emoji 图片资源一起传给 Takumi。
 
 ## 使用 `takumi-preview`
 
@@ -190,26 +236,38 @@ export const previewRenderOptions: RenderOptions = {
 
 此外，还可以导出如下的变量或函数：
 
-- `previewUseEmoji`：默认为 `false`，如果设置为 `true`，则预览时会使用 `renderJsxWithEmoji` 来渲染模板。
-- `previewEmojiType`：默认为 `'noto'`，当 `previewUseEmoji` 为 `true` 时，用于指定 Emoji 风格。
-- `previewSetup`：一个可选的异步函数，类型为 `(service: TakumiService) => void | Promise<void>`，在预览渲染之前执行，可以在这里对渲染用到的 `TakumiService` 实例进行一些额外的配置，例如注册字体或预加载图像资源等。
+- `previewEmojiType`：默认为 `undefined`，当不为 `undefined` 时，用于指定传给 `renderJsx` 第四个参数的 Emoji 风格。
+- `previewSetup`：一个可选的异步函数，类型为 `(service: TakumiService) => void | Promise<void>`，在预览渲染之前执行，可以在这里对渲染用到的 `TakumiService` 实例进行一些额外的配置，例如注册字体等。
 
 ## 加载图像
 
-出于内容安全的考虑，Takumi 不允许直接从网络加载图像资源。需要渲染图像时，你需要通过 `resourcesOptions.cache` 参数来提供一个 `Map<string, ArrayBuffer>` 实例，Takumi 会从这个 Map 中查找所需的图像资源。
+普通的 `renderJsx` 和 `renderHtml` 不会自动从网络获取图片。需要渲染远程图片时，请在渲染选项的 `images` 中提供图片的 `src` 和二进制数据；`src` 必须与 JSX 或 HTML 中的图片地址一致。
 
 ```tsx
-const cache = new Map<string, ArrayBuffer>();
-// cache.set('https://example.com/image.png', arrayBufferOfImage);
+const src = 'https://example.com/image.png';
+const data = await fetch(src).then((response) => response.arrayBuffer());
 
-const img = await ctx.takumi.renderJsx(
-  <img src="https://example.com/image.png" alt="Example" />,
-  {
-    resourcesOptions: {
-      cache,
-    },
-  },
-);
+const img = await ctx.takumi.renderJsx(<img src={src} alt="Example" />, {
+  images: [{ src, data }],
+});
 ```
 
-此外，对于一些常用资源，例如 Logo 图标等，你也可以选择将它们预先加载到 `renderer` 的 `persistentImages` 选项中。
+如果同一个模板需要使用多张远程图片，可以使用 `@takumi-rs/helpers` 提供的 `prepareImages` 来收集节点中的图片地址并获取资源。`fetchCache` 可以在多次渲染之间复用图片字节，避免重复请求同一个 URL。
+
+```tsx
+import { prepareImages } from '@takumi-rs/helpers';
+import { fromJsx } from '@takumi-rs/helpers/jsx';
+
+const element = (
+  <div>
+    <img src="https://example.com/logo.png" alt="Logo" />
+    <img src="https://example.com/banner.png" alt="Banner" />
+  </div>
+);
+
+const { node } = await fromJsx(element);
+const fetchCache = new Map<string, Promise<ArrayBuffer>>();
+const images = await prepareImages({ node, fetchCache });
+
+const img = await ctx.takumi.renderJsx(element, { images });
+```
