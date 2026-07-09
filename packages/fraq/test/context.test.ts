@@ -10,6 +10,22 @@ function snapshotLog(message: LogMessage): Omit<LogMessage, 'time'> {
   return rest;
 }
 
+function createFriendInfo(userId: number, nickname: string): milky.GetFriendInfoOutput {
+  return {
+    friend: {
+      user_id: userId,
+      nickname,
+      sex: 'unknown',
+      qid: `qid_${userId}`,
+      remark: '',
+      category: {
+        category_id: 1,
+        category_name: 'General',
+      },
+    },
+  };
+}
+
 test('fork filters reject events without an explicit predicate', async () => {
   const client = createMockMilkyClient();
   const parent = Context.fromClient(client);
@@ -243,12 +259,11 @@ test('creates contexts from client instances and starts event streams on the roo
   await ctx.start();
   await client.receiveFriend({ userId: 1 }, []);
 
-  assert.equal(ctx.client, client);
   assert.equal(client.startEventCalls, 1);
   assert.equal(receivedMessageEvents, 1);
 });
 
-test('forked contexts share the parent client and receive filtered root events', async () => {
+test('forked contexts receive filtered root events and call through the same base client', async () => {
   const client = createMockMilkyClient();
   const parent = Context.fromClient(client);
   const child = parent.fork(
@@ -265,10 +280,116 @@ test('forked contexts share the parent client and receive filtered root events',
 
   await parent.start();
   await client.receiveFriend({ userId: 1 }, []);
+  await child.client.get_friend_info({
+    user_id: 1,
+    no_cache: false,
+  });
 
-  assert.equal(child.client, client);
+  assert.notEqual(child.client, parent.client);
   assert.equal(client.startEventCalls, 1);
   assert.equal(childMessageEvents, 1);
+  assert.deepEqual(client.apiCalls.at(-1), {
+    endpoint: 'get_friend_info',
+    params: {
+      user_id: 1,
+      no_cache: false,
+    },
+  });
+});
+
+test('hookApi can override calls through the context client', async () => {
+  const client = createMockMilkyClient();
+  const ctx = Context.fromClient(client);
+
+  ctx.hookApi('get_friend_info', (params) => createFriendInfo(params.user_id, 'Hooked'));
+
+  const result = await ctx.client.get_friend_info({
+    user_id: 10001,
+    no_cache: false,
+  });
+
+  assert.equal(result.friend.nickname, 'Hooked');
+  assert.deepEqual(client.apiCalls, []);
+});
+
+test('hookApi can call the next API handler with updated params', async () => {
+  const client = createMockMilkyClient();
+  const ctx = Context.fromClient(client);
+
+  ctx.hookApi('get_friend_info', async (params, next) => {
+    return await next({
+      ...params,
+      user_id: 10002,
+    });
+  });
+
+  const result = await ctx.client.get_friend_info({
+    user_id: 10001,
+    no_cache: false,
+  });
+
+  assert.equal(result.friend.user_id, 10002);
+  assert.deepEqual(client.apiCalls, [
+    {
+      endpoint: 'get_friend_info',
+      params: {
+        user_id: 10002,
+        no_cache: false,
+      },
+    },
+  ]);
+});
+
+test('parent context API hooks are visible to forked contexts', async () => {
+  const client = createMockMilkyClient();
+  const parent = Context.fromClient(client);
+  const child = parent.fork('child');
+
+  parent.hookApi('get_friend_info', (params) => createFriendInfo(params.user_id, 'Parent'));
+
+  const result = await child.client.get_friend_info({
+    user_id: 10001,
+    no_cache: false,
+  });
+
+  assert.equal(result.friend.nickname, 'Parent');
+  assert.deepEqual(client.apiCalls, []);
+});
+
+test('child context API hooks run before parent context API hooks', async () => {
+  const client = createMockMilkyClient();
+  const parent = Context.fromClient(client);
+  const child = parent.fork('child');
+  const calls: string[] = [];
+
+  parent.hookApi('get_friend_info', async (params, next) => {
+    calls.push('parent');
+    const result = await next(params);
+    return {
+      friend: {
+        ...result.friend,
+        nickname: `parent:${result.friend.nickname}`,
+      },
+    };
+  });
+  child.hookApi('get_friend_info', async (params, next) => {
+    calls.push('child');
+    const result = await next(params);
+    return {
+      friend: {
+        ...result.friend,
+        nickname: `child:${result.friend.nickname}`,
+      },
+    };
+  });
+
+  const result = await child.client.get_friend_info({
+    user_id: 10001,
+    no_cache: false,
+  });
+
+  assert.deepEqual(calls, ['child', 'parent']);
+  assert.match(result.friend.nickname, /^child:parent:/);
 });
 
 test('session replies through the client API', async () => {

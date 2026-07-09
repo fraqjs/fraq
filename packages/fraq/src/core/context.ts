@@ -1,7 +1,7 @@
 import mitt, { type WildcardHandler } from 'mitt';
 
 import { createMilkyClient, type MilkyClient } from '../protocol/client';
-import type { EventMap } from '../protocol/endpoint';
+import type { AnyApiCall, AnyApiHook, ApiEndpointName, ApiHook, EventMap } from '../protocol/endpoint';
 import { createMilkyWebSocketEventSource, type MilkyEventSource, type MilkyEventSubscription } from '../protocol/event';
 import { seg } from '../protocol/segment';
 import type { Event, IncomingMessage, OutgoingSegment_ZodInput } from '../protocol/types';
@@ -36,6 +36,24 @@ type EventSourceRuntime = {
   resolveReconnectTimer?: () => void;
 };
 
+type InternalApiCall = {
+  endpoint: ApiEndpointName;
+  params: unknown;
+};
+
+type InternalApiNext = (params?: unknown) => Promise<unknown>;
+
+type InternalApiHook = (params: unknown, next: InternalApiNext, call: InternalApiCall) => unknown | Promise<unknown>;
+
+type ApiHookEntry = {
+  endpoint?: ApiEndpointName;
+  hook: InternalApiHook;
+};
+
+type CallApiCapable = {
+  callApi(endpoint: string, params?: unknown): Promise<unknown>;
+};
+
 export interface ContextOptions {
   reconnect?: {
     initialDelayMs?: number;
@@ -55,12 +73,15 @@ export class Context {
   readonly logger: Logger;
   readonly name: string;
   readonly routeActivationResolver: RouteActivationResolver;
+  readonly client: MilkyClient;
 
+  private readonly baseClient: MilkyClient;
   private readonly parent?: Context;
   private readonly filter?: Filter;
   private readonly eventBus = mitt<EventMap>();
   private readonly plugins: InstalledPlugin[] = [];
   private readonly services = new Map<ServiceClass, object>();
+  private readonly apiHookEntries: ApiHookEntry[] = [];
   private readonly subContexts = new Map<string, Context>();
   private readonly eventSourceRuntimes = new Map<MilkyEventSource, EventSourceRuntime>();
   private readonly parentEventForwarder?: WildcardHandler<EventMap>;
@@ -75,12 +96,14 @@ export class Context {
   private stopPromise?: Promise<void>;
 
   private constructor(
-    readonly client: MilkyClient,
+    baseClient: MilkyClient,
     options?: ContextOptions,
     name?: string,
     parent?: Context,
     filter?: Filter,
   ) {
+    this.baseClient = baseClient;
+    this.client = this.createHookClient();
     this.initialReconnectDelayMs = options?.reconnect?.initialDelayMs ?? DEFAULT_INITIAL_RECONNECT_DELAY_MS;
     this.maxReconnectDelayMs = options?.reconnect?.maxDelayMs ?? DEFAULT_MAX_RECONNECT_DELAY_MS;
     this.logHandler = options?.logHandler ?? parent?.logHandler;
@@ -152,6 +175,40 @@ export class Context {
     }
   }
 
+  hookApi<E extends ApiEndpointName>(endpoint: E, hook: ApiHook<E>): () => void;
+  hookApi(hook: AnyApiHook): () => void;
+  hookApi<E extends ApiEndpointName>(endpointOrHook: E | AnyApiHook, hook?: ApiHook<E>): () => void {
+    this.assertCanRegisterApiHook();
+
+    let entry: ApiHookEntry;
+    if (typeof endpointOrHook === 'function') {
+      entry = {
+        hook: this.wrapAnyApiHook(endpointOrHook),
+      };
+    } else {
+      if (!hook) {
+        throw new Error(`API hook for endpoint ${endpointOrHook} is missing a handler.`);
+      }
+      entry = {
+        endpoint: endpointOrHook,
+        hook: hook as InternalApiHook,
+      };
+    }
+
+    this.apiHookEntries.push(entry);
+    let disposed = false;
+    return () => {
+      if (disposed) {
+        return;
+      }
+      disposed = true;
+      const index = this.apiHookEntries.indexOf(entry);
+      if (index !== -1) {
+        this.apiHookEntries.splice(index, 1);
+      }
+    };
+  }
+
   provide<T extends object>(service: ServiceClass<T>, instance: T): void {
     if (this.services.has(service)) {
       throw new Error(`Service ${service.name} has already been provided in this context.`);
@@ -200,7 +257,7 @@ and implement the dispose method to clean up resources when the context stops.
       // biome-ignore lint/style/noNonNullAssertion: we just checked that the subcontext exists
       return this.subContexts.get(name)!;
     }
-    const subContext = new Context(this.client, undefined, name, this, filter);
+    const subContext = new Context(this.baseClient, undefined, name, this, filter);
     this.subContexts.set(name, subContext);
     return subContext;
   }
@@ -385,11 +442,22 @@ and implement the dispose method to clean up resources when the context stops.
       }
     }
 
+    this.apiHookEntries.length = 0;
+
     if (errors.length === 1) {
       throw errors[0];
     }
     if (errors.length > 1) {
       throw new AggregateError(errors, `Context "${this.name}" failed to stop cleanly.`);
+    }
+  }
+
+  private assertCanRegisterApiHook(): void {
+    if (this.state === 'stopping') {
+      throw new Error(`Context "${this.name}" cannot register API hooks while it is stopping.`);
+    }
+    if (this.state === 'stopped') {
+      throw new Error(`Context "${this.name}" cannot register API hooks after it has stopped.`);
     }
   }
 
@@ -782,6 +850,79 @@ and implement the dispose method to clean up resources when the context stops.
     const resolve = runtime.resolveReconnectTimer;
     runtime.resolveReconnectTimer = undefined;
     resolve?.();
+  }
+
+  private createHookClient(): MilkyClient {
+    return new Proxy(this.baseClient, {
+      get: (target, prop, receiver) => {
+        if (typeof prop === 'string' && prop.includes('_')) {
+          return (params?: unknown) => this.callHookedApi(prop as ApiEndpointName, params);
+        }
+        return Reflect.get(target, prop, receiver);
+      },
+    }) as MilkyClient;
+  }
+
+  private wrapAnyApiHook(hook: AnyApiHook): InternalApiHook {
+    return (params, next, call) => {
+      const apiCall = call as AnyApiCall;
+      return hook(apiCall, (nextParams = params) => next(nextParams));
+    };
+  }
+
+  private async callHookedApi(endpoint: ApiEndpointName, params?: unknown): Promise<unknown> {
+    const hooks = this.collectApiHooks(endpoint);
+    const dispatch = async (index: number, currentParams: unknown): Promise<unknown> => {
+      const hook = hooks[index];
+      if (!hook) {
+        return await this.callBaseApi(endpoint, currentParams);
+      }
+
+      let nextCalled = false;
+      return await hook(
+        currentParams,
+        async (nextParams = currentParams) => {
+          if (nextCalled) {
+            throw new Error(`API hook for endpoint ${endpoint} called next() multiple times.`);
+          }
+          nextCalled = true;
+          return await dispatch(index + 1, nextParams);
+        },
+        {
+          endpoint,
+          params: currentParams,
+        },
+      );
+    };
+
+    return await dispatch(0, params);
+  }
+
+  private collectApiHooks(endpoint: ApiEndpointName): InternalApiHook[] {
+    const hooks: InternalApiHook[] = [];
+    let context: Context | undefined = this;
+    while (context) {
+      for (const entry of context.apiHookEntries.toReversed()) {
+        if (entry.endpoint === undefined || entry.endpoint === endpoint) {
+          hooks.push(entry.hook);
+        }
+      }
+      context = context.parent;
+    }
+    return hooks;
+  }
+
+  private async callBaseApi(endpoint: ApiEndpointName, params: unknown): Promise<unknown> {
+    const callApi = (this.baseClient as Partial<CallApiCapable>).callApi;
+    if (typeof callApi === 'function') {
+      return await callApi.call(this.baseClient, endpoint, params);
+    }
+
+    const method = (this.baseClient as Record<string, unknown>)[endpoint];
+    if (typeof method !== 'function') {
+      throw new Error(`Milky client does not implement API endpoint ${endpoint}.`);
+    }
+    return await method.call(this.baseClient, params);
   }
 
   static fromUrl(baseUrl: string | URL, options?: ContextOptions & ContextUrlOptions): Context {
