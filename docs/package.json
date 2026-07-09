@@ -32,6 +32,7 @@
     "@types/react-dom": "^19.2.3",
     "postcss": "^8.5.15",
     "serve": "^14.2.6",
-    "tailwindcss": "^4.3.0"
+    "tailwindcss": "^4.3.0",
+    "typescript": "^7.0.2"
   }
 }
