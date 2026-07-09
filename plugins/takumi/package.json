@@ -1,7 +1,7 @@
 {
   "name": "@fraqjs/plugin-takumi",
   "type": "module",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Takumi integration plugin for Fraq",
   "files": [
     "dist",
@@ -28,8 +28,8 @@
   },
   "dependencies": {
     "@fraqjs/takumi-builtin-fonts": "^1.0.0",
-    "@takumi-rs/core": "^1.7.0",
-    "@takumi-rs/helpers": "^1.7.0"
+    "@takumi-rs/core": "^2.0.1",
+    "@takumi-rs/helpers": "^2.0.1"
   },
   "devDependencies": {
     "@fraqjs/mock": "workspace:^",

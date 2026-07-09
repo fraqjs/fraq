@@ -1,13 +1,6 @@
 import type { Context, Disposable } from '@fraqjs/fraq';
-import {
-  type ConstructRendererOptions,
-  extractResourceUrls,
-  type Font,
-  type ImageSource,
-  Renderer,
-  type RenderOptions,
-} from '@takumi-rs/core';
-import { fetchResources, type Node, type ReactElementLike } from '@takumi-rs/helpers';
+import { type FontLoader, type ImageLoader, type ImagesInput, Renderer, type RenderOptions } from '@takumi-rs/core';
+import { fontFromUrl, type Node, prepareImages, type ReactElementLike } from '@takumi-rs/helpers';
 import { type EmojiType, extractEmojis } from '@takumi-rs/helpers/emoji';
 import { fromHtml } from '@takumi-rs/helpers/html';
 import { fromJsx } from '@takumi-rs/helpers/jsx';
@@ -15,12 +8,39 @@ import type { ReactNode } from 'react';
 
 import fs from 'node:fs/promises';
 
-function combineAbortSignals(...signals: (AbortSignal | undefined)[]): AbortSignal {
-  return AbortSignal.any(signals.filter((signal): signal is AbortSignal => signal !== undefined));
+function combineAbortSignals(...signals: (AbortSignal | undefined)[]): AbortSignal | undefined {
+  const filteredSignals = signals.filter((signal): signal is AbortSignal => signal !== undefined);
+  if (filteredSignals.length === 0) {
+    return undefined;
+  }
+  if (filteredSignals.length === 1) {
+    return filteredSignals[0];
+  }
+  return AbortSignal.any(filteredSignals);
+}
+
+function isRemoteUrl(value: string) {
+  return value.startsWith('https://') || value.startsWith('http://');
+}
+
+function getImageSources(images: ImagesInput | undefined): ImageLoader[] {
+  if (!images) {
+    return [];
+  }
+  if (Array.isArray(images)) {
+    return images;
+  }
+  return images.sources ?? [];
+}
+
+function getImageCache(images: ImagesInput | undefined) {
+  if (!images || Array.isArray(images)) {
+    return undefined;
+  }
+  return images.cache;
 }
 
 export interface TakumiServiceOptions {
-  renderer?: ConstructRendererOptions;
   renderDefaults?: RenderOptions;
   onFontRegisterConflict?: 'error' | 'warn-and-ignore' | 'warn-and-replace';
 }
@@ -36,7 +56,8 @@ export class TakumiService implements Disposable {
   readonly renderer: Renderer;
 
   private readonly abortController = new AbortController();
-  private readonly registeredFontFamilies = new Set<string>();
+  private readonly imageFetchCache = new Map<string, Promise<ArrayBuffer>>();
+  private readonly registeredFontFamilies = new Map<string, FontLoader[]>();
 
   private onFontRegisterConflict: 'error' | 'warn-and-ignore' | 'warn-and-replace';
 
@@ -44,11 +65,15 @@ export class TakumiService implements Disposable {
     private readonly options?: TakumiServiceOptions,
     private readonly ctx?: Context,
   ) {
-    this.renderer = new Renderer(options?.renderer);
+    this.renderer = new Renderer();
     this.onFontRegisterConflict = options?.onFontRegisterConflict ?? 'warn-and-ignore';
   }
 
-  async registerFontFamily(family: string, fonts: (string | PathBasedFontDetails | Font)[], signal?: AbortSignal) {
+  async registerFontFamily(
+    family: string,
+    fonts: (string | PathBasedFontDetails | FontLoader)[],
+    signal?: AbortSignal,
+  ) {
     if (this.registeredFontFamilies.has(family)) {
       const message = `Font family "${family}" has already been registered.`;
       if (this.onFontRegisterConflict === 'error') {
@@ -66,88 +91,75 @@ export class TakumiService implements Disposable {
         } else {
           console.warn(`${message} Replacing previous registration.`);
         }
-        // Continue with registration
       }
     }
 
-    await this.renderer.loadFonts(
-      await Promise.all(
-        fonts.map<Promise<Font>>(async (font) => {
-          if (typeof font === 'string') {
-            const data = await fs.readFile(font);
-            return { name: family, data };
-          } else if ('path' in font) {
-            const { path, name = family, weight, style } = font;
-            const data = await fs.readFile(path);
-            return { name, data, weight, style };
-          } else {
-            return font;
-          }
-        }),
-      ),
-      combineAbortSignals(signal, this.abortController.signal),
+    signal?.throwIfAborted();
+    this.registeredFontFamilies.set(
+      family,
+      fonts.map((font) => this.toFontLoader(family, font)),
     );
-
-    this.registeredFontFamilies.add(family);
   }
 
   async renderJsx(
     jsx: ReactNode | ReactElementLike,
     renderOptions?: RenderOptions,
     signal?: AbortSignal,
+    emojiType?: EmojiType,
   ): Promise<Buffer> {
     const { node, stylesheets } = await fromJsx(jsx);
-    return this.renderer.render(
-      node,
-      this.mergeRenderOptions({ stylesheets, userOptions: renderOptions }),
-      combineAbortSignals(signal, this.abortController.signal),
-    );
+    return await this.renderNode({ node, stylesheets, renderOptions, signal, emojiType });
   }
 
-  async renderJsxWithEmoji(
-    jsx: ReactNode | ReactElementLike,
-    renderOptions?: RenderOptions,
-    signal?: AbortSignal,
-    emojiType: EmojiType = 'noto',
-  ): Promise<Buffer> {
-    const { node, stylesheets } = await fromJsx(jsx);
-    const { node: processedNode, fetchedResources } = await this.processEmoji(node, emojiType);
-    return this.renderer.render(
-      processedNode,
-      this.mergeRenderOptions({ stylesheets, fetchedResources, userOptions: renderOptions }),
-      combineAbortSignals(signal, this.abortController.signal),
-    );
-  }
-
-  async renderHtml(html: string, renderOptions?: RenderOptions, signal?: AbortSignal): Promise<Buffer> {
-    const { node, stylesheets } = fromHtml(html);
-    return this.renderer.render(
-      node,
-      this.mergeRenderOptions({ stylesheets, userOptions: renderOptions }),
-      combineAbortSignals(signal, this.abortController.signal),
-    );
-  }
-
-  async renderHtmlWithEmoji(
+  async renderHtml(
     html: string,
     renderOptions?: RenderOptions,
     signal?: AbortSignal,
-    emojiType: EmojiType = 'noto',
+    emojiType?: EmojiType,
   ): Promise<Buffer> {
     const { node, stylesheets } = fromHtml(html);
-    const { node: processedNode, fetchedResources } = await this.processEmoji(node, emojiType);
-    return this.renderer.render(
-      processedNode,
-      this.mergeRenderOptions({ stylesheets, fetchedResources, userOptions: renderOptions }),
-      combineAbortSignals(signal, this.abortController.signal),
+    return await this.renderNode({ node, stylesheets, renderOptions, signal, emojiType });
+  }
+
+  private async renderNode(components: {
+    node: Node;
+    stylesheets?: string[];
+    renderOptions?: RenderOptions;
+    signal?: AbortSignal;
+    emojiType?: EmojiType;
+  }): Promise<Buffer> {
+    const node =
+      components.emojiType === undefined ? components.node : extractEmojis(components.node, components.emojiType);
+    return await this.renderer.render(
+      node,
+      await this.mergeRenderOptions({
+        node,
+        stylesheets: components.stylesheets,
+        userOptions: components.renderOptions,
+        signal: components.signal,
+        images: components.emojiType !== undefined,
+      }),
     );
   }
 
-  private mergeRenderOptions(components: {
+  private async mergeRenderOptions(components: {
+    node: Node;
     stylesheets?: string[];
-    fetchedResources?: ImageSource[];
     userOptions?: RenderOptions;
-  }): RenderOptions {
+    signal?: AbortSignal;
+    images?: boolean;
+  }): Promise<RenderOptions> {
+    const renderDefaults = this.options?.renderDefaults;
+    const signal = combineAbortSignals(components.signal, components.userOptions?.signal, this.abortController.signal);
+    const images = await this.mergeImages({
+      node: components.node,
+      prepareImages: components.images ?? false,
+      signal,
+      defaultImages: renderDefaults?.images,
+      userImages: components.userOptions?.images,
+    });
+    const fonts = this.mergeFonts(renderDefaults?.fonts, components.userOptions?.fonts);
+
     return {
       ...this.options?.renderDefaults,
       ...components.userOptions,
@@ -156,21 +168,85 @@ export class TakumiService implements Disposable {
         ...(components.stylesheets ?? []),
         ...(components.userOptions?.stylesheets ?? []),
       ],
-      fetchedResources: [
-        ...(this.options?.renderDefaults?.fetchedResources ?? []),
-        ...(components.fetchedResources ?? []),
-        ...(components.userOptions?.fetchedResources ?? []),
-      ],
-    };
+      ...(fonts ? { fonts } : {}),
+      ...(images ? { images } : {}),
+      ...(signal ? { signal } : {}),
+    } as RenderOptions;
   }
 
-  private async processEmoji(node: Node, emojiType: EmojiType = 'twemoji') {
-    const processedNode = extractEmojis(node, emojiType);
-    const resourceUrls = extractResourceUrls(processedNode);
-    const fetchedResources = await fetchResources(resourceUrls, {
-      throwOnError: false,
-    });
-    return { node: processedNode, fetchedResources };
+  private mergeFonts(
+    defaultFonts: FontLoader[] | undefined,
+    userFonts: FontLoader[] | undefined,
+  ): FontLoader[] | undefined {
+    const fonts = [...this.registeredFontFamilies.values()].flat();
+    if (defaultFonts) {
+      fonts.push(...defaultFonts);
+    }
+    if (userFonts) {
+      fonts.push(...userFonts);
+    }
+    return fonts.length > 0 ? fonts : undefined;
+  }
+
+  private async mergeImages(components: {
+    node: Node;
+    prepareImages: boolean;
+    signal?: AbortSignal;
+    defaultImages?: ImagesInput;
+    userImages?: ImagesInput;
+  }): Promise<ImagesInput | undefined> {
+    const sources = [...getImageSources(components.defaultImages), ...getImageSources(components.userImages)];
+    const cache = getImageCache(components.userImages) ?? getImageCache(components.defaultImages);
+
+    if (components.prepareImages) {
+      const preparedSources = await prepareImages({
+        node: components.node,
+        sources,
+        fetchCache: this.imageFetchCache,
+        signal: components.signal,
+        throwOnError: false,
+      });
+      return this.toImagesInput(preparedSources as ImageLoader[], cache);
+    }
+
+    return this.toImagesInput(sources, cache);
+  }
+
+  private toImagesInput(sources: ImageLoader[], cache: ReturnType<typeof getImageCache>): ImagesInput | undefined {
+    if (sources.length === 0) {
+      return cache === undefined ? undefined : { cache };
+    }
+    return cache === undefined ? sources : { sources, cache };
+  }
+
+  private toFontLoader(family: string, font: string | PathBasedFontDetails | FontLoader): FontLoader {
+    if (typeof font === 'string') {
+      if (isRemoteUrl(font)) {
+        return {
+          ...fontFromUrl(font),
+          name: family,
+        };
+      }
+
+      return {
+        name: family,
+        key: `${family}:${font}`,
+        data: () => fs.readFile(font),
+      };
+    }
+
+    if ('path' in font) {
+      const { path, name = family, weight, style } = font;
+      return {
+        name,
+        key: `${name}:${path}:${weight ?? ''}:${style ?? ''}`,
+        weight,
+        style,
+        data: () => fs.readFile(path),
+      };
+    }
+
+    return font;
   }
 
   dispose() {
