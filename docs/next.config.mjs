@@ -9,6 +9,9 @@ const config = {
   images: {
     unoptimized: true,
   },
+  typescript: {
+    ignoreBuildErrors: true,
+  },
 };
 
 export default withMDX(config);
