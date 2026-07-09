@@ -4,7 +4,9 @@ packages:
   - docs
 
 minimumReleaseAgeExclude:
-  - '@fraqjs/takumi-builtin-fonts'
+  - "@fraqjs/takumi-builtin-fonts"
+  - "@typescript/*"
+  - typescript
 
 allowBuilds:
   better-sqlite3: set this to true or false
