@@ -27,20 +27,20 @@ ctx.install(KyselyPlugin, {
 
 ```typescript
 import { definePlugin } from '@fraqjs/fraq';
-import { DatabaseService } from '@fraqjs/plugin-kysely';
+import { KyselyService } from '@fraqjs/plugin-kysely';
 
 definePlugin({
   name: 'my-plugin',
   inject: {
-    db: DatabaseService,
+    kysely: KyselyService,
   },
   apply(ctx) {
-    // 使用 ctx.db 来访问 DatabaseService
+    // 使用 ctx.kysely 来访问 KyselyService
   },
 });
 ```
 
-此外，你还需要将 `kysely` 添加到 `dependencies` 中，以便使用其中的类型定义。
+此外，你还需要将 `kysely` 添加到 `devDependencies` 中，以便使用其中的类型定义。
 
 ## Node.js 兼容性
 
@@ -140,7 +140,7 @@ declare module '@fraqjs/plugin-kysely' {
 - 当新增一个表时，创建这个表；
 - 当修改了表的结构（例如新增字段、重命名字段、删除字段等）时，更新表的结构以匹配新的定义。
 
-Schema 本身只存在于类型系统，并且 Fraq 也无法比对不同版本的插件之间 Schema 是否发生了变化，因此 Fraq 选择让插件开发者来编写迁移脚本，以便在插件更新时执行这些脚本来同步数据库的结构。为此，`DatabaseService` 提供了一个 `schemas` 属性，插件需要在 `apply` 阶段调用其中的方法来注册 Schema 和迁移脚本。
+Schema 本身只存在于类型系统，并且 Fraq 也无法比对不同版本的插件之间 Schema 是否发生了变化，因此 Fraq 选择让插件开发者来编写迁移脚本，以便在插件更新时执行这些脚本来同步数据库的结构。为此，`KyselyService` 提供了一个 `schemas` 属性，插件需要在 `apply` 阶段调用其中的方法来注册 Schema 和迁移脚本。
 
 ### 创建数据表
 
@@ -149,7 +149,7 @@ Schema 本身只存在于类型系统，并且 Fraq 也无法比对不同版本�
 ```typescript
 import { sql } from 'kysely';
 
-ctx.db.schemas.register({
+ctx.kysely.schemas.register({
   name: 'my_plugin_schema',
   migrations: {
     '001_create_person_table': {
@@ -205,7 +205,7 @@ export interface PersonTable {
 对应的迁移注册应该保留原来的 `001_create_person_table`，并在它后面追加一个新的迁移：
 
 ```typescript
-ctx.db.schemas.register({
+ctx.kysely.schemas.register({
   name: 'my_plugin_schema',
   migrations: {
     // 上面已经发布过的 001_create_person_table 迁移脚本
@@ -221,7 +221,7 @@ ctx.db.schemas.register({
 });
 ```
 
-`DatabaseService` 对迁移状态的记录完全基于你提供的脚本名。假设一个数据库已经执行过脚本 `001_create_person_table`，那么在插件更新后，`DatabaseService` 会从 `001` 的下一个脚本开始执行迁移；在这个例子中，它会执行 `002_add_person_nickname`。
+`KyselyService` 对迁移状态的记录完全基于你提供的脚本名。假设一个数据库已经执行过脚本 `001_create_person_table`，那么在插件更新后，`KyselyService` 会从 `001` 的下一个脚本开始执行迁移；在这个例子中，它会执行 `002_add_person_nickname`。
 
 {/* prettier-ignore */}
 <Callout>
@@ -240,18 +240,18 @@ ctx.db.schemas.register({
 
 ## 操作数据表
 
-完成表结构声明和迁移注册之后，`DatabaseService` 会在应用启动时自动完成迁移工作，随后就可以通过 `ctx.db.kysely` 来访问 Kysely 实例，并使用它来执行各种数据库操作了。下面介绍一些基本的 CRUD 操作，你可以查看 Kysely 文档的 [Examples](https://kysely.dev/docs/category/examples) 章节来了解更多用法。
+完成表结构声明和迁移注册之后，`KyselyService` 会在应用启动时自动完成迁移工作，随后就可以通过 `ctx.kysely.db` 来访问 Kysely 实例，并使用它来执行各种数据库操作了。下面介绍一些基本的 CRUD 操作，你可以查看 Kysely 文档的 [Examples](https://kysely.dev/docs/category/examples) 章节来了解更多用法。
 
 {/* prettier-ignore */}
 <Callout>
-如果你的插件在数据库中定义了新的结构，同时又希望外界能够对这些数据进行查询或修改，不要直接暴露这些表，而应把这些操作封装成一个新的 `Service`，在其中使用 `ctx.db.kysely` 来访问数据库，并且使用 `provides` 属性和 `ctx.provide` 来提供这个服务。
+如果你的插件在数据库中定义了新的结构，同时又希望外界能够对这些数据进行查询或修改，不要直接暴露这些表，而应把这些操作封装成一个新的 `Service`，在其中使用 `ctx.kysely.db` 来访问数据库，并且使用 `provides` 属性和 `ctx.provide` 来提供这个服务。
 </Callout>
 {/* prettier-ignore-end */}
 
 ### 插入 (INSERT) 数据
 
 ```typescript
-await ctx.db.kysely
+await ctx.kysely.db
   .insertInto('my_plugin_person')
   .values({
     first_name: 'Alice',
@@ -273,7 +273,7 @@ await ctx.db.kysely
 ### 查询 (SELECT) 数据
 
 ```typescript
-const person = await ctx.db.kysely
+const person = await ctx.kysely.db
   .selectFrom('my_plugin_person')
   .select(['id', 'first_name', 'nickname', 'last_name', 'gender', 'created_at'])
   .where('first_name', '=', 'Alice')
@@ -287,7 +287,7 @@ if (person) {
 如果你确定查询结果必须存在，可以使用 `executeTakeFirstOrThrow()`：
 
 ```typescript
-const person = await ctx.db.kysely
+const person = await ctx.kysely.db
   .selectFrom('my_plugin_person')
   .select(['id', 'first_name'])
   .where('id', '=', 1)
@@ -297,7 +297,7 @@ const person = await ctx.db.kysely
 ### 更新 (UPDATE) 数据
 
 ```typescript
-await ctx.db.kysely
+await ctx.kysely.db
   .updateTable('my_plugin_person')
   .set({
     nickname: 'Ali',
@@ -312,7 +312,7 @@ await ctx.db.kysely
 ### 删除 (DELETE) 数据
 
 ```typescript
-await ctx.db.kysely
+await ctx.kysely.db
   .deleteFrom('my_plugin_person')
   .where('id', '=', 1)
   .executeTakeFirst();
@@ -323,7 +323,7 @@ await ctx.db.kysely
 如果多个操作必须同时成功或同时失败，可以使用 Kysely 的事务（Transaction）功能：
 
 ```typescript
-await ctx.db.kysely.transaction().execute(async (trx) => {
+await ctx.kysely.db.transaction().execute(async (trx) => {
   const result = await trx
     .insertInto('my_plugin_person')
     .values({
