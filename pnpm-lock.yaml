@@ -187,6 +187,19 @@ importers:
         specifier: workspace:^
         version: link:../../packages/mock
 
+  plugins/message-store:
+    dependencies:
+      '@fraqjs/fraq':
+        specifier: workspace:^
+        version: link:../../packages/fraq
+      '@fraqjs/plugin-kysely':
+        specifier: workspace:^
+        version: link:../kysely
+    devDependencies:
+      '@fraqjs/mock':
+        specifier: workspace:^
+        version: link:../../packages/mock
+
   plugins/milky-webhook:
     dependencies:
       '@fraqjs/fraq':
