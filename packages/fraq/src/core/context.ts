@@ -118,9 +118,12 @@ export class Context {
     this.parent = parent;
     this.filter = filter;
     if (parent) {
-      this.parentEventForwarder = (type, event) => {
-        if (!this.acceptsParentEvent(type, event)) {
-          return;
+      this.parentEventForwarder = <K extends keyof EventMap>(type: K, event: EventMap[K]) => {
+        if (this.filter) {
+          const predicate = this.filter[type];
+          if (predicate?.(event) !== true) {
+            return;
+          }
         }
         this.eventBus.emit(type, event);
       };
@@ -178,12 +181,20 @@ export class Context {
   hookApi<E extends ApiEndpointName>(endpoint: E, hook: ApiHook<E>): () => void;
   hookApi(hook: AnyApiHook): () => void;
   hookApi<E extends ApiEndpointName>(endpointOrHook: E | AnyApiHook, hook?: ApiHook<E>): () => void {
-    this.assertCanRegisterApiHook();
+    if (this.state === 'stopping') {
+      throw new Error(`Context "${this.name}" cannot register API hooks while it is stopping.`);
+    }
+    if (this.state === 'stopped') {
+      throw new Error(`Context "${this.name}" cannot register API hooks after it has stopped.`);
+    }
 
     let entry: ApiHookEntry;
     if (typeof endpointOrHook === 'function') {
       entry = {
-        hook: this.wrapAnyApiHook(endpointOrHook),
+        hook: (params, next, call) => {
+          const apiCall = call as AnyApiCall;
+          return endpointOrHook(apiCall, (nextParams = params) => next(nextParams));
+        },
       };
     } else {
       if (!hook) {
@@ -364,10 +375,12 @@ and implement the dispose method to clean up resources when the context stops.
     if ((this.state === 'idle' && this.timers.size === 0) || this.state === 'stopped') {
       return;
     }
-    if (this.state === 'starting') {
+    let stateAfterStart: ContextState = this.state;
+    if (stateAfterStart === 'starting') {
       await this.startPromise;
+      // The awaited start or another stop call may have changed the state.
+      stateAfterStart = this.state as ContextState;
     }
-    const stateAfterStart = this.getState();
     if ((stateAfterStart === 'idle' && this.timers.size === 0) || stateAfterStart === 'stopped') {
       return;
     }
@@ -391,7 +404,16 @@ and implement the dispose method to clean up resources when the context stops.
     const startingContexts: Context[] = [];
     try {
       await this.recursiveApplyPlugins(appliedContextPlugins, startingContexts);
-      await this.recursiveStartPlugins(appliedContextPlugins);
+      for (const { context, sortedPlugins } of appliedContextPlugins) {
+        for (const installedPlugin of sortedPlugins) {
+          const { plugin } = installedPlugin;
+          if (!plugin.start) {
+            continue;
+          }
+          context.logger.debug(`Plugin ${plugin.name} is starting...`);
+          await plugin.start(context.getPluginContext(installedPlugin));
+        }
+      }
     } catch (error) {
       for (const context of startingContexts) {
         if (context.state === 'starting') {
@@ -406,10 +428,6 @@ and implement the dispose method to clean up resources when the context stops.
         context.startEventSource(eventSource);
       }
     }
-  }
-
-  private getState(): ContextState {
-    return this.state;
   }
 
   private async stopInternal(): Promise<void> {
@@ -449,15 +467,6 @@ and implement the dispose method to clean up resources when the context stops.
     }
     if (errors.length > 1) {
       throw new AggregateError(errors, `Context "${this.name}" failed to stop cleanly.`);
-    }
-  }
-
-  private assertCanRegisterApiHook(): void {
-    if (this.state === 'stopping') {
-      throw new Error(`Context "${this.name}" cannot register API hooks while it is stopping.`);
-    }
-    if (this.state === 'stopped') {
-      throw new Error(`Context "${this.name}" cannot register API hooks after it has stopped.`);
     }
   }
 
@@ -514,14 +523,6 @@ and implement the dispose method to clean up resources when the context stops.
         runtime.task = undefined;
       }
     }
-  }
-
-  private acceptsParentEvent<K extends keyof EventMap>(type: K, event: EventMap[K]): boolean {
-    if (!this.filter) {
-      return true;
-    }
-    const predicate = this.filter[type];
-    return predicate?.(event) === true;
   }
 
   private async applyPlugins(sortedPlugins: InstalledPlugin[]): Promise<void> {
@@ -590,23 +591,6 @@ and implement the dispose method to clean up resources when the context stops.
 
     for (const subContext of this.subContexts.values()) {
       await subContext.recursiveApplyPlugins(appliedContextPlugins, startingContexts);
-    }
-  }
-
-  private async startPlugins(sortedPlugins: InstalledPlugin[]): Promise<void> {
-    for (const installedPlugin of sortedPlugins) {
-      const { plugin } = installedPlugin;
-      if (!plugin.start) {
-        continue;
-      }
-      this.logger.debug(`Plugin ${plugin.name} is starting...`);
-      await plugin.start(this.getPluginContext(installedPlugin));
-    }
-  }
-
-  private async recursiveStartPlugins(appliedContextPlugins: AppliedContextPlugins[]): Promise<void> {
-    for (const { context, sortedPlugins } of appliedContextPlugins) {
-      await context.startPlugins(sortedPlugins);
     }
   }
 
@@ -861,13 +845,6 @@ and implement the dispose method to clean up resources when the context stops.
         return Reflect.get(target, prop, receiver);
       },
     }) as MilkyClient;
-  }
-
-  private wrapAnyApiHook(hook: AnyApiHook): InternalApiHook {
-    return (params, next, call) => {
-      const apiCall = call as AnyApiCall;
-      return hook(apiCall, (nextParams = params) => next(nextParams));
-    };
   }
 
   private async callHookedApi(endpoint: ApiEndpointName, params?: unknown): Promise<unknown> {
