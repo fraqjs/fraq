@@ -1,7 +1,7 @@
 {
   "name": "@fraqjs/plugin-ai",
   "type": "module",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Vercel AI SDK integration plugin for Fraq",
   "files": [
     "dist"
@@ -36,5 +36,8 @@
   },
   "engines": {
     "node": ">=22"
+  },
+  "dependencies": {
+    "zod": "^4.4.3"
   }
 }

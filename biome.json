@@ -63,7 +63,10 @@
       }
     },
     {
-      "includes": ["packages/fraq/src/protocol/types.ts"],
+      "includes": [
+        "packages/fraq/src/protocol/types.ts",
+        "plugins/ai/src/protocol/types-zod.ts"
+      ],
       "formatter": {
         "enabled": false
       },
