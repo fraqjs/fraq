@@ -1,0 +1,32 @@
+---
+title: '@fraqjs/plugin-message-store'
+---
+
+<NpmBadge packageName="@fraqjs/plugin-message-store" />
+
+`@fraqjs/plugin-message-store` 提供了将消息存储在本地数据库的能力，并且替换了 `get_message` 和 `get_history_messages` 的默认实现，使其从数据库中获取消息。
+
+## 安装与配置
+
+将插件添加至 `dependencies`，然后在创建 `Context` 时引入并配置插件。本插件依赖 [`@fraqjs/plugin-kysely`](./kysely.mdx) 插件，因此需要一并安装。
+
+```typescript
+import KyselyPlugin from '@fraqjs/plugin-kysely';
+import MessageStorePlugin from '@fraqjs/plugin-message-store';
+
+ctx.install(KyselyPlugin, {
+  // 在这里传入 KyselyPlugin 的配置选项
+});
+ctx.install(MessageStorePlugin, {
+  // 在这里传入 MessageStorePlugin 的配置选项
+});
+```
+
+`MessageStorePlugin` 有如下配置项：
+
+- `listenRecall`：是否监听消息撤回事件，默认为 `true`。为 `true` 时，消息撤回事件会被存储在数据库中，并且撤回后的消息将无法再通过 `getMessage` 方法获取。
+- `autoFlush`：是否自动清理过期消息，默认为 `false`。为对象时，表示启用自动清理功能，并可配置以下选项：
+  - `intervalMinutes`：自动清理的时间间隔，单位为分钟，默认为 `60`。
+  - `maxAgeDays`：消息的最大存储天数，超过该天数的消息将被清理，默认为 `30`。
+
+插件开发者通常情况下无需直接使用 `MessageStorePlugin`。
