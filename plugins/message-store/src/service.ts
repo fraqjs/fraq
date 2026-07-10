@@ -22,8 +22,20 @@ declare module '@fraqjs/plugin-kysely' {
   }
 }
 
+export interface MessageStoreServiceOptions {
+  autoFlush?:
+    | false
+    | {
+        intervalMinutes?: number;
+        maxAgeDays?: number;
+      };
+}
+
 export class MessageStoreService {
-  constructor(private readonly kysely: KyselyService) {}
+  constructor(
+    private readonly kysely: KyselyService,
+    readonly options?: MessageStoreServiceOptions,
+  ) {}
 
   async storeReceived(selfId: number, message: milky.IncomingMessage): Promise<void> {
     await this.kysely.db
@@ -117,6 +129,18 @@ export class MessageStoreService {
       messages: pageRows.toReversed().flatMap((row) => (row.payload_json ? [JSON.parse(row.payload_json)] : [])),
       next_message_seq: rows[limit]?.message_seq,
     };
+  }
+
+  async flushExpired(maxAgeMs: number): Promise<number> {
+    if (!Number.isFinite(maxAgeMs) || maxAgeMs < 0) {
+      throw new RangeError('maxAgeMs must be a non-negative finite number.');
+    }
+
+    const result = await this.kysely.db
+      .deleteFrom(MESSAGE_STORE_TABLE)
+      .where('stored_at', '<', Date.now() - maxAgeMs)
+      .executeTakeFirstOrThrow();
+    return Number(result.numDeletedRows);
   }
 
   private baseMessageQuery(identity: MessageIdentity) {

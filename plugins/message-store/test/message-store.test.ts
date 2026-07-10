@@ -1,8 +1,8 @@
 import { Context, type milky } from '@fraqjs/fraq';
 import { createMockMilkyClient, inmsg } from '@fraqjs/mock';
-import KyselyPlugin from '@fraqjs/plugin-kysely';
+import KyselyPlugin, { KyselyService } from '@fraqjs/plugin-kysely';
 
-import MessageStorePlugin, { MessageStoreService } from '../src';
+import MessageStorePlugin, { type MessageStorePluginOptions, MessageStoreService } from '../src';
 
 import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -14,9 +14,9 @@ async function tick(): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, 0));
 }
 
-function installMessageStore(ctx: Context, sqliteUrl = ':memory:'): void {
+function installMessageStore(ctx: Context, sqliteUrl = ':memory:', options?: MessageStorePluginOptions): void {
   ctx.install(KyselyPlugin, { sqliteUrl });
-  ctx.install(MessageStorePlugin);
+  ctx.install(MessageStorePlugin, options);
 }
 
 test('returns stored messages without calling the remote get_message API', async () => {
@@ -193,6 +193,76 @@ test('does not intercept mark_message_as_read', async () => {
     },
   ]);
   await ctx.stop();
+});
+
+test('flushes expired records when the plugin starts', async (t) => {
+  const tempDir = await mkdtemp(join(tmpdir(), 'fraq-message-store-flush-'));
+  t.after(async () => {
+    await rm(tempDir, { recursive: true, force: true });
+  });
+  const sqliteUrl = join(tempDir, 'messages.sqlite');
+
+  const firstClient = createMockMilkyClient();
+  const firstCtx = Context.fromClient(firstClient);
+  installMessageStore(firstCtx, sqliteUrl, { autoFlush: false });
+  await firstCtx.start();
+  const received = await firstClient.receiveFriend({ userId: 10001 }, inmsg`expired`);
+  await tick();
+  await firstCtx
+    .resolve(KyselyService)
+    .db.updateTable('message_store_messages')
+    .set({ stored_at: Date.now() - 1_000 })
+    .execute();
+  await firstCtx.stop();
+
+  const secondCtx = Context.fromClient(createMockMilkyClient());
+  installMessageStore(secondCtx, sqliteUrl, {
+    autoFlush: { maxAgeDays: 0, intervalMinutes: 1 },
+  });
+  await secondCtx.start();
+
+  const stored = await secondCtx.resolve(MessageStoreService).getMessage({
+    message_scene: received.message_scene,
+    peer_id: received.peer_id,
+    message_seq: received.message_seq,
+  });
+
+  assert.equal(stored, undefined);
+  await secondCtx.stop();
+});
+
+test('allows automatic expiration flushing to be disabled', async (t) => {
+  const tempDir = await mkdtemp(join(tmpdir(), 'fraq-message-store-no-flush-'));
+  t.after(async () => {
+    await rm(tempDir, { recursive: true, force: true });
+  });
+  const sqliteUrl = join(tempDir, 'messages.sqlite');
+  const firstClient = createMockMilkyClient();
+  const firstCtx = Context.fromClient(firstClient);
+  installMessageStore(firstCtx, sqliteUrl, { autoFlush: false });
+  await firstCtx.start();
+
+  const received = await firstClient.receiveFriend({ userId: 10001 }, inmsg`retained`);
+  await tick();
+  await firstCtx
+    .resolve(KyselyService)
+    .db.updateTable('message_store_messages')
+    .set({ stored_at: Date.now() - 1_000 })
+    .execute();
+  await firstCtx.stop();
+
+  const secondCtx = Context.fromClient(createMockMilkyClient());
+  installMessageStore(secondCtx, sqliteUrl, { autoFlush: false });
+  await secondCtx.start();
+
+  const stored = await secondCtx.resolve(MessageStoreService).getMessage({
+    message_scene: received.message_scene,
+    peer_id: received.peer_id,
+    message_seq: received.message_seq,
+  });
+
+  assert.deepEqual(stored, { message: received });
+  await secondCtx.stop();
 });
 
 test('preserves stored messages across context restarts', async (t) => {
