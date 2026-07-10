@@ -208,3 +208,19 @@ const { toolResults } = await generateText({
 
 console.log(toolResults);
 ```
+
+## 使用内置工具
+
+`AiService` 提供了一个 `milkyToolset` 方法，可以构造 `tools` 选项所需的工具集，方便 AI 直接调用 Milky 协议功能。你需要提供一个 `ctx` 实例和一个数组，数组中包含你想要开放给 AI 调用的 Milky API 名称：
+
+```typescript
+import { milkyToolset } from '@fraqjs/plugin-ai';
+
+const tools = milkyToolset(ctx, ['get_login_info', 'set_nickname']);
+
+await generateText({
+  model: ctx.ai.model(),
+  prompt: '获取当前帐户的登录信息。',
+  tools,
+});
+```
