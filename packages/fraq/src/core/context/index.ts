@@ -90,15 +90,9 @@ export class Context {
     this.apiHooks = new ApiHookRegistry(baseClient, parent?.apiHooks, this.name, getState);
     this.client = this.apiHooks.client;
     this.timers = new TimerRegistry(this.name, this.logger, getState);
-    this.eventSources = new EventSourceRegistry(
-      {
-        initialReconnectDelayMs: options?.reconnect?.initialDelayMs,
-        maxReconnectDelayMs: options?.reconnect?.maxDelayMs,
-      },
-      this.logger,
-      getState,
-      (event) => this.eventBus.emit(event.event_type, event),
-    );
+    this.eventSources = new EventSourceRegistry(options?.reconnect, this.logger, getState, (event) => {
+      this.eventBus.emit(event.event_type, event);
+    });
     this.lifecycle = new LifecycleManager(
       this.name,
       this.plugins,

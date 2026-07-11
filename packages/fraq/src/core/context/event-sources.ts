@@ -1,6 +1,7 @@
 import type { MilkyEventSource, MilkyEventSubscription } from '../../protocol/event';
 import type { Event } from '../../protocol/types';
 import type { Logger } from '../logging';
+import type { ContextOptions } from './index';
 import type { ContextState } from './lifecycle';
 
 const DEFAULT_INITIAL_RECONNECT_DELAY_MS = 1_000;
@@ -13,24 +14,19 @@ type EventSourceRuntime = {
   resolveReconnectTimer?: () => void;
 };
 
-export interface ContextEventSourceOptions {
-  initialReconnectDelayMs?: number;
-  maxReconnectDelayMs?: number;
-}
-
 export class EventSourceRegistry {
   private readonly runtimes = new Map<MilkyEventSource, EventSourceRuntime>();
   private readonly initialReconnectDelayMs: number;
   private readonly maxReconnectDelayMs: number;
 
   constructor(
-    options: ContextEventSourceOptions,
+    options: ContextOptions['reconnect'],
     private readonly logger: Logger,
     private readonly getState: () => ContextState,
     private readonly emit: (event: Event) => void,
   ) {
-    this.initialReconnectDelayMs = options.initialReconnectDelayMs ?? DEFAULT_INITIAL_RECONNECT_DELAY_MS;
-    this.maxReconnectDelayMs = options.maxReconnectDelayMs ?? DEFAULT_MAX_RECONNECT_DELAY_MS;
+    this.initialReconnectDelayMs = options?.initialDelayMs ?? DEFAULT_INITIAL_RECONNECT_DELAY_MS;
+    this.maxReconnectDelayMs = options?.maxDelayMs ?? DEFAULT_MAX_RECONNECT_DELAY_MS;
   }
 
   install(eventSource: MilkyEventSource): void {
