@@ -90,7 +90,14 @@ export class MessageStoreService {
   }
 
   async getMessage(identity: MessageIdentity): Promise<milky.GetMessageOutput | undefined> {
-    const row = await this.baseMessageQuery(identity).select('payload_json').executeTakeFirst();
+    const row = await this.kysely.db
+      .selectFrom(MESSAGE_STORE_TABLE)
+      .where('message_scene', '=', identity.message_scene)
+      .where('peer_id', '=', identity.peer_id)
+      .where('message_seq', '=', identity.message_seq)
+      .where('recalled_at', 'is', null)
+      .select('payload_json')
+      .executeTakeFirst();
     if (!row?.payload_json) {
       return undefined;
     }
@@ -141,14 +148,5 @@ export class MessageStoreService {
       .where('stored_at', '<', Date.now() - maxAgeMs)
       .executeTakeFirstOrThrow();
     return Number(result.numDeletedRows);
-  }
-
-  private baseMessageQuery(identity: MessageIdentity) {
-    return this.kysely.db
-      .selectFrom(MESSAGE_STORE_TABLE)
-      .where('message_scene', '=', identity.message_scene)
-      .where('peer_id', '=', identity.peer_id)
-      .where('message_seq', '=', identity.message_seq)
-      .where('recalled_at', 'is', null);
   }
 }

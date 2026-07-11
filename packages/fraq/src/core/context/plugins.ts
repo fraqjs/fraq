@@ -11,16 +11,6 @@ export type InstalledPlugin = {
   proxy?: Context;
 };
 
-function collectPendingProvidedServices(pending: InstalledPlugin[]): Map<ServiceClass, InstalledPlugin> {
-  const providedServices = new Map<ServiceClass, InstalledPlugin>();
-  for (const installedPlugin of pending) {
-    for (const service of installedPlugin.plugin.provides ?? []) {
-      providedServices.set(service, installedPlugin);
-    }
-  }
-  return providedServices;
-}
-
 function areRequiredServicesAvailable(plugin: AnyPlugin, available: Set<ServiceClass>): boolean {
   return (plugin.requires ?? []).every((service) => available.has(service));
 }
@@ -207,7 +197,12 @@ and implement the dispose method to clean up resources when the context stops.
     const available = new Set(this.collectAvailableServices());
 
     while (pending.length > 0) {
-      const availableByPendingPlugins = collectPendingProvidedServices(pending);
+      const availableByPendingPlugins = new Map<ServiceClass, InstalledPlugin>();
+      for (const installedPlugin of pending) {
+        for (const service of installedPlugin.plugin.provides ?? []) {
+          availableByPendingPlugins.set(service, installedPlugin);
+        }
+      }
       const requiredReadyIndex = pending.findIndex(({ plugin }) => areRequiredServicesAvailable(plugin, available));
       const optionalReadyIndex = pending.findIndex(
         ({ plugin }) =>

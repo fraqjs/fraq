@@ -132,7 +132,10 @@ export class Router {
     for (const branch of this.branchesFrom(session, [], { includeHidden: true })) {
       const descriptor = this.describeBranch(branch);
       const activations = this.activationResolver(descriptor, session) ?? DEFAULT_ACTIVATIONS;
-      for (const activation of routeActivationInputs(activations)) {
+      const activationInputs: readonly RouteActivation[] = Array.isArray(activations)
+        ? activations
+        : [activations as RouteActivation];
+      for (const activation of activationInputs) {
         const tokenizer = new Tokenizer(message.segments);
         if (!this.consumeActivation(tokenizer, activation, session)) {
           continue;
@@ -381,12 +384,4 @@ export class Router {
 
     return params;
   }
-}
-
-function routeActivationInputs(activations: RouteActivationInput): readonly RouteActivation[] {
-  return isRouteActivationArray(activations) ? activations : [activations];
-}
-
-function isRouteActivationArray(activations: RouteActivationInput): activations is readonly RouteActivation[] {
-  return Array.isArray(activations);
 }

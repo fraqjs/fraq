@@ -12,20 +12,17 @@ export interface AiPluginOptions {
   defaultModel?: string;
 }
 
-function isProviderConfig(config: ProviderConfig | Record<string, LanguageModelInstance>): config is ProviderConfig {
-  return 'sdk' in config && typeof config.sdk === 'string';
-}
-
 export const AiPlugin = definePlugin({
   name: 'ai',
   provides: [AiService],
   async apply(ctx, options: AiPluginOptions) {
     const models: Record<string, LanguageModel> = {};
     for (const [name, config] of Object.entries(options.providers)) {
-      if (isProviderConfig(config)) {
-        const resolvedModels = await resolveLanguageModels(name, config);
+      if ('sdk' in config && typeof config.sdk === 'string') {
+        const providerConfig = config as ProviderConfig;
+        const resolvedModels = await resolveLanguageModels(name, providerConfig);
         resolvedModels.forEach((model, idx) => {
-          const modelName = `${name}/${config.models[idx]}`;
+          const modelName = `${name}/${providerConfig.models[idx]}`;
           models[modelName] = model;
         });
       } else {

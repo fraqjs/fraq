@@ -83,10 +83,6 @@ function trimBoundaryTextSegments(segments: milky.IncomingSegment_ZodInput[]): m
   return result;
 }
 
-function isIncomingMessage(value: milky.IncomingMessage | IncomingReplySource): value is milky.IncomingMessage {
-  return 'message_scene' in value;
-}
-
 export namespace inseg {
   export function text(text: string): milky.IncomingTextSegment_ZodInput {
     return {
@@ -130,15 +126,16 @@ export namespace inseg {
   }
 
   export function reply(source: milky.IncomingMessage | IncomingReplySource): milky.IncomingReplySegment_ZodInput {
-    const data = isIncomingMessage(source)
-      ? {
-          message_seq: source.message_seq,
-          sender_id: source.sender_id,
-          sender_name: undefined,
-          time: source.time,
-          segments: source.segments,
-        }
-      : source;
+    const data =
+      'message_scene' in source
+        ? {
+            message_seq: source.message_seq,
+            sender_id: source.sender_id,
+            sender_name: undefined,
+            time: source.time,
+            segments: source.segments,
+          }
+        : source;
 
     return {
       type: 'reply',

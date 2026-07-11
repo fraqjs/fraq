@@ -19,10 +19,6 @@ function combineAbortSignals(...signals: (AbortSignal | undefined)[]): AbortSign
   return AbortSignal.any(filteredSignals);
 }
 
-function isRemoteUrl(value: string) {
-  return value.startsWith('https://') || value.startsWith('http://');
-}
-
 function getImageSources(images: ImagesInput | undefined): ImageLoader[] {
   if (!images) {
     return [];
@@ -221,7 +217,7 @@ export class TakumiService implements Disposable {
 
   private toFontLoader(family: string, font: string | PathBasedFontDetails | FontLoader): FontLoader {
     if (typeof font === 'string') {
-      if (isRemoteUrl(font)) {
+      if (font.startsWith('https://') || font.startsWith('http://')) {
         return {
           ...fontFromUrl(font),
           name: family,

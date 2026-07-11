@@ -105,15 +105,6 @@ function isSame(a: milky.IncomingMessage, b: milky.IncomingMessage): boolean {
   );
 }
 
-function branchFromMatch(match: RouteMatchResult): RouteBranch {
-  switch (match.type) {
-    case 'command':
-      return { type: 'command', path: match.path, command: match.command };
-    case 'rawPattern':
-      return { type: 'rawPattern', path: match.path, rawPattern: match.rawPattern };
-  }
-}
-
 function isSameBranch(a: RouteBranch, b: RouteBranch): boolean {
   if (a.path.length !== b.path.length || !a.path.every((part, index) => part === b.path[index])) {
     return false;
@@ -239,7 +230,15 @@ export class ConversationService {
   private async accept(selfId: number, raw: milky.IncomingMessage): Promise<void> {
     const session = this.ctx.createSession(selfId, raw);
     const commandMatch = this.router.match(session, raw);
-    const commandBranch = commandMatch ? branchFromMatch(commandMatch) : undefined;
+    let commandBranch: RouteBranch | undefined;
+    switch (commandMatch?.type) {
+      case 'command':
+        commandBranch = { type: 'command', path: commandMatch.path, command: commandMatch.command };
+        break;
+      case 'rawPattern':
+        commandBranch = { type: 'rawPattern', path: commandMatch.path, rawPattern: commandMatch.rawPattern };
+        break;
+    }
     const active = this.activeConversations.get(conversationKey(raw));
     if (!active || active.settled) {
       await this.dispatchCommand(commandMatch, session);

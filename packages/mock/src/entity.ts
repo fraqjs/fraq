@@ -64,10 +64,6 @@ function joinParts(...parts: string[]): string {
   return parts.filter(Boolean).join(' ');
 }
 
-function toBase36Id(prefix: string, value: number, minLength = 6): string {
-  return `${prefix}${Math.abs(value).toString(36).padStart(minLength, '0')}`;
-}
-
 function createUserProfile(userId: number): Pick<milky.FriendEntity, 'user_id' | 'nickname' | 'sex' | 'qid'> {
   const random = createRandom('friend-profile', userId);
   const firstName = random.pick(vocabulary.friend.firstNames);
@@ -79,7 +75,7 @@ function createUserProfile(userId: number): Pick<milky.FriendEntity, 'user_id' |
     user_id: userId,
     nickname: joinParts(firstName, lastName, nicknameSuffix),
     sex,
-    qid: toBase36Id('qid_', userId),
+    qid: `qid_${Math.abs(userId).toString(36).padStart(6, '0')}`,
   };
 }
 

@@ -2,7 +2,6 @@ import type { IncomingMessage } from '../protocol/types';
 import type { Session } from '../routing/command';
 import {
   defaultRouteActivationResolver,
-  type RouteActivation,
   type RouteActivationInput,
   type RouteActivationResolver,
   type RouteDescriptor,
@@ -64,7 +63,13 @@ function compileContextRouteActivationConfig(
   fallback: RouteActivationResolver,
 ): RouteActivationResolver {
   return (route, session) => {
-    for (const rule of contextRouteActivationRules(config.rules)) {
+    const rules: readonly ContextRouteActivationRule[] =
+      config.rules === undefined
+        ? []
+        : Array.isArray(config.rules)
+          ? config.rules
+          : [config.rules as ContextRouteActivationRule];
+    for (const rule of rules) {
       if (!matchesContextRouteActivationRule(route, session, rule)) {
         continue;
       }
@@ -85,37 +90,15 @@ function compileContextRouteActivationConfig(
   };
 }
 
-function contextRouteActivationRules(
-  rules: ContextRouteActivationConfig['rules'],
-): readonly ContextRouteActivationRule[] {
-  if (rules === undefined) {
-    return [];
-  }
-  return isContextRouteActivationRuleArray(rules) ? rules : [rules];
-}
-
-function isContextRouteActivationRuleArray(
-  rules: NonNullable<ContextRouteActivationConfig['rules']>,
-): rules is readonly ContextRouteActivationRule[] {
-  return Array.isArray(rules);
-}
-
 function resolveContextRouteActivation(
   activation: ContextRouteActivation,
   scene: IncomingMessage['message_scene'],
 ): RouteActivationInput | undefined {
-  if (isRouteActivationInput(activation)) {
-    return activation;
+  if (Array.isArray(activation) || 'type' in activation) {
+    return activation as RouteActivationInput;
   }
-  return activation[scene] ?? activation.default;
-}
-
-function isRouteActivationInput(activation: ContextRouteActivation): activation is RouteActivationInput {
-  return Array.isArray(activation) || isRouteActivation(activation);
-}
-
-function isRouteActivation(activation: ContextRouteActivation): activation is RouteActivation {
-  return 'type' in activation;
+  const activationByScene = activation as ContextRouteActivationByScene;
+  return activationByScene[scene] ?? activationByScene.default;
 }
 
 function matchesContextRouteActivationRule(
