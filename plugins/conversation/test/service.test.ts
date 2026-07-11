@@ -12,6 +12,7 @@ async function tick(): Promise<void> {
 
 test('open resolves when a later message matches its temporary router', async () => {
   const client = createMockMilkyClient();
+  client.stubApi('send_private_message', () => ({ message_seq: 3, time: 3 }));
   const ctx = Context.fromClient(client);
   const conversation = new ConversationService(ctx, { defaultTimeout: 1000 });
   let resultPromise: Promise<'origin' | 'answer' | null> | undefined;
@@ -172,6 +173,7 @@ test('requires defaultTimeout and timeout to be positive finite numbers', async 
 
 test('active conversation handles a repeated triggering command without dispatching the command again', async () => {
   const client = createMockMilkyClient();
+  client.stubApi('send_private_message', () => ({ message_seq: 2, time: 2 }));
   const ctx = Context.fromClient(client);
   const conversation = new ConversationService(ctx, { defaultTimeout: 1000 });
   let prompts = 0;
