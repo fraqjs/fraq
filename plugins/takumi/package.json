@@ -34,6 +34,6 @@
   "devDependencies": {
     "@fraqjs/mock": "workspace:^",
     "@types/react": "^19.2.15",
-    "markdown-to-jsx": "^9.8.1"
+    "markdown-to-jsx": "^9.8.2"
   }
 }
