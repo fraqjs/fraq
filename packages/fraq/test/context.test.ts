@@ -121,6 +121,33 @@ test('context routing activation applies scene-specific defaults', async () => {
   assert.equal(calls, 2);
 });
 
+test('context routing activation can require both mention and prefix', async () => {
+  const client = createMockMilkyClient();
+  const ctx = Context.fromClient(client, {
+    routing: {
+      activation: {
+        default: {
+          group: { type: 'mention', prefix: '/' },
+        },
+      },
+    },
+  });
+  let calls = 0;
+
+  ctx.router.command('ping').execute(() => {
+    calls += 1;
+  });
+
+  await ctx.start();
+  await client.receiveGroup({ groupId: 10, userId: 1 }, inmsg`ping`);
+  await client.receiveGroup({ groupId: 10, userId: 1 }, inmsg`/ping`);
+  await client.receiveGroup({ groupId: 10, userId: 1 }, inmsg`${inseg.mention(10000)} ping`);
+  await client.receiveGroup({ groupId: 10, userId: 1 }, inmsg`${inseg.mention(10000)} /ping`);
+  await ctx.stop();
+
+  assert.equal(calls, 1);
+});
+
 test('context routing activation rules use singular activation field', async () => {
   const client = createMockMilkyClient();
   const ctx = Context.fromClient(client, {

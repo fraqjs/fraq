@@ -15,7 +15,10 @@ import { Tokenizer } from './tokenizer';
 
 export type SessionPredicate = (session: Session) => boolean;
 
-export type RouteActivation = { type: 'direct' } | { type: 'mention' } | { type: 'prefix'; prefix: string };
+export type RouteActivation =
+  | { type: 'direct' }
+  | { type: 'mention'; prefix?: string }
+  | { type: 'prefix'; prefix: string };
 export type RouteActivationInput = RouteActivation | readonly RouteActivation[];
 
 export type RouteDescriptor =
@@ -204,8 +207,12 @@ export class Router {
     switch (activation.type) {
       case 'direct':
         return true;
-      case 'mention':
-        return tokenizer.consumeMention(session.selfId);
+      case 'mention': {
+        if (!tokenizer.consumeMention(session.selfId)) {
+          return false;
+        }
+        return activation.prefix === undefined || tokenizer.consumeTextPrefix(activation.prefix);
+      }
       case 'prefix':
         return tokenizer.consumeTextPrefix(activation.prefix);
     }

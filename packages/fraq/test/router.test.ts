@@ -209,6 +209,22 @@ test('dispatches commands only after mentioning the current bot when mention act
   assert.equal(called, 1);
 });
 
+test('dispatches commands only after mentioning the current bot and consuming a prefix', async () => {
+  const router = new Router();
+  let called = 0;
+
+  router.setActivationResolver(() => ({ type: 'mention', prefix: '/' }));
+  router.command('ping').execute(() => {
+    called += 1;
+  });
+
+  assert.equal(await dispatch(router, [inseg.mention(10001, 'bot'), inseg.text(' /ping')]), true);
+  assert.equal(await dispatch(router, [inseg.mention(10001, 'bot'), inseg.text(' ping')]), false);
+  assert.equal(await dispatch(router, inmsg`/ping`), false);
+  assert.equal(await dispatch(router, [inseg.mention(42, 'alice'), inseg.text(' /ping')]), false);
+  assert.equal(called, 1);
+});
+
 test('dispatches commands after consuming a configured text prefix', async () => {
   const router = new Router();
   const calls: string[] = [];
@@ -253,7 +269,11 @@ test('dispatches grouped commands with activation before the full route path', a
   const router = new Router();
   const calls: number[] = [];
 
-  router.setActivationResolver(() => [{ type: 'mention' }, { type: 'prefix', prefix: '/' }]);
+  router.setActivationResolver(() => [
+    { type: 'mention' },
+    { type: 'prefix', prefix: '/' },
+    { type: 'mention', prefix: '/' },
+  ]);
   router
     .group('admin')
     .command('ban')
@@ -264,8 +284,9 @@ test('dispatches grouped commands with activation before the full route path', a
 
   assert.equal(await dispatch(router, [inseg.mention(10001, 'bot'), inseg.text(' admin ban 42')]), true);
   assert.equal(await dispatch(router, inmsg`/admin ban 7`), true);
+  assert.equal(await dispatch(router, [inseg.mention(10001, 'bot'), inseg.text(' /admin ban 9')]), true);
   assert.equal(await dispatch(router, inmsg`admin ban 1`), false);
-  assert.deepEqual(calls, [42, 7]);
+  assert.deepEqual(calls, [42, 7, 9]);
 });
 
 test('activation resolver settings are entry-local and not inherited by group routers', async () => {
@@ -525,7 +546,11 @@ test('applies activation before the first literal in a raw pattern', async () =>
   const calls: string[] = [];
   const reply = inseg.reply(message(inmsg`original`));
 
-  router.setActivationResolver(() => [{ type: 'mention' }, { type: 'prefix', prefix: '/' }]);
+  router.setActivationResolver(() => [
+    { type: 'mention' },
+    { type: 'prefix', prefix: '/' },
+    { type: 'mention', prefix: '/' },
+  ]);
   router
     .rawPattern()
     .arg('reply', param.segment('reply'))
@@ -541,7 +566,8 @@ test('applies activation before the first literal in a raw pattern', async () =>
   assert.equal(await dispatch(router, inmsg`${reply} /ddd /run repeated`), false);
   assert.equal(await dispatch(router, inmsg`${reply} /ddd run prefixed`), true);
   assert.equal(await dispatch(router, inmsg`${reply}${inseg.mention(10001, 'bot')} ddd run mentioned`), true);
-  assert.deepEqual(calls, ['prefixed', 'mentioned']);
+  assert.equal(await dispatch(router, inmsg`${reply}${inseg.mention(10001, 'bot')} /ddd run combined`), true);
+  assert.deepEqual(calls, ['prefixed', 'mentioned', 'combined']);
 });
 
 test('applies activation before the first literal in filtered raw patterns', async () => {
@@ -549,7 +575,11 @@ test('applies activation before the first literal in filtered raw patterns', asy
   const calls: string[] = [];
   const reply = inseg.reply(message(inmsg`original`));
 
-  router.setActivationResolver(() => [{ type: 'mention' }, { type: 'prefix', prefix: '/' }]);
+  router.setActivationResolver(() => [
+    { type: 'mention' },
+    { type: 'prefix', prefix: '/' },
+    { type: 'mention', prefix: '/' },
+  ]);
   router
     .filter((currentSession) => currentSession.raw.sender_id === 7)
     .rawPattern({
@@ -565,11 +595,16 @@ test('applies activation before the first literal in filtered raw patterns', asy
     ...message(inmsg`${reply}${inseg.mention(10001, 'bot')} ddd mentioned`),
     sender_id: 7,
   };
+  const acceptedCombined = {
+    ...message(inmsg`${reply}${inseg.mention(10001, 'bot')} /ddd combined`),
+    sender_id: 7,
+  };
 
   assert.equal(await router.dispatch(session(rejected), rejected), false);
   assert.equal(await router.dispatch(session(acceptedPrefix), acceptedPrefix), true);
   assert.equal(await router.dispatch(session(acceptedMention), acceptedMention), true);
-  assert.deepEqual(calls, ['prefixed', 'mentioned']);
+  assert.equal(await router.dispatch(session(acceptedCombined), acceptedCombined), true);
+  assert.deepEqual(calls, ['prefixed', 'mentioned', 'combined']);
 });
 
 test('captures non-text segments with segment parameters', async () => {
