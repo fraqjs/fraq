@@ -64,7 +64,7 @@ Fraq 提供了一个官方的日志处理工具 `@fraqjs/color-log`，它可以�
 ```typescript
 import { createColoredLogHandler } from '@fraqjs/color-log';
 
-Context.create({
+const ctx = Context.fromUrl('http://localhost:30001/', {
   logHandler: createColoredLogHandler({
     minLevel: 'info', // 只输出 info 及以上级别的日志
   }),
@@ -80,7 +80,7 @@ Fraq 提供了一个函数 `combineLogHandlers`，可以让你同时使用多个
 ```typescript
 import { combineLogHandlers } from '@fraqjs/fraq';
 
-Context.create({
+const ctx = Context.fromUrl('http://localhost:30001/', {
   logHandler: combineLogHandlers(
     createColoredLogHandler({ minLevel: 'info' }),
     (message) => {
