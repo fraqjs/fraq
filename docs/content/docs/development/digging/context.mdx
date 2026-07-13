@@ -67,15 +67,16 @@ const ctx = Context.fromUrl('http://localhost:30001', {
 
 对于普通指令，触发方式位于完整指令路由之前。例如 `admin ban` 使用 `/` 前缀时应输入 `/admin ban`。对于 `rawPattern`，只有模式中包含 `param.literal(...)` 时才应用触发规则，触发方式位于第一个 literal 之前，因此 `[reply segment] [literal('fetch')]` 使用 `/` 前缀时应输入 `[reply] /fetch`。不含 literal 的 raw pattern 会忽略 activation 配置，始终直接按照参数模式匹配。详细规则和示例参见[命令路由中的“触发方式”](./router.mdx#触发方式)。
 
-Fraq 支持三种触发方式：
+Fraq 支持以下触发方式：
 
-| 触发方式                          | 含义                                            |
-| --------------------------------- | ----------------------------------------------- |
-| `{ type: 'direct' }`              | 不需要任何先导条件即可触发                      |
-| `{ type: 'mention' }`             | 需要 `@` 当前机器人触发                         |
-| `{ type: 'prefix', prefix: '/' }` | 需要用指定文本前缀触发，例如 `/ping` 中的 `/`。 |
+| 触发方式                           | 含义                                                     |
+| ---------------------------------- | -------------------------------------------------------- |
+| `{ type: 'direct' }`               | 不需要任何先导条件即可触发                               |
+| `{ type: 'mention' }`              | 需要 `@` 当前机器人触发                                  |
+| `{ type: 'prefix', prefix: '/' }`  | 需要用指定文本前缀触发，例如 `/ping` 中的 `/`            |
+| `{ type: 'mention', prefix: '/' }` | 需要先 `@` 当前机器人，再使用文本前缀，例如 `@bot /ping` |
 
-`activation.default` 可以直接写成一个触发方式或触发方式数组，也可以像上面的例子一样按照 `message_scene` 分别配置。按场景配置时，可用的键包括 `friend`、`group`、`temp` 和 `default`；其中场景表里的 `default` 用于兜底未列出的消息场景。无论是 `activation.default`，还是场景表中的 `friend`、`group` 等字段，都可以使用单个触发方式或触发方式数组。
+`activation.default` 可以直接写成一个触发方式或触发方式数组，也可以像上面的例子一样按照 `message_scene` 分别配置。按场景配置时，可用的键包括 `friend`、`group`、`temp` 和 `default`；其中场景表里的 `default` 用于兜底未列出的消息场景。无论是 `activation.default`，还是场景表中的 `friend`、`group` 等字段，都可以使用单个触发方式或触发方式数组。数组表示多种可选的触发方式；需要同时应用 mention 和 prefix 时，应使用 `{ type: 'mention', prefix: '/' }`，而不是把 mention 和 prefix 分别放入数组。
 
 如果需要让不同指令、插件或标签使用不同触发方式，可以使用 `rules`：
 

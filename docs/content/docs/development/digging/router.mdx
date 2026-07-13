@@ -45,7 +45,7 @@ Fraq 的 `Context` 已经把常见的触发方式配置封装成了 [`routing.ac
 </Callout>
 {/* prettier-ignore-end */}
 
-如果 resolver 返回数组，`Router` 会按照数组顺序依次尝试。每次尝试时，`Router` 都会创建一个新的分词器，并在对应路由的 activation 位置消费触发方式：
+如果 resolver 返回数组，`Router` 会按照数组顺序依次尝试；数组中的触发方式是“或”的关系。每次尝试时，`Router` 都会创建一个新的分词器，并在对应路由的 activation 位置消费触发方式：
 
 - 对 `command` 而言，activation 位置在完整路由的开头，也就是指令组路径和指令名之前。例如 `admin ban` 使用 `/` 前缀时，应输入 `/admin ban`，而不是 `/admin /ban`。
 - 对含有 `param.literal(...)` 的 `rawPattern` 而言，activation 位置在模式中出现的第一个 literal 之前。literal 之前的参数会先正常匹配；即使模式中还有其他 literal，触发方式也只消费一次。
@@ -65,6 +65,14 @@ router
 ```
 
 当该路由使用 `{ type: 'prefix', prefix: '/' }` 时，正确输入是 `[reply] /fetch target`；使用 `{ type: 'mention' }` 时，正确输入是 `[reply] @bot fetch target`。`/[reply] fetch target`、`[reply] fetch target` 都不会匹配。`filter` 只控制子路由是否对当前会话生效，不改变这个 activation 位置，因此通过 `router.filter(...).rawPattern()` 注册的模式遵循相同规则。
+
+如果需要同时要求 mention 和文本前缀，可以在 mention 触发方式中提供 `prefix`：
+
+```typescript
+{ type: 'mention', prefix: '/' }
+```
+
+这种触发方式会依次消费对当前机器人的 mention 和 `/` 前缀，因此指令输入格式是 `@bot /command`，上述 raw pattern 的输入格式是 `[reply] @bot /fetch target`。mention、prefix 缺少任意一个，或二者顺序相反，都不会触发。`[{ type: 'mention' }, { type: 'prefix', prefix: '/' }]` 仍然表示 mention 或 prefix 任意一种均可触发；它不等价于同时要求二者。
 
 对于会应用 activation 的路由，如果 resolver 返回 `undefined`，则使用默认触发方式；如果返回空数组 `[]`，则表示当前路由在当前会话下没有任何触发方式。
 
