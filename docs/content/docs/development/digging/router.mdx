@@ -5,7 +5,7 @@ title: 命令路由 (Router)
 在此前的例子中，我们已经多次使用过 `ctx.router`：
 
 - `ctx.router.command` 用于定义一个带名称的指令。
-- `ctx.router.rawPattern` 用于直接从用户输入开头进行模式匹配。
+- `ctx.router.rawPattern` 用于直接按照参数模式匹配用户输入。
 - `ctx.router.group` 用于定义指令组和子指令 / 模式。
 - `ctx.router.filter` 用于让一组路由只在特定会话条件下生效。
 
@@ -24,7 +24,7 @@ token 分两大类：文本 token 和消息段 token。Router 在遇到文本（
 
 ## 触发方式
 
-在真正匹配指令名或参数模式之前，`Router` 会先尝试消费当前路由的触发方式（Activation）。默认触发方式是 `direct`，也就是不消费任何前缀，直接从消息开头开始匹配。因此定义了 `ping` 指令后，用户发送 `ping` 就能触发。
+`Router` 在匹配路由时会尝试消费当前路由的触发方式（Activation）。默认触发方式是 `direct`，也就是什么都不消费，直接继续匹配。因此定义了 `ping` 指令后，用户发送 `ping` 就能触发。
 
 触发方式由一个 resolver 决定。resolver 会接收当前路由的描述信息和 `Session`，并返回一个触发方式或一组可尝试的触发方式：
 
@@ -39,16 +39,41 @@ router.setActivationResolver((route, session) => {
 
 上面的例子会让 `ping` 只能通过 `/ping` 触发，其他路由仍然直接触发。
 
-如果 resolver 返回数组，`Router` 会按照数组顺序依次尝试。每次尝试时，`Router` 都会创建一个新的分词器，先消费触发方式，再继续匹配指令组路径、指令名和参数模式。如果 resolver 返回 `undefined`，则使用默认触发方式；如果返回空数组 `[]`，则表示当前路由在当前会话下没有任何触发方式。
+{/* prettier-ignore */}
+<Callout>
+Fraq 的 `Context` 已经把常见的触发方式配置封装成了 [`routing.activation`](./context.mdx#配置指令触发规则)。除非你正在编写更底层的路由逻辑，通常不需要直接调用 `setActivationResolver`。
+</Callout>
+{/* prettier-ignore-end */}
 
-Fraq 的 `Context` 已经把常见的触发方式配置封装成了 [`routing.activation`](./context.mdx#配置指令触发规则)。除非你正在编写更底层的路由逻辑，通常不需要直接调用 `router.setActivationResolver`。
+如果 resolver 返回数组，`Router` 会按照数组顺序依次尝试。每次尝试时，`Router` 都会创建一个新的分词器，并在对应路由的 activation 位置消费触发方式：
+
+- 对 `command` 而言，activation 位置在完整路由的开头，也就是指令组路径和指令名之前。例如 `admin ban` 使用 `/` 前缀时，应输入 `/admin ban`，而不是 `/admin /ban`。
+- 对含有 `param.literal(...)` 的 `rawPattern` 而言，activation 位置在模式中出现的第一个 literal 之前。literal 之前的参数会先正常匹配；即使模式中还有其他 literal，触发方式也只消费一次。
+- 不含 literal 的 `rawPattern` 不应用 activation 规则，始终直接按照参数模式匹配。activation resolver 不会为这类路由调用，即使配置中存在匹配 `rawPattern` 的 prefix、mention 或空触发方式数组，也不会改变其匹配行为。
+
+例如，下面的模式要求先引用一条消息，再使用 `fetch` 触发后续处理：
+
+```typescript
+router
+  .rawPattern()
+  .arg('reference', param.segment('reply'))
+  .arg('action', param.literal('fetch'))
+  .arg('target', param.str())
+  .execute((session, { reference, target }) => {
+    // ...
+  });
+```
+
+当该路由使用 `{ type: 'prefix', prefix: '/' }` 时，正确输入是 `[reply] /fetch target`；使用 `{ type: 'mention' }` 时，正确输入是 `[reply] @bot fetch target`。`/[reply] fetch target`、`[reply] fetch target` 都不会匹配。`filter` 只控制子路由是否对当前会话生效，不改变这个 activation 位置，因此通过 `router.filter(...).rawPattern()` 注册的模式遵循相同规则。
+
+对于会应用 activation 的路由，如果 resolver 返回 `undefined`，则使用默认触发方式；如果返回空数组 `[]`，则表示当前路由在当前会话下没有任何触发方式。
 
 ## 路由规则
 
 正如上面所说，路由规则分如下四大类：
 
 - `command`：先按照指令名称匹配一个 token，再按照给定的参数模式匹配后续 token。
-- `rawPattern`：直接从开头按照给定的参数模式匹配 token。
+- `rawPattern`：按照给定的参数模式匹配 token；如果位于 `group` 下，则从指令组路径之后开始匹配。
 - `group`：先按照指令名称匹配一个 token，再按照给定的子路由规则匹配后续 token。
 - `filter`：先按照给定的过滤函数判断当前会话是否满足条件，再按照给定的子路由规则匹配消息。
 

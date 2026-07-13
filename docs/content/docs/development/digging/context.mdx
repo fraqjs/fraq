@@ -65,6 +65,8 @@ const ctx = Context.fromUrl('http://localhost:30001', {
 
 上面的配置表示：私聊和临时会话中可以直接输入 `ping`，群聊中则需要先 `@` 当前机器人再输入 `ping`。
 
+对于普通指令，触发方式位于完整指令路由之前。例如 `admin ban` 使用 `/` 前缀时应输入 `/admin ban`。对于 `rawPattern`，只有模式中包含 `param.literal(...)` 时才应用触发规则，触发方式位于第一个 literal 之前，因此 `[reply segment] [literal('fetch')]` 使用 `/` 前缀时应输入 `[reply] /fetch`。不含 literal 的 raw pattern 会忽略 activation 配置，始终直接按照参数模式匹配。详细规则和示例参见[命令路由中的“触发方式”](./router.mdx#触发方式)。
+
 Fraq 支持三种触发方式：
 
 | 触发方式                          | 含义                                            |
