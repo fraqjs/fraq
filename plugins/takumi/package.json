@@ -28,7 +28,7 @@
   },
   "dependencies": {
     "@fraqjs/takumi-builtin-fonts": "^1.0.0",
-    "@takumi-rs/core": "^2.0.1",
+    "@takumi-rs/core": "^2.1.1",
     "@takumi-rs/helpers": "^2.0.1"
   },
   "devDependencies": {
