@@ -130,18 +130,22 @@ export class Router {
 
   match(session: Session, message: types.IncomingMessage): RouteMatchResult | undefined {
     for (const branch of this.branchesFrom(session, [], { includeHidden: true })) {
-      const descriptor = this.describeBranch(branch);
-      const activations = this.activationResolver(descriptor, session) ?? DEFAULT_ACTIVATIONS;
-      const activationInputs: readonly RouteActivation[] = Array.isArray(activations)
-        ? activations
-        : [activations as RouteActivation];
+      const literalActivationIndex =
+        branch.type === 'rawPattern'
+          ? Object.values(branch.rawPattern.pattern).findIndex(
+              (parameter) => parameter.capturer.typeInstruction.type === 'literal',
+            )
+          : -1;
+      let activationInputs: readonly RouteActivation[] = DEFAULT_ACTIVATIONS;
+      if (branch.type === 'command' || literalActivationIndex !== -1) {
+        const descriptor = this.describeBranch(branch);
+        const activations = this.activationResolver(descriptor, session) ?? DEFAULT_ACTIVATIONS;
+        activationInputs = Array.isArray(activations) ? activations : [activations as RouteActivation];
+      }
+
       for (const activation of activationInputs) {
         const tokenizer = new Tokenizer(message.segments);
-        if (!this.consumeActivation(tokenizer, activation, session)) {
-          continue;
-        }
-
-        const match = this.matchBranch(branch, tokenizer, activation);
+        const match = this.matchBranch(branch, tokenizer, activation, session, literalActivationIndex);
         if (match !== undefined) {
           return match;
         }
@@ -211,7 +215,13 @@ export class Router {
     branch: RouteBranch,
     tokenizer: Tokenizer,
     activation: RouteActivation,
+    session: Session,
+    literalActivationIndex: number,
   ): RouteMatchResult | undefined {
+    if (branch.type === 'command' && !this.consumeActivation(tokenizer, activation, session)) {
+      return undefined;
+    }
+
     if (!this.matchPath(branch.path, tokenizer)) {
       return undefined;
     }
@@ -220,7 +230,14 @@ export class Router {
       case 'command':
         return this.matchCommand(branch.command, tokenizer, branch.path, activation);
       case 'rawPattern':
-        return this.matchRawPattern(branch.rawPattern, tokenizer, branch.path, activation);
+        return this.matchRawPattern(
+          branch.rawPattern,
+          tokenizer,
+          branch.path,
+          activation,
+          session,
+          literalActivationIndex,
+        );
     }
   }
 
@@ -261,9 +278,24 @@ export class Router {
     tokenizer: Tokenizer,
     path: string[],
     activation: RouteActivation,
+    session: Session,
+    literalActivationIndex: number,
   ): RouteMatchResult | undefined {
-    const params = this.capturePattern(rawPattern.pattern, tokenizer);
-    if (params === undefined || tokenizer.hasNext()) {
+    const params = {} as ParamsOf<Pattern>;
+
+    for (const [index, [name, parameter]] of Object.entries(rawPattern.pattern).entries()) {
+      if (index === literalActivationIndex && !this.consumeActivation(tokenizer, activation, session)) {
+        return undefined;
+      }
+
+      const value = parameter.capturer.capture(tokenizer);
+      if (value === undefined) {
+        return undefined;
+      }
+      params[name] = value;
+    }
+
+    if (tokenizer.hasNext()) {
       return undefined;
     }
 
@@ -353,12 +385,6 @@ export class Router {
 
     if (options?.rawPattern && entries.length === 0) {
       throw new Error('Raw pattern must have at least one parameter.');
-    }
-
-    if (options?.rawPattern && entries[0]?.[1].capturer.typeInstruction.type === 'literal') {
-      throw new Error(
-        'The first parameter of a raw pattern cannot be a literal, as it would conflict with command patterns.',
-      );
     }
 
     const catchAllEntryIndex = entries.findIndex(([, parameter]) => {
