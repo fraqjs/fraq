@@ -516,6 +516,67 @@ test('raw patterns without literals ignore activation policies', async () => {
   assert.equal(resolverCalled, false);
 });
 
+test('applies activation before the group path for raw patterns without literals inside groups', async () => {
+  const router = new Router();
+  const calls: string[] = [];
+
+  router.setActivationResolver(() => [
+    { type: 'mention' },
+    { type: 'prefix', prefix: '/' },
+    { type: 'mention', prefix: '/' },
+  ]);
+  router
+    .group('teleport')
+    .rawPattern()
+    .arg('location', param.str())
+    .execute((_session, { location }) => {
+      calls.push(location);
+    });
+
+  assert.equal(await dispatch(router, inmsg`/teleport LocationA`), true);
+  assert.equal(await dispatch(router, [inseg.mention(10001, 'bot'), inseg.text(' teleport LocationB')]), true);
+  assert.equal(await dispatch(router, [inseg.mention(10001, 'bot'), inseg.text(' /teleport LocationC')]), true);
+  assert.equal(await dispatch(router, inmsg`teleport LocationD`), false);
+  assert.equal(await dispatch(router, inmsg`/teleport/LocationE`), false);
+  assert.deepEqual(calls, ['LocationA', 'LocationB', 'LocationC']);
+});
+
+test('activation resolver receives descriptor for raw patterns without literals inside groups', async () => {
+  const router = new Router();
+  const descriptors: RouteDescriptor[] = [];
+
+  router.setActivationResolver((route) => {
+    descriptors.push(route);
+    return { type: 'prefix', prefix: '/' };
+  });
+  router
+    .group('teleport')
+    .rawPattern()
+    .arg('location', param.str())
+    .execute(() => {});
+
+  await dispatch(router, inmsg`/teleport LocationA`);
+
+  assert.deepEqual(descriptors, [{ type: 'rawPattern', path: ['teleport'] }]);
+});
+
+test('top-level raw patterns without literals still ignore activation', async () => {
+  const router = new Router();
+  let resolverCalled = false;
+
+  router.setActivationResolver(() => {
+    resolverCalled = true;
+    return [];
+  });
+  router.rawPattern({
+    pattern: { content: param.greedy() },
+    execute() {},
+  });
+
+  assert.equal(await dispatch(router, inmsg`anything`), true);
+  assert.equal(resolverCalled, false);
+});
+
 test('dispatches raw patterns registered with the builder syntax', async () => {
   const router = new Router();
   let captured = '';

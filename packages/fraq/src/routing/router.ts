@@ -140,7 +140,7 @@ export class Router {
             )
           : -1;
       let activationInputs: readonly RouteActivation[] = DEFAULT_ACTIVATIONS;
-      if (branch.type === 'command' || literalActivationIndex !== -1) {
+      if (branch.type === 'command' || literalActivationIndex !== -1 || branch.path.length > 0) {
         const descriptor = this.describeBranch(branch);
         const activations = this.activationResolver(descriptor, session) ?? DEFAULT_ACTIVATIONS;
         activationInputs = Array.isArray(activations) ? activations : [activations as RouteActivation];
@@ -225,7 +225,10 @@ export class Router {
     session: Session,
     literalActivationIndex: number,
   ): RouteMatchResult | undefined {
-    if (branch.type === 'command' && !this.consumeActivation(tokenizer, activation, session)) {
+    const consumeBeforePath =
+      branch.type === 'command' ||
+      (branch.type === 'rawPattern' && branch.path.length > 0 && literalActivationIndex === -1);
+    if (consumeBeforePath && !this.consumeActivation(tokenizer, activation, session)) {
       return undefined;
     }
 
