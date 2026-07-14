@@ -41,6 +41,10 @@ export interface TakumiServiceOptions {
   onFontRegisterConflict?: 'error' | 'warn-and-ignore' | 'warn-and-replace';
 }
 
+export type RenderCallOptions = RenderOptions & {
+  emojiType?: EmojiType;
+};
+
 export interface PathBasedFontDetails {
   name?: string;
   path: string;
@@ -97,31 +101,22 @@ export class TakumiService implements Disposable {
     );
   }
 
-  async renderJsx(
-    jsx: ReactNode | ReactElementLike,
-    renderOptions?: RenderOptions,
-    signal?: AbortSignal,
-    emojiType?: EmojiType,
-  ): Promise<Buffer> {
+  async renderJsx(jsx: ReactNode | ReactElementLike, options?: RenderCallOptions): Promise<Buffer> {
+    const { emojiType, ...renderOptions } = options ?? {};
     const { node, stylesheets } = await fromJsx(jsx);
-    return await this.renderNode({ node, stylesheets, renderOptions, signal, emojiType });
+    return await this.renderNode({ node, stylesheets, renderOptions, emojiType });
   }
 
-  async renderHtml(
-    html: string,
-    renderOptions?: RenderOptions,
-    signal?: AbortSignal,
-    emojiType?: EmojiType,
-  ): Promise<Buffer> {
+  async renderHtml(html: string, options?: RenderCallOptions): Promise<Buffer> {
+    const { emojiType, ...renderOptions } = options ?? {};
     const { node, stylesheets } = fromHtml(html);
-    return await this.renderNode({ node, stylesheets, renderOptions, signal, emojiType });
+    return await this.renderNode({ node, stylesheets, renderOptions, emojiType });
   }
 
   private async renderNode(components: {
     node: Node;
     stylesheets?: string[];
     renderOptions?: RenderOptions;
-    signal?: AbortSignal;
     emojiType?: EmojiType;
   }): Promise<Buffer> {
     const node =
@@ -132,7 +127,6 @@ export class TakumiService implements Disposable {
         node,
         stylesheets: components.stylesheets,
         userOptions: components.renderOptions,
-        signal: components.signal,
         images: components.emojiType !== undefined,
       }),
     );
@@ -142,11 +136,10 @@ export class TakumiService implements Disposable {
     node: Node;
     stylesheets?: string[];
     userOptions?: RenderOptions;
-    signal?: AbortSignal;
     images?: boolean;
   }): Promise<RenderOptions> {
     const renderDefaults = this.options?.renderDefaults;
-    const signal = combineAbortSignals(components.signal, components.userOptions?.signal, this.abortController.signal);
+    const signal = combineAbortSignals(components.userOptions?.signal, this.abortController.signal);
     const images = await this.mergeImages({
       node: components.node,
       prepareImages: components.images ?? false,
