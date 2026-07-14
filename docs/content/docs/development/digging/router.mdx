@@ -49,7 +49,7 @@ Fraq 的 `Context` 已经把常见的触发方式配置封装成了 [`routing.ac
 
 - 对 `command` 而言，activation 位置在完整路由的开头，也就是指令组路径和指令名之前。例如 `admin ban` 使用 `/` 前缀时，应输入 `/admin ban`，而不是 `/admin /ban`。
 - 对含有 `param.literal(...)` 的 `rawPattern` 而言，activation 位置在模式中出现的第一个 literal 之前。literal 之前的参数会先正常匹配；即使模式中还有其他 literal，触发方式也只消费一次。
-- 不含 literal 的 `rawPattern` 不应用 activation 规则，始终直接按照参数模式匹配。activation resolver 不会为这类路由调用，即使配置中存在匹配 `rawPattern` 的 prefix、mention 或空触发方式数组，也不会改变其匹配行为。
+- 不含 literal 的 `rawPattern`，如果位于 `group` 下（即存在指令组路径），activation 位置在指令组路径之前，与 `command` 一致。例如位于 `teleport` 组下的 `<location: string>` 模式使用 `/` 前缀时，应输入 `/teleport LocationA`。不含 literal 且不在任何 `group` 下的 `rawPattern` 不应用 activation 规则，始终直接按照参数模式匹配。activation resolver 不会为这类路由调用，即使配置中存在匹配 `rawPattern` 的 prefix、mention 或空触发方式数组，也不会改变其匹配行为。
 
 例如，下面的模式要求先引用一条消息，再使用 `fetch` 触发后续处理：
 
