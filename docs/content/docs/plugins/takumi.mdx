@@ -80,21 +80,38 @@ const img2 = await ctx.takumi.renderHtml(`
 
 在使用 `renderJsx` 时，可以使用 Tailwind CSS 的语法来快速设置样式，例如 `tw="p-4 bg-gray-100 rounded"`；当然，也可以使用 `style` 属性来直接设置样式。Takumi 支持的样式列表见 [“Reference“ 章节](https://takumi.kane.tw/docs/reference#style-properties)。
 
-`renderJsx` 和 `renderHtml` 都接受四个参数。第一个参数是需要渲染的内容，第二个参数是传递给 `Renderer` 的渲染选项，第三个参数是可选的 `AbortSignal`，第四个参数是可选的 Emoji 风格。不传第四个参数时，文本中的 Emoji 会按普通文本处理。
+`renderJsx` 和 `renderHtml` 都接受两个参数：第一个参数是需要渲染的内容，第二个参数是渲染选项对象。常用渲染选项包括：
 
-常用渲染选项包括 `width`、`height`、`devicePixelRatio`、`format`、`quality`、`lossless`、`fonts` 和 `images`。其中 `format` 使用字符串形式，例如 `'png'`、`'jpeg'` 或 `'webp'`；`quality` 用于 JPEG 和有损 WebP，`lossless` 用于 WebP。
+- `width` 和 `height`: 图片的宽度和高度，单位为像素。
+- `devicePixelRatio`: 设备像素比，默认为 `1`，可用于生成高分辨率图片。注意在固定了 `width` 和 `height` 的情况下，`devicePixelRatio` 不会改变图片的像素尺寸，而是会影响渲染时的缩放比例。
+- `signal`: 一个 `AbortSignal`，用于中断渲染。
+
+此外，`renderJsx` 和 `renderHtml` 还接受 `emojiType` 选项用于指定 Emoji 风格。默认值为 `undefined`，表示不处理 Emoji；传入具体风格后，Emoji 会被转换为图片节点，并在渲染前自动准备所需图片资源。可用的 Emoji 风格有：
+
+```typescript
+type EmojiType =
+  | 'twemoji'
+  | 'blobmoji'
+  | 'noto'
+  | 'openmoji'
+  | 'fluent'
+  | 'fluentFlat';
+```
+
+为了保持与 Noto Sans SC 字体的风格一致，建议使用 `noto` 作为 Emoji 风格：
 
 ```tsx
 const img = await ctx.takumi.renderJsx(
-  <div style={{ fontFamily: 'Inter, Noto Sans SC' }}>Hello, Takumi!</div>,
+  <div style={{ fontFamily: 'Inter, Noto Sans SC' }}>你好 👋</div>,
   {
-    width: 1200,
-    height: 630,
-    format: 'webp',
-    quality: 90,
+    width: 800,
+    height: 400,
+    emojiType: 'noto',
   },
 );
 ```
+
+调用时仍然可以通过 `images` 传入已经获取好的图片资源，它们会和 Emoji 图片资源一起传给 Takumi。
 
 ## 使用字体
 
@@ -148,36 +165,6 @@ const img = await ctx.takumi.renderJsx(
   },
 );
 ```
-
-## Emoji 支持
-
-`renderJsx` 和 `renderHtml` 的第四个参数用于指定 Emoji 风格。默认值为 `undefined`，表示不处理 Emoji；传入具体风格后，Emoji 会被转换为图片节点，并在渲染前自动准备所需图片资源。
-
-```typescript
-type EmojiType =
-  | 'twemoji'
-  | 'blobmoji'
-  | 'noto'
-  | 'openmoji'
-  | 'fluent'
-  | 'fluentFlat';
-```
-
-为了保持与 Noto Sans SC 字体的风格一致，通常可以使用 `noto` 作为 Emoji 风格：
-
-```tsx
-const img = await ctx.takumi.renderJsx(
-  <div style={{ fontFamily: 'Inter, Noto Sans SC' }}>你好 👋</div>,
-  {
-    width: 800,
-    height: 400,
-  },
-  undefined,
-  'noto',
-);
-```
-
-调用时仍然可以通过 `images` 传入已经获取好的图片资源，它们会和 Emoji 图片资源一起传给 Takumi。
 
 ## 使用 `takumi-preview`
 
@@ -236,7 +223,7 @@ export const previewRenderOptions: RenderOptions = {
 
 此外，还可以导出如下的变量或函数：
 
-- `previewEmojiType`：默认为 `undefined`，当不为 `undefined` 时，用于指定传给 `renderJsx` 第四个参数的 Emoji 风格。
+- `previewEmojiType`：默认为 `undefined`，当不为 `undefined` 时，用于指定渲染时使用的 Emoji 风格，会作为 `emojiType` 传给 `renderJsx`。
 - `previewSetup`：一个可选的异步函数，类型为 `(service: TakumiService) => void | Promise<void>`，在预览渲染之前执行，可以在这里对渲染用到的 `TakumiService` 实例进行一些额外的配置，例如注册字体等。
 
 ## 加载图像
