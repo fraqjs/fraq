@@ -117,6 +117,37 @@ importers:
         specifier: workspace:^
         version: link:../../plugins/random
 
+  packages/takumi-preview:
+    dependencies:
+      '@hono/node-server':
+        specifier: ^2.0.5
+        version: 2.0.5(hono@4.12.26)
+      chokidar:
+        specifier: ^5.0.0
+        version: 5.0.0
+      commander:
+        specifier: ^15.0.0
+        version: 15.0.0
+      hono:
+        specifier: ^4.12.26
+        version: 4.12.26
+      react:
+        specifier: ^19.0.0
+        version: 19.2.6
+      tsx:
+        specifier: ^4.23.0
+        version: 4.23.0
+    devDependencies:
+      '@fraqjs/plugin-takumi':
+        specifier: workspace:^
+        version: link:../../plugins/takumi
+      '@takumi-rs/helpers':
+        specifier: ^2.0.1
+        version: 2.0.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      '@types/react':
+        specifier: ^19.2.15
+        version: 19.2.15
+
   plugins/ai:
     dependencies:
       '@fraqjs/fraq':
