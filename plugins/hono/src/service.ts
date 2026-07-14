@@ -1,11 +1,12 @@
 import type { Disposable } from '@fraqjs/fraq';
-import { type HttpBindings, type ServerType, serve } from '@hono/node-server';
+import { type HttpBindings, type ServerType, serve, upgradeWebSocket } from '@hono/node-server';
 import { Hono } from 'hono';
+import { WebSocketServer } from 'ws';
 
 import type { AddressInfo } from 'node:net';
 
 type ServeOptions = Parameters<typeof serve>[0];
-type ExtraServeOptions = Omit<ServeOptions, 'fetch' | 'port' | 'hostname'>;
+type ExtraServeOptions = Omit<ServeOptions, 'fetch' | 'port' | 'hostname' | 'websocket'>;
 
 export interface HonoServiceOptions {
   host?: string;
@@ -15,10 +16,12 @@ export interface HonoServiceOptions {
 
 export class HonoService implements Disposable {
   readonly app = new Hono<{ Bindings: HttpBindings }>();
+  readonly upgradeWebSocket = upgradeWebSocket;
   readonly host: string;
   readonly port: number;
   readonly serveOptions: ExtraServeOptions;
 
+  private readonly webSocketServer = new WebSocketServer({ noServer: true });
   private server?: ServerType;
 
   constructor(options?: HonoServiceOptions) {
@@ -39,6 +42,7 @@ export class HonoService implements Disposable {
           fetch: this.app.fetch,
           port: this.port,
           hostname: this.host,
+          websocket: { server: this.webSocketServer },
           ...this.serveOptions,
         },
         (info) => {
@@ -53,5 +57,8 @@ export class HonoService implements Disposable {
       this.server.close();
       this.server = undefined;
     }
+    this.webSocketServer.close();
   }
 }
+
+export { upgradeWebSocket };

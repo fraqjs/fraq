@@ -1,7 +1,7 @@
 {
   "name": "@fraqjs/plugin-hono",
   "type": "module",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Hono integration plugin for Fraq",
   "files": [
     "dist"
@@ -26,9 +26,11 @@
   },
   "dependencies": {
     "@hono/node-server": "^2.0.5",
-    "hono": "^4.12.26"
+    "hono": "^4.12.26",
+    "ws": "^8.21.0"
   },
   "devDependencies": {
-    "@fraqjs/mock": "workspace:^"
+    "@fraqjs/mock": "workspace:^",
+    "@types/ws": "^8.18.1"
   }
 }
