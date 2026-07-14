@@ -27,7 +27,6 @@
     "hono": "^4.12.26"
   },
   "devDependencies": {
-    "@fraqjs/mock": "workspace:^",
-    "hono": "^4.12.26"
+    "@fraqjs/mock": "workspace:^"
   }
 }
