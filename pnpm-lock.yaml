@@ -240,6 +240,22 @@ importers:
         specifier: workspace:^
         version: link:../../packages/mock
 
+  plugins/milky-server:
+    dependencies:
+      '@fraqjs/fraq':
+        specifier: workspace:^
+        version: link:../../packages/fraq
+      '@fraqjs/plugin-hono':
+        specifier: workspace:^
+        version: link:../hono
+    devDependencies:
+      '@fraqjs/mock':
+        specifier: workspace:^
+        version: link:../../packages/mock
+      hono:
+        specifier: ^4.12.26
+        version: 4.12.26
+
   plugins/milky-webhook:
     dependencies:
       '@fraqjs/fraq':
