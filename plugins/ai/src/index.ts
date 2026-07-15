@@ -1,6 +1,14 @@
-import { definePlugin } from '@fraqjs/fraq';
+import {
+  definePlugin,
+  milkyVersion as rootMilkyMajorVersion,
+  milkyPackageVersion as rootMilkyPackageVersion,
+} from '@fraqjs/fraq';
 import type { ImageModel, LanguageModel } from 'ai';
 
+import {
+  milkyVersion as localMilkyMajorVersion,
+  milkyPackageVersion as localMilkyPackageVersion,
+} from './protocol/types-zod';
 import { type ProviderConfig, resolveModels } from './provider';
 import { AiService } from './service';
 
@@ -23,6 +31,17 @@ export const AiPlugin = definePlugin({
   name: 'ai',
   provides: [AiService],
   async apply(ctx, options: AiPluginOptions) {
+    if (rootMilkyMajorVersion !== localMilkyMajorVersion) {
+      ctx.logger.warn(
+        `Milky major version mismatch between framework and plugin: ${rootMilkyMajorVersion} (framework) vs ${localMilkyMajorVersion} (plugin). Please ensure both are using the same version.`,
+      );
+    }
+    if (rootMilkyPackageVersion !== localMilkyPackageVersion) {
+      ctx.logger.warn(
+        `Milky package version mismatch between framework and plugin: ${rootMilkyPackageVersion} (framework) vs ${localMilkyPackageVersion} (plugin). Please ensure both are using the same version.`,
+      );
+    }
+
     const languageModels: Record<string, LanguageModel> = {};
     const imageModels: Record<string, ImageModel> = {};
 
