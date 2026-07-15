@@ -1,45 +1,60 @@
 import { definePlugin } from '@fraqjs/fraq';
-import type { LanguageModel } from 'ai';
+import type { ImageModel, LanguageModel } from 'ai';
 
-import { type ProviderConfig, resolveLanguageModels } from './provider';
+import { type ProviderConfig, resolveModels } from './provider';
 import { AiService } from './service';
 
 type LanguageModelInstance = Exclude<LanguageModel, string>;
+type ImageModelInstance = Exclude<ImageModel, string>;
+
+export interface DirectProviderConfig {
+  models?: Record<string, LanguageModelInstance>;
+  imageModels?: Record<string, ImageModelInstance>;
+}
 
 export interface AiPluginOptions {
-  providers: Record<string, ProviderConfig | Record<string, LanguageModelInstance>>;
+  providers: Record<string, ProviderConfig | DirectProviderConfig>;
   aliases?: Record<string, string>;
   defaultModel?: string;
+  defaultImageModel?: string;
 }
 
 export const AiPlugin = definePlugin({
   name: 'ai',
   provides: [AiService],
   async apply(ctx, options: AiPluginOptions) {
-    const models: Record<string, LanguageModel> = {};
+    const languageModels: Record<string, LanguageModel> = {};
+    const imageModels: Record<string, ImageModel> = {};
+
     for (const [name, config] of Object.entries(options.providers)) {
       if ('sdk' in config && typeof config.sdk === 'string') {
         const providerConfig = config as ProviderConfig;
-        const resolvedModels = await resolveLanguageModels(name, providerConfig);
-        resolvedModels.forEach((model, idx) => {
-          const modelName = `${name}/${providerConfig.models[idx]}`;
-          models[modelName] = model;
-        });
+        const resolved = await resolveModels(name, providerConfig);
+        Object.assign(languageModels, resolved.language);
+        Object.assign(imageModels, resolved.image);
       } else {
-        Object.entries(config).forEach(([modelName, model]) => {
-          models[`${name}/${modelName}`] = model;
-        });
+        const direct = config as DirectProviderConfig;
+        for (const [modelName, model] of Object.entries(direct.models ?? {})) {
+          languageModels[`${name}/${modelName}`] = model;
+        }
+        for (const [modelName, model] of Object.entries(direct.imageModels ?? {})) {
+          imageModels[`${name}/${modelName}`] = model;
+        }
       }
     }
-    if (Object.keys(models).length === 0) {
-      throw new Error('No language models resolved from the provided AI SDK configurations.');
+
+    if (Object.keys(languageModels).length === 0 && Object.keys(imageModels).length === 0) {
+      throw new Error('No models resolved from the provided AI configurations.');
     }
+
     ctx.provide(
       AiService,
       new AiService({
-        models: models,
+        models: languageModels,
+        images: imageModels,
         aliases: options.aliases ?? {},
-        defaultModel: options.defaultModel ?? Object.keys(models)[0],
+        defaultModel: options.defaultModel ?? Object.keys(languageModels)[0],
+        defaultImageModel: options.defaultImageModel,
       }),
     );
   },

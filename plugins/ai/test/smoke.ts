@@ -12,39 +12,41 @@ const ctx = Context.fromUrl('http://localhost:30001', {
 ctx.install(AiPlugin, {
   providers: {
     test: {
-      model: new MockLanguageModelV3({
-        async doGenerate() {
-          return {
-            content: [{ type: 'text', text: 'Hello from the mock model!' }],
-            finishReason: { unified: 'stop', raw: undefined },
-            usage: {
-              inputTokens: { total: 1, noCache: 1, cacheRead: undefined, cacheWrite: undefined },
-              outputTokens: { total: 5, text: 5, reasoning: undefined },
-            },
-            warnings: [],
-          };
-        },
-        async doStream() {
-          return {
-            stream: simulateReadableStream({
-              chunks: [
-                { type: 'text-start', id: '1' },
-                { type: 'text-delta', id: '1', delta: 'Hello ' },
-                { type: 'text-delta', id: '1', delta: 'stream!' },
-                { type: 'text-end', id: '1' },
-                {
-                  type: 'finish',
-                  finishReason: { unified: 'stop', raw: undefined },
-                  usage: {
-                    inputTokens: { total: 1, noCache: 1, cacheRead: undefined, cacheWrite: undefined },
-                    outputTokens: { total: 2, text: 2, reasoning: undefined },
+      models: {
+        model: new MockLanguageModelV3({
+          async doGenerate() {
+            return {
+              content: [{ type: 'text', text: 'Hello from the mock model!' }],
+              finishReason: { unified: 'stop', raw: undefined },
+              usage: {
+                inputTokens: { total: 1, noCache: 1, cacheRead: undefined, cacheWrite: undefined },
+                outputTokens: { total: 5, text: 5, reasoning: undefined },
+              },
+              warnings: [],
+            };
+          },
+          async doStream() {
+            return {
+              stream: simulateReadableStream({
+                chunks: [
+                  { type: 'text-start', id: '1' },
+                  { type: 'text-delta', id: '1', delta: 'Hello ' },
+                  { type: 'text-delta', id: '1', delta: 'stream!' },
+                  { type: 'text-end', id: '1' },
+                  {
+                    type: 'finish',
+                    finishReason: { unified: 'stop', raw: undefined },
+                    usage: {
+                      inputTokens: { total: 1, noCache: 1, cacheRead: undefined, cacheWrite: undefined },
+                      outputTokens: { total: 2, text: 2, reasoning: undefined },
+                    },
                   },
-                },
-              ],
-            }),
-          };
-        },
-      }),
+                ],
+              }),
+            };
+          },
+        }),
+      },
     },
   },
 });

@@ -1,5 +1,5 @@
 import type { ProviderV3, ProviderV4 } from '@ai-sdk/provider';
-import type { LanguageModel } from 'ai';
+import type { ImageModel, LanguageModel } from 'ai';
 
 export type SupportedSDK =
   | '@ai-sdk/anthropic' // Claude
@@ -16,10 +16,16 @@ export interface ProviderConfig {
     [key: string]: unknown;
   };
   models: string[];
+  images?: string[];
 }
 
-export async function resolveLanguageModels(name: string, config: ProviderConfig): Promise<LanguageModel[]> {
-  const { sdk, options, models } = config;
+export interface ResolvedModels {
+  language: Record<string, LanguageModel>;
+  image: Record<string, ImageModel>;
+}
+
+export async function resolveModels(name: string, config: ProviderConfig): Promise<ResolvedModels> {
+  const { sdk, options, models, images } = config;
   let provider: ProviderV3 | ProviderV4;
   switch (sdk) {
     case '@ai-sdk/anthropic':
@@ -47,5 +53,16 @@ export async function resolveLanguageModels(name: string, config: ProviderConfig
     default:
       throw new Error(`Unsupported AI SDK: ${sdk}`);
   }
-  return models.map((model) => provider.languageModel(model));
+
+  const language: Record<string, LanguageModel> = {};
+  for (const modelId of models) {
+    language[`${name}/${modelId}`] = provider.languageModel(modelId);
+  }
+
+  const image: Record<string, ImageModel> = {};
+  for (const modelId of images ?? []) {
+    image[`${name}/${modelId}`] = provider.imageModel(modelId);
+  }
+
+  return { language, image };
 }

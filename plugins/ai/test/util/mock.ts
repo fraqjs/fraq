@@ -1,5 +1,5 @@
 import { simulateReadableStream } from 'ai';
-import { MockLanguageModelV3 } from 'ai/test';
+import { MockImageModelV3, MockLanguageModelV3 } from 'ai/test';
 
 export function mockLanguageModel(text: string, modelId = 'mock-language-model'): MockLanguageModelV3 {
   return new MockLanguageModelV3({
@@ -44,6 +44,17 @@ export function mockToolCallModel(toolName: string, input: unknown): MockLanguag
         outputTokens: { total: 1, text: 1, reasoning: undefined },
       },
       warnings: [],
+    }),
+  });
+}
+
+export function mockImageModel(base64: string, modelId = 'mock-image-model'): MockImageModelV3 {
+  return new MockImageModelV3({
+    modelId,
+    doGenerate: async () => ({
+      images: [base64],
+      warnings: [],
+      response: { timestamp: new Date(), modelId, headers: undefined },
     }),
   });
 }

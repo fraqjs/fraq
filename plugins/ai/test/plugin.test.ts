@@ -1,9 +1,9 @@
 import { Context } from '@fraqjs/fraq';
 import { createMockMilkyClient } from '@fraqjs/mock';
-import { generateText } from 'ai';
+import { generateImage, generateText } from 'ai';
 
 import AiPlugin, { AiService } from '../src';
-import { mockLanguageModel } from './util/mock';
+import { mockImageModel, mockLanguageModel } from './util/mock';
 
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -14,7 +14,9 @@ test('AiPlugin provides AiService through the context', async () => {
   ctx.install(AiPlugin, {
     providers: {
       test: {
-        model: mockLanguageModel('from plugin'),
+        models: {
+          model: mockLanguageModel('from plugin'),
+        },
       },
     },
   });
@@ -36,11 +38,15 @@ test('AiPlugin registers multiple provider aliases, default model, and all concr
   ctx.install(AiPlugin, {
     providers: {
       openai: {
-        primary,
-        mini,
+        models: {
+          primary,
+          mini,
+        },
       },
       anthropic: {
-        sonnet,
+        models: {
+          sonnet,
+        },
       },
     },
     aliases: {
@@ -64,6 +70,41 @@ test('AiPlugin registers multiple provider aliases, default model, and all concr
 
   const result = await generateText({ model: service.model('fast'), prompt: 'hi' });
   assert.equal(result.text, 'from mini');
+
+  await ctx.stop();
+});
+
+test('AiPlugin registers image models from direct provider instances', async () => {
+  const ctx = Context.fromClient(createMockMilkyClient());
+  const dalle = mockImageModel('aGVsbG8=');
+
+  ctx.install(AiPlugin, {
+    providers: {
+      openai: {
+        models: {
+          'gpt-4o': mockLanguageModel('text'),
+        },
+        imageModels: {
+          'gpt-image-2': dalle,
+        },
+      },
+    },
+    aliases: {
+      art: 'openai/gpt-image-2',
+    },
+    defaultImageModel: 'art',
+  });
+  await ctx.start();
+
+  const service = ctx.resolve(AiService);
+
+  assert.deepEqual(service.images(), ['openai/gpt-image-2']);
+  assert.equal(service.image(), dalle);
+  assert.equal(service.image('art'), dalle);
+  assert.equal(service.hasImage('art'), true);
+
+  const result = await generateImage({ model: service.image(), prompt: 'a cat' });
+  assert.equal(result.image.base64, 'aGVsbG8=');
 
   await ctx.stop();
 });
