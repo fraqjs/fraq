@@ -17,7 +17,7 @@ export function milkyToolset<T extends ToolApiEndpoint>(ctx: Context, endpoints:
       execute: async (input) => {
         return (await ctx.client[endpoint](input)) ?? {};
       },
-    } as Tool;
+    };
   }
   return tools as Record<T, Tool>;
 }
