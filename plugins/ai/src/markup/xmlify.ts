@@ -35,11 +35,11 @@ function stringifySegments(segments: milky.IncomingSegment[]): string {
     .join('');
 }
 
-function buildPlainXmlNode(name: string, values: object) {
+function buildPlainNode(name: string, values: object) {
   const element = new Element(name, {});
   for (const [key, value] of Object.entries(values)) {
     if (typeof value === 'object' && value !== null) {
-      hp2.DomUtils.appendChild(element, buildPlainXmlNode(key, value));
+      hp2.DomUtils.appendChild(element, buildPlainNode(key, value));
     } else if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
       hp2.DomUtils.appendChild(element, new Element(key, {}, [new Text(String(value))]));
     }
@@ -47,7 +47,7 @@ function buildPlainXmlNode(name: string, values: object) {
   return element;
 }
 
-function buildAttributedXmlNode(name: string, values: object) {
+function buildAttributedElement(name: string, values: object) {
   const attrs: Record<string, string> = {};
   for (const [key, value] of Object.entries(values)) {
     if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
@@ -58,22 +58,32 @@ function buildAttributedXmlNode(name: string, values: object) {
 }
 
 function buildTaggedTextNode(tag: string, text: string, attrs?: object) {
-  const element = attrs ? buildAttributedXmlNode(tag, attrs) : new Element(tag, {});
+  const element = attrs ? buildAttributedElement(tag, attrs) : new Element(tag, {});
   hp2.DomUtils.appendChild(element, new Text(text));
   return element;
 }
 
 export async function xmlifyToElement(ctx: Context, message: milky.IncomingMessage, options?: XmlifyOptions) {
   const maxForwardDepth = options?.maxForwardDepth ?? 0;
+  const inThread = options?.resourceIndex !== undefined;
   const resourceIndex: ResourceIndex = options?.resourceIndex ?? { image: 0, record: 0, video: 0 };
 
-  const root = new Element('message', {
-    scene: message.message_scene,
-    peer_id: message.peer_id.toString(),
-    seq: message.message_seq.toString(),
-    sender_id: message.sender_id.toString(),
-    time: message.time.toString(),
-  });
+  const root = buildAttributedElement(
+    'message',
+    inThread
+      ? {
+          seq: message.message_seq,
+          sender_id: message.sender_id,
+          time: message.time,
+        }
+      : {
+          scene: message.message_scene,
+          peer_id: message.peer_id,
+          seq: message.message_seq,
+          sender_id: message.sender_id,
+          time: message.time,
+        },
+  );
 
   const contentNode = new Element('content', {});
   const resources: Record<string, { url: string }> = {};
@@ -98,7 +108,7 @@ export async function xmlifyToElement(ctx: Context, message: milky.IncomingMessa
         return buildTaggedTextNode('mention', '@全体成员');
       }
       case 'face': {
-        return buildAttributedXmlNode('face', segment.data);
+        return buildAttributedElement('face', segment.data);
       }
       case 'reply': {
         const { message_seq, sender_id, time } = segment.data;
@@ -120,13 +130,13 @@ export async function xmlifyToElement(ctx: Context, message: milky.IncomingMessa
         const { resource_id, temp_url, ...rest } = segment.data;
         const resourceKey = newResourceKey('record');
         resources[resourceKey] = { url: segment.data.temp_url };
-        return buildAttributedXmlNode('record', { id: resourceKey, ...rest });
+        return buildAttributedElement('record', { id: resourceKey, ...rest });
       }
       case 'video': {
         const { resource_id, temp_url, ...rest } = segment.data;
         const resourceKey = newResourceKey('video');
         resources[resourceKey] = { url: segment.data.temp_url };
-        return buildAttributedXmlNode('video', { id: resourceKey, ...rest });
+        return buildAttributedElement('video', { id: resourceKey, ...rest });
       }
       case 'file': {
         const { file_name, file_size } = segment.data;
@@ -143,12 +153,12 @@ export async function xmlifyToElement(ctx: Context, message: milky.IncomingMessa
         if (forwardDepth > maxForwardDepth) {
           return buildTaggedTextNode('forward', '(Too deeply nested)', { title });
         }
-        const forwardNode = buildAttributedXmlNode('forward', { depth: forwardDepth, title });
+        const forwardNode = buildAttributedElement('forward', { depth: forwardDepth, title });
 
         const { messages: fwdMsgs } = await ctx.client.get_forwarded_messages({ forward_id });
         for (const fwdMsg of fwdMsgs) {
           const { sender_name, time } = fwdMsg;
-          const fwdContentNode = buildAttributedXmlNode('node', { sender_name, time });
+          const fwdContentNode = buildAttributedElement('node', { sender_name, time });
           for (const fwdSegment of fwdMsg.segments) {
             const fwdElement = await buildElementFromSegment(fwdSegment, forwardDepth + 1);
             if (fwdElement) {
@@ -179,7 +189,7 @@ export async function xmlifyToElement(ctx: Context, message: milky.IncomingMessa
   if ('friend' in message && message.friend) {
     hp2.DomUtils.appendChild(
       root,
-      buildPlainXmlNode('friend', {
+      buildPlainNode('friend', {
         user_id: message.friend.user_id,
         nickname: message.friend.nickname,
         remark: message.friend.remark,
@@ -189,7 +199,7 @@ export async function xmlifyToElement(ctx: Context, message: milky.IncomingMessa
   if ('group' in message && message.group) {
     hp2.DomUtils.appendChild(
       root,
-      buildPlainXmlNode('group', {
+      buildPlainNode('group', {
         group_id: message.group.group_id,
         group_name: message.group.group_name,
       }),
@@ -198,7 +208,7 @@ export async function xmlifyToElement(ctx: Context, message: milky.IncomingMessa
   if ('group_member' in message && message.group_member) {
     hp2.DomUtils.appendChild(
       root,
-      buildPlainXmlNode('group_member', {
+      buildPlainNode('group_member', {
         user_id: message.group_member.user_id,
         card: message.group_member.card,
         nickname: message.group_member.nickname,
@@ -235,7 +245,13 @@ export async function xmlify(
 }
 
 export async function xmlifyThread(ctx: Context, messages: milky.IncomingMessage[], options?: XmlifyOptions) {
-  const threadNode = new Element('thread', {});
+  if (messages.length === 0) {
+    throw new Error('No messages provided for xmlifyThread');
+  }
+  const threadNode = buildAttributedElement('thread', {
+    scene: messages[0].message_scene,
+    peer_id: messages[0].peer_id,
+  });
   const resourceIndex: ResourceIndex = options?.resourceIndex ?? { image: 0, record: 0, video: 0 };
   const resources: Record<string, { url: string }> = {};
   const files: Record<string, milky.IncomingFileSegment['data']> = {};
