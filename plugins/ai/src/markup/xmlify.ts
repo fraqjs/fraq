@@ -8,6 +8,13 @@ export interface XmlifyOptions {
   maxForwardDepth?: number;
   serialize?: DomSerializerOptions;
   format?: XMLFormatterOptions;
+  resourceIndex?: ResourceIndex;
+}
+
+export interface ResourceIndex {
+  image: number;
+  record: number;
+  video: number;
 }
 
 export interface XmlifyContext {
@@ -56,14 +63,9 @@ function buildTaggedTextNode(tag: string, text: string, attrs?: object) {
   return element;
 }
 
-export async function xmlify(
-  ctx: Context,
-  message: milky.IncomingMessage,
-  options?: XmlifyOptions,
-): Promise<XmlifyContext> {
+export async function xmlifyToElement(ctx: Context, message: milky.IncomingMessage, options?: XmlifyOptions) {
   const maxForwardDepth = options?.maxForwardDepth ?? 0;
-  const serializeOptions = options?.serialize ?? {};
-  const formatOptions = options?.format ?? {};
+  const resourceIndex: ResourceIndex = options?.resourceIndex ?? { image: 0, record: 0, video: 0 };
 
   const root = new Element('message', {
     scene: message.message_scene,
@@ -76,14 +78,9 @@ export async function xmlify(
   const contentNode = new Element('content', {});
   const resources: Record<string, { url: string }> = {};
   const files: Record<string, milky.IncomingFileSegment['data']> = {};
-  const resourceCount = {
-    image: 0,
-    record: 0,
-    video: 0,
-  };
   function newResourceKey(type: 'image' | 'record' | 'video') {
-    resourceCount[type]++;
-    return `${type}${resourceCount[type]}`;
+    resourceIndex[type]++;
+    return `${type}${resourceIndex[type]}`;
   }
 
   async function buildElementFromSegment(
@@ -210,7 +207,57 @@ export async function xmlify(
     );
   }
 
-  const xml = render(root, { encodeEntities: 'utf8', ...serializeOptions });
+  return { node: root, resources, files };
+}
+
+export async function xmlify(
+  ctx: Context,
+  message: milky.IncomingMessage,
+  options?: XmlifyOptions,
+): Promise<XmlifyContext> {
+  const { node, resources, files } = await xmlifyToElement(ctx, message, options);
+  const serializeOptions = options?.serialize ?? {};
+  const formatOptions = options?.format ?? {};
+  const xml = render(node, {
+    encodeEntities: 'utf8',
+    ...serializeOptions,
+  });
+  return {
+    xmlContent: formatXml(xml, {
+      collapseContent: true,
+      indentation: '  ',
+      lineSeparator: '\n',
+      ...formatOptions,
+    }),
+    resources,
+    files,
+  };
+}
+
+export async function xmlifyThread(ctx: Context, messages: milky.IncomingMessage[], options?: XmlifyOptions) {
+  const threadNode = new Element('thread', {});
+  const resourceIndex: ResourceIndex = options?.resourceIndex ?? { image: 0, record: 0, video: 0 };
+  const resources: Record<string, { url: string }> = {};
+  const files: Record<string, milky.IncomingFileSegment['data']> = {};
+  for (const message of messages) {
+    const {
+      node,
+      resources: msgResources,
+      files: msgFiles,
+    } = await xmlifyToElement(ctx, message, {
+      ...options,
+      resourceIndex, // reuse across all messages in the thread to ensure unique resource keys
+    });
+    hp2.DomUtils.appendChild(threadNode, node);
+    Object.assign(resources, msgResources);
+    Object.assign(files, msgFiles);
+  }
+  const serializeOptions = options?.serialize ?? {};
+  const formatOptions = options?.format ?? {};
+  const xml = render(threadNode, {
+    encodeEntities: 'utf8',
+    ...serializeOptions,
+  });
   return {
     xmlContent: formatXml(xml, {
       collapseContent: true,
