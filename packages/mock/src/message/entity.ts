@@ -43,27 +43,13 @@ export function inmsg(
   return trimBoundaryTextSegments(segments);
 }
 
-function isTextSegment(segment: milky.IncomingSegment_ZodInput): segment is milky.IncomingTextSegment_ZodInput {
-  return segment.type === 'text';
-}
-
-function withText(segment: milky.IncomingTextSegment_ZodInput, text: string): milky.IncomingTextSegment_ZodInput {
-  return {
-    ...segment,
-    data: {
-      ...segment.data,
-      text,
-    },
-  };
-}
-
 function trimBoundaryTextSegments(segments: milky.IncomingSegment_ZodInput[]): milky.IncomingSegment_ZodInput[] {
   const result = [...segments];
   const first = result[0];
-  if (first && isTextSegment(first)) {
+  if (first?.type === 'text') {
     const text = first.data.text.trimStart();
     if (text) {
-      result[0] = withText(first, text);
+      result[0] = inseg.text(text);
     } else {
       result.shift();
     }
@@ -71,10 +57,10 @@ function trimBoundaryTextSegments(segments: milky.IncomingSegment_ZodInput[]): m
 
   const lastIndex = result.length - 1;
   const last = result[lastIndex];
-  if (last && isTextSegment(last)) {
+  if (last?.type === 'text') {
     const text = last.data.text.trimEnd();
     if (text) {
-      result[lastIndex] = withText(last, text);
+      result[lastIndex] = inseg.text(text);
     } else {
       result.pop();
     }
