@@ -23,12 +23,11 @@ declare module '@fraqjs/plugin-kysely' {
 }
 
 export interface MessageStoreServiceOptions {
-  autoFlush?:
-    | false
-    | {
-        intervalMinutes?: number;
-        maxAgeDays?: number;
-      };
+  autoFlush?: {
+    enabled?: boolean;
+    intervalMinutes?: number;
+    maxAgeDays?: number;
+  };
 }
 
 export class MessageStoreService {

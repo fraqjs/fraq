@@ -3,9 +3,6 @@ import { KyselyService } from '@fraqjs/plugin-kysely';
 
 import { MessageStoreService, type MessageStoreServiceOptions } from './service';
 
-const DEFAULT_AUTO_FLUSH_INTERVAL_MINUTES = 60;
-const DEFAULT_AUTO_FLUSH_MAX_AGE_DAYS = 30;
-
 export interface MessageStorePluginOptions extends MessageStoreServiceOptions {
   listenRecall?: boolean;
 }
@@ -83,13 +80,13 @@ export const MessageStorePlugin = definePlugin({
   },
   async start(ctx) {
     const store = ctx.resolve(MessageStoreService);
-    const autoFlush = store.options?.autoFlush;
-    if (!autoFlush) {
+
+    const autoFlushEnabled = store?.options?.autoFlush?.enabled ?? true;
+    if (!autoFlushEnabled) {
       return;
     }
-
-    const autoFlushMaxAgeMs = (autoFlush.maxAgeDays ?? DEFAULT_AUTO_FLUSH_MAX_AGE_DAYS) * 24 * 60 * 60 * 1_000;
-    const autoFlushIntervalMs = (autoFlush.intervalMinutes ?? DEFAULT_AUTO_FLUSH_INTERVAL_MINUTES) * 60 * 1_000;
+    const autoFlushMaxAgeMs = (store.options?.autoFlush?.maxAgeDays ?? 7) * 24 * 60 * 60 * 1_000;
+    const autoFlushIntervalMs = (store.options?.autoFlush?.intervalMinutes ?? 60) * 60 * 1_000;
 
     const flush = async () => {
       const deleted = await store.flushExpired(autoFlushMaxAgeMs);
