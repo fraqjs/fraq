@@ -1,3 +1,5 @@
+import chalk from 'chalk';
+
 import type { Config } from '../config';
 import type { PackageManagerName } from '../package-manager';
 import { ensureAppPaths, getAppPath } from '../paths';
@@ -27,7 +29,8 @@ export async function startApp(config: Config, packageManager: PackageManagerCom
     return exitCodeFromChildResult(installResult);
   }
   if (installResult.code !== 0) {
-    throw new Error(`Package manager install failed with exit code ${installResult.code ?? 'unknown'}.`);
+    console.error(chalk.red(`Package manager install failed with exit code ${installResult.code ?? 'unknown'}.`));
+    process.exit(1);
   }
 
   const appResult = await waitForChild(startAppProcess());

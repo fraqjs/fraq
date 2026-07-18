@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+import chalk from 'chalk';
+
 import { startApp } from './app';
 import { loadConfig } from './config';
 import { getPluginDependencyDiagnostic } from './dependency';
@@ -11,7 +13,8 @@ let packageManager: PackageManagerInfo | undefined;
 if (config.packageManager) {
   const result = detectPackageManager(config.packageManager);
   if (!result?.installed || !result?.commandPath) {
-    throw new Error(`Specified package manager '${config.packageManager}' is not found in the system PATH.`);
+    console.error(chalk.red(`Specified package manager '${config.packageManager}' is not found in the system PATH.`));
+    process.exit(1);
   }
   packageManager = result;
 } else {
@@ -25,18 +28,21 @@ if (config.packageManager) {
   }
 }
 if (!packageManager?.commandPath) {
-  throw new Error(
-    "No package manager found in the system PATH. Please install one of 'pnpm', 'yarn', or 'npm', or specify a package manager in the configuration.",
+  console.error(
+    chalk.red(
+      "No package manager found in the system PATH. Please install one of 'pnpm', 'yarn', or 'npm', or specify a package manager in the configuration.",
+    ),
   );
+  process.exit(1);
 }
 
 const diagnostic = await getPluginDependencyDiagnostic(config);
 if (diagnostic.status === 'missing') {
-  console.error('There are issues with the plugin dependencies:');
+  console.error(chalk.red('There are issues with the plugin dependencies:'));
   for (const issue of diagnostic.message) {
-    console.error(`- ${issue}`);
+    console.error(chalk.red(`- ${issue}`));
   }
-  console.error('Please resolve the above issues before proceeding.');
+  console.error(chalk.red('Please resolve the above issues before proceeding.'));
   process.exit(1);
 }
 
