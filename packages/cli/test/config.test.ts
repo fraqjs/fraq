@@ -44,7 +44,7 @@ test('parses recursive fork filters and rejects empty filter operands', () => {
   assert.throws(() => FilterConfigV1.parse({ type: 'or', filters: [] }));
 });
 
-test('fills, merges, and persists plugin versions without rewriting fraq.yml', async () => {
+test('fills, merges, prunes, and persists plugin versions without rewriting fraq.yml', async () => {
   const fraqConfig = {
     configVersion: 1 as const,
     fraqVersion: '0.13.0',
@@ -97,10 +97,11 @@ test('fills, merges, and persists plugin versions without rewriting fraq.yml', a
 
     assert.deepEqual(fetchedPackages, ['fraq-plugin-auto', '@scope/fraq-plugin-child']);
     assert.deepEqual(config.versions, {
-      pinned: '2.0.0',
       auto: '1.2.3',
+      pinned: '2.0.0',
       'scope/child': '4.5.6',
     });
+    assert.deepEqual(Object.keys(config.versions), ['auto', 'pinned', 'scope/child']);
     assert.equal(readFileSync(path.join(testRoot, 'fraq.yml'), 'utf-8'), fraqContent);
     assert.deepEqual(YAML.parse(readFileSync(path.join(testRoot, 'versions.yml'), 'utf-8')), config.versions);
 
@@ -113,11 +114,24 @@ test('fills, merges, and persists plugin versions without rewriting fraq.yml', a
 
     assert.deepEqual(fetchedPackages, []);
     assert.deepEqual(overriddenConfig.versions, {
-      pinned: '2.0.0',
       auto: '9.0.0',
+      pinned: '2.0.0',
       'scope/child': '4.5.6',
     });
     assert.deepEqual(YAML.parse(readFileSync(path.join(testRoot, 'versions.yml'), 'utf-8')), overriddenConfig.versions);
+
+    delete (fraqConfig.plugins as Record<string, object>).pinned;
+    delete (fraqConfig.forks as Record<string, object>).child;
+    writeFileSync(path.join(testRoot, 'fraq.yml'), YAML.stringify(fraqConfig));
+    fetchedPackages.length = 0;
+
+    const prunedConfig = await loadConfig();
+
+    assert.deepEqual(fetchedPackages, []);
+    assert.deepEqual(prunedConfig.versions, {
+      auto: '9.0.0',
+    });
+    assert.deepEqual(YAML.parse(readFileSync(path.join(testRoot, 'versions.yml'), 'utf-8')), prunedConfig.versions);
   } finally {
     process.chdir(originalCwd);
   }

@@ -66,6 +66,12 @@ async function completePluginVersions(config: ConfigV1, versions: Record<string,
   const pluginNames = new Set<string>();
   collectPluginNames(config, pluginNames);
 
+  for (const pluginName of Object.keys(versions)) {
+    if (!pluginNames.has(pluginName)) {
+      delete versions[pluginName];
+    }
+  }
+
   for (const pluginName of pluginNames) {
     const version = versions[pluginName];
     if (typeof version === 'string' && version.trim().length > 0) {
@@ -101,11 +107,14 @@ export async function loadConfigV1(): Promise<ConfigV1> {
     ...parsedConfig.versions,
   };
   await completePluginVersions(parsedConfig, versions);
+  const orderedVersions = Object.fromEntries(
+    Object.entries(versions).sort(([left], [right]) => left.localeCompare(right)),
+  );
 
   const mergedConfig = ConfigV1.parse({
     ...parsedConfig,
-    versions,
+    versions: orderedVersions,
   });
-  writeFileSync(path.resolve(process.cwd(), 'versions.yml'), YAML.stringify(versions), 'utf-8');
+  writeFileSync(path.resolve(process.cwd(), 'versions.yml'), YAML.stringify(orderedVersions), 'utf-8');
   return mergedConfig;
 }
