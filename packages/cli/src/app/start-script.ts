@@ -1,5 +1,5 @@
 import type { Config } from '../config';
-import type { ContextConfig } from '../config/v1';
+import type { ContextConfigV1 } from '../config/v1';
 import { normalizePluginName } from '../dependency';
 
 export function buildStartScript(config: Config): string {
@@ -22,7 +22,7 @@ const ctx = Context.fromUrl(${JSON.stringify(config.milky.url)}, {
   lines.push('');
 
   let nextContextId = 0;
-  function buildContextPart(parentContextName: string, contextConfig: ContextConfig) {
+  function buildContextPart(parentContextName: string, contextConfig: ContextConfigV1) {
     for (const [pluginName, pluginConfig] of Object.entries(contextConfig.plugins ?? {})) {
       lines.push(
         `${parentContextName}.install((await import(${JSON.stringify(normalizePluginName(pluginName))})).default, ${JSON.stringify(pluginConfig)});`,

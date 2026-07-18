@@ -36,7 +36,14 @@ export async function getLatestPackageJson(packageName: string): Promise<any> {
     throw new Error(`Failed to fetch latest package.json for ${packageName}: ${response.statusText}`);
   }
   const packageJson = await response.json();
-  const cacheFilePath = path.resolve(getPackageJsonCachePath(), `${packageName}@${packageJson.version}.json`);
-  writeCachedPackageJson(cacheFilePath, packageJson);
+  if (
+    typeof packageJson === 'object' &&
+    packageJson &&
+    'version' in packageJson &&
+    typeof packageJson.version === 'string'
+  ) {
+    const cacheFilePath = path.resolve(getPackageJsonCachePath(), `${packageName}@${packageJson.version}.json`);
+    writeCachedPackageJson(cacheFilePath, packageJson);
+  }
   return packageJson;
 }

@@ -29,7 +29,7 @@ test('fills, merges, and persists plugin versions without rewriting fraq.yml', a
     },
     versions: {
       pinned: '2.0.0',
-    },
+    } as Record<string, string>,
     plugins: {
       auto: {},
       pinned: {},
