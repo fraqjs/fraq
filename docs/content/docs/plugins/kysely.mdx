@@ -20,7 +20,7 @@ ctx.install(KyselyPlugin, {
 
 `KyselyPlugin` 有如下配置项：
 
-- `sqliteUrl`：SQLite 数据库的连接 URL，例如 `file:./my-database.sqlite` 或 `:memory:`。
+- `sqliteUrl`：SQLite 数据库的连接 URL，默认为 `file:./fraq.db`，表示在当前工作目录下创建一个名为 `fraq.db` 的 SQLite 数据库文件。
 - `nodeSqliteOptions`：可选的数据库连接选项，除了 `open` 选项之外的其他选项都会被传递给 `DatabaseSync` 的构造函数，详见 [Node.js 官方文档](https://nodejs.org/api/sqlite.html#new-databasesyncpath-options)。
 
 如果你是插件开发者，请将本插件添加到项目的 `peerDependencies` 中，并在自己的插件中声明依赖：
