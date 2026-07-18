@@ -1,4 +1,4 @@
-import { definePlugin } from '@fraqjs/fraq';
+import { definePlugin, type milky } from '@fraqjs/fraq';
 import { KyselyService } from '@fraqjs/plugin-kysely';
 
 import { MessageStoreService, type MessageStoreServiceOptions } from './service';
@@ -27,13 +27,58 @@ export const MessageStorePlugin = definePlugin({
       ctx.on('message_recall', (event) => store.storeRecall(event));
     }
 
+    async function refreshTempUrlRKey(payload: milky.IncomingMessage[]) {
+      const rkeyByAppId = new Map<string, string>();
+
+      for (const msg of payload) {
+        for (const segment of msg.segments) {
+          if ('temp_url' in segment.data) {
+            const queryParams = new URL(segment.data.temp_url).searchParams;
+            const appId = queryParams.get('appid');
+            if (!appId) {
+              continue;
+            }
+            const newRkey = rkeyByAppId.get(appId);
+            if (!newRkey) {
+              try {
+                const { url: newDownloadUrl } = await ctx.client.get_resource_temp_url({
+                  resource_id: segment.data.resource_id,
+                });
+                const newQueryParams = new URL(newDownloadUrl).searchParams;
+                const newRkey = newQueryParams.get('rkey');
+                if (newRkey) {
+                  rkeyByAppId.set(appId, newRkey);
+                }
+                segment.data.temp_url = newDownloadUrl;
+              } catch (error) {
+                ctx.logger.warn('Failed to refresh temp_url rkey for segment', error);
+                // continue;
+              }
+            } else {
+              const url = new URL(segment.data.temp_url);
+              url.searchParams.set('rkey', newRkey);
+              segment.data.temp_url = url.toString();
+            }
+          }
+        }
+      }
+    }
+
     ctx.hookApi('get_message', async (params, next) => {
       const local = await store.getMessage(params);
-      return local ?? (await next(params));
+      if (local) {
+        await refreshTempUrlRKey([local.message]);
+        return local;
+      }
+      return await next(params);
     });
     ctx.hookApi('get_history_messages', async (params, next) => {
       const local = await store.getHistory(params);
-      return local ?? (await next(params));
+      if (local) {
+        await refreshTempUrlRKey(local.messages);
+        return local;
+      }
+      return await next(params);
     });
   },
   async start(ctx) {
