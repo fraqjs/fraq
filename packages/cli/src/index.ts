@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 import { startApp } from './app';
 import { loadConfig } from './config';
 import { getPluginDependencyDiagnostic } from './dependency';
