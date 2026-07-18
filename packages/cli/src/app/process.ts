@@ -51,12 +51,10 @@ export function waitForChild(child: ChildProcess): Promise<ChildResult> {
       }
     };
 
-    // @ts-expect-error Node.js types are missing the `once` method on ChildProcess
     child.once('error', (error) => {
       removeSignalHandlers();
       reject(error);
     });
-    // @ts-expect-error Node.js types are missing the `once` method on ChildProcess
     child.once('close', (code, signal) => {
       removeSignalHandlers();
       resolve({ code, signal, forwardedSignal });
