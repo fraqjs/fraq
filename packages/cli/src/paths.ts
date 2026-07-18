@@ -1,20 +1,18 @@
-import { existsSync, mkdirSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 
-const appPath = path.resolve(process.cwd(), 'app');
-const cachePath = path.resolve(process.cwd(), 'cache');
-const packageJsonCachePath = path.resolve(cachePath, 'package-json');
-
-if (!existsSync(appPath)) {
-  mkdirSync(appPath, { recursive: true });
+export function getAppPath(): string {
+  return path.resolve(process.cwd(), 'app');
 }
 
-if (!existsSync(cachePath)) {
-  mkdirSync(cachePath, { recursive: true });
+export function getCachePath(): string {
+  return path.resolve(process.cwd(), 'cache');
 }
 
-if (!existsSync(packageJsonCachePath)) {
-  mkdirSync(packageJsonCachePath, { recursive: true });
+export function getPackageJsonCachePath(): string {
+  return path.resolve(getCachePath(), 'package-json');
 }
 
-export { appPath, cachePath, packageJsonCachePath };
+export function ensureAppPaths(): void {
+  mkdirSync(getAppPath(), { recursive: true });
+}

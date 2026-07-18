@@ -1,7 +1,7 @@
 import * as YAML from 'yaml';
 
-import { getPackageJson } from '../cache';
 import { normalizePluginName } from '../dependency';
+import { getPackageJson } from '../package-jsons';
 import { ConfigV1 } from './v1';
 
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
@@ -98,11 +98,6 @@ async function completePluginVersions(config: ConfigDocument, versions: Record<s
   }
 }
 
-function saveVersions(versions: Record<string, string>): void {
-  const versionsPath = path.resolve(process.cwd(), 'versions.yml');
-  writeFileSync(versionsPath, YAML.stringify(versions), 'utf-8');
-}
-
 export async function loadConfig(): Promise<Config> {
   const configPath = findConfigPath();
   const rawConfig = parseConfigFile(configPath);
@@ -121,7 +116,7 @@ export async function loadConfig(): Promise<Config> {
     ...rawConfig,
     versions,
   });
-  saveVersions(versions);
+  writeFileSync(path.resolve(process.cwd(), 'versions.yml'), YAML.stringify(versions), 'utf-8');
   return mergedConfig;
 }
 

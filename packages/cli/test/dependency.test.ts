@@ -8,11 +8,10 @@ import test, { after } from 'node:test';
 
 const originalCwd = process.cwd();
 const testRoot = mkdtempSync(path.join(tmpdir(), 'fraq-cli-dependency-'));
-process.chdir(testRoot);
 const { getPluginDependencyDiagnostic, normalizePluginName } = await import('../src/dependency');
-process.chdir(originalCwd);
 
 after(() => {
+  process.chdir(originalCwd);
   rmSync(testRoot, { recursive: true, force: true });
 });
 
@@ -26,6 +25,7 @@ function cachePackage(name: string, version: string, peerDependencies?: Record<s
 function createConfig(context: Pick<Config, 'plugins' | 'forks'>, pluginVersions: Record<string, string>): Config {
   return {
     configVersion: 1,
+    fraqVersion: '0.1.0',
     milky: {
       url: 'http://localhost:3000',
       connectEvent: true,
@@ -33,12 +33,18 @@ function createConfig(context: Pick<Config, 'plugins' | 'forks'>, pluginVersions
     logging: {
       minLevel: 'info',
     },
-    versions: {
-      fraq: '0.1.0',
-      ...pluginVersions,
-    },
+    versions: pluginVersions,
     ...context,
   };
+}
+
+async function withTestRoot<T>(run: () => Promise<T>): Promise<T> {
+  process.chdir(testRoot);
+  try {
+    return await run();
+  } finally {
+    process.chdir(originalCwd);
+  }
 }
 
 test('accepts plugin dependencies from the same context and parent contexts', async () => {
@@ -51,26 +57,28 @@ test('accepts plugin dependencies from the same context and parent contexts', as
     [normalizePluginName('provider')]: '*',
   });
 
-  const diagnostic = await getPluginDependencyDiagnostic(
-    createConfig(
-      {
-        plugins: {
-          consumer: {},
-          provider: {},
-        },
-        forks: {
-          child: {
-            plugins: {
-              'scope/child-consumer': {},
+  const diagnostic = await withTestRoot(() =>
+    getPluginDependencyDiagnostic(
+      createConfig(
+        {
+          plugins: {
+            consumer: {},
+            provider: {},
+          },
+          forks: {
+            child: {
+              plugins: {
+                'scope/child-consumer': {},
+              },
             },
           },
         },
-      },
-      {
-        consumer: '1.0.0',
-        provider: '2.0.0',
-        'scope/child-consumer': '1.0.0',
-      },
+        {
+          consumer: '1.0.0',
+          provider: '2.0.0',
+          'scope/child-consumer': '1.0.0',
+        },
+      ),
     ),
   );
 
@@ -97,44 +105,46 @@ test('reports every plugin dependency unavailable from its context parent chain'
     [normalizePluginName('missing-beta')]: '*',
   });
 
-  const diagnostic = await getPluginDependencyDiagnostic(
-    createConfig(
-      {
-        plugins: {
-          'root-consumer': {},
-          'root-provider': {},
-        },
-        forks: {
-          alpha: {
-            plugins: {
-              'alpha-consumer': {},
-              'child-provider': {},
-            },
-            forks: {
-              nested: {
-                plugins: {
-                  'nested-consumer': {},
+  const diagnostic = await withTestRoot(() =>
+    getPluginDependencyDiagnostic(
+      createConfig(
+        {
+          plugins: {
+            'root-consumer': {},
+            'root-provider': {},
+          },
+          forks: {
+            alpha: {
+              plugins: {
+                'alpha-consumer': {},
+                'child-provider': {},
+              },
+              forks: {
+                nested: {
+                  plugins: {
+                    'nested-consumer': {},
+                  },
                 },
               },
             },
-          },
-          beta: {
-            plugins: {
-              'beta-provider': {},
-              'beta-consumer': {},
+            beta: {
+              plugins: {
+                'beta-provider': {},
+                'beta-consumer': {},
+              },
             },
           },
         },
-      },
-      {
-        'root-consumer': '1.0.0',
-        'root-provider': '1.0.0',
-        'alpha-consumer': '1.0.0',
-        'child-provider': '1.0.0',
-        'nested-consumer': '1.0.0',
-        'beta-provider': '1.0.0',
-        'beta-consumer': '1.0.0',
-      },
+        {
+          'root-consumer': '1.0.0',
+          'root-provider': '1.0.0',
+          'alpha-consumer': '1.0.0',
+          'child-provider': '1.0.0',
+          'nested-consumer': '1.0.0',
+          'beta-provider': '1.0.0',
+          'beta-consumer': '1.0.0',
+        },
+      ),
     ),
   );
 
@@ -151,14 +161,16 @@ test('reports every plugin dependency unavailable from its context parent chain'
 
 test('throws when a plugin version is missing', async () => {
   await assert.rejects(
-    getPluginDependencyDiagnostic(
-      createConfig(
-        {
-          plugins: {
-            unversioned: {},
+    withTestRoot(() =>
+      getPluginDependencyDiagnostic(
+        createConfig(
+          {
+            plugins: {
+              unversioned: {},
+            },
           },
-        },
-        {},
+          {},
+        ),
       ),
     ),
     /Plugin "unversioned" in context "root" has no version declared in config\.versions\./,

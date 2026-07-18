@@ -1,6 +1,6 @@
-import { getPackageJson } from './cache';
 import type { Config } from './config';
 import type { ContextConfig } from './config/v1';
+import { getPackageJson } from './package-jsons';
 
 export type PluginDependencyDiagnostic = { status: 'ok' } | { status: 'missing'; message: string[] };
 

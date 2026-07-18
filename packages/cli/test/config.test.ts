@@ -9,7 +9,6 @@ import test, { after } from 'node:test';
 const originalCwd = process.cwd();
 const originalFetch = globalThis.fetch;
 const testRoot = mkdtempSync(path.join(tmpdir(), 'fraq-cli-config-'));
-process.chdir(testRoot);
 const { loadConfig } = await import('../src/config');
 
 after(() => {
@@ -19,19 +18,18 @@ after(() => {
 });
 
 test('fills, merges, and persists plugin versions without rewriting fraq.yml', async () => {
-  const fraqVersions: Record<string, string> = {
-    fraq: '0.13.0',
-    pinned: '2.0.0',
-  };
   const fraqConfig = {
-    configVersion: 1,
+    configVersion: 1 as const,
+    fraqVersion: '0.13.0',
     milky: {
       url: 'http://localhost:3000',
     },
     logging: {
-      minLevel: 'info',
+      minLevel: 'info' as const,
     },
-    versions: fraqVersions,
+    versions: {
+      pinned: '2.0.0',
+    },
     plugins: {
       auto: {},
       pinned: {},
@@ -66,31 +64,34 @@ test('fills, merges, and persists plugin versions without rewriting fraq.yml', a
     });
   };
 
-  const config = await loadConfig();
+  process.chdir(testRoot);
+  try {
+    const config = await loadConfig();
 
-  assert.deepEqual(fetchedPackages, ['fraq-plugin-auto', '@scope/fraq-plugin-child']);
-  assert.deepEqual(config.versions, {
-    fraq: '0.13.0',
-    pinned: '2.0.0',
-    auto: '1.2.3',
-    'scope/child': '4.5.6',
-  });
-  assert.equal(readFileSync(path.join(testRoot, 'fraq.yml'), 'utf-8'), fraqContent);
-  assert.deepEqual(YAML.parse(readFileSync(path.join(testRoot, 'versions.yml'), 'utf-8')), config.versions);
+    assert.deepEqual(fetchedPackages, ['fraq-plugin-auto', '@scope/fraq-plugin-child']);
+    assert.deepEqual(config.versions, {
+      pinned: '2.0.0',
+      auto: '1.2.3',
+      'scope/child': '4.5.6',
+    });
+    assert.equal(readFileSync(path.join(testRoot, 'fraq.yml'), 'utf-8'), fraqContent);
+    assert.deepEqual(YAML.parse(readFileSync(path.join(testRoot, 'versions.yml'), 'utf-8')), config.versions);
 
-  fraqConfig.versions.fraq = '0.14.0';
-  fraqConfig.versions.auto = '9.0.0';
-  writeFileSync(path.join(testRoot, 'fraq.yml'), YAML.stringify(fraqConfig));
-  fetchedPackages.length = 0;
+    fraqConfig.fraqVersion = '0.14.0';
+    fraqConfig.versions.auto = '9.0.0';
+    writeFileSync(path.join(testRoot, 'fraq.yml'), YAML.stringify(fraqConfig));
+    fetchedPackages.length = 0;
 
-  const overriddenConfig = await loadConfig();
+    const overriddenConfig = await loadConfig();
 
-  assert.deepEqual(fetchedPackages, []);
-  assert.deepEqual(overriddenConfig.versions, {
-    fraq: '0.14.0',
-    pinned: '2.0.0',
-    auto: '9.0.0',
-    'scope/child': '4.5.6',
-  });
-  assert.deepEqual(YAML.parse(readFileSync(path.join(testRoot, 'versions.yml'), 'utf-8')), overriddenConfig.versions);
+    assert.deepEqual(fetchedPackages, []);
+    assert.deepEqual(overriddenConfig.versions, {
+      pinned: '2.0.0',
+      auto: '9.0.0',
+      'scope/child': '4.5.6',
+    });
+    assert.deepEqual(YAML.parse(readFileSync(path.join(testRoot, 'versions.yml'), 'utf-8')), overriddenConfig.versions);
+  } finally {
+    process.chdir(originalCwd);
+  }
 });

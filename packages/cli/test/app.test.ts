@@ -20,10 +20,7 @@ import { pathToFileURL } from 'node:url';
 
 const originalCwd = process.cwd();
 const testRoot = mkdtempSync(path.join(tmpdir(), 'fraq-cli-app-'));
-process.chdir(testRoot);
-const { buildStartScript, generateAppPackageJson } = await import('../src/app-config');
-const { startApp } = await import('../src/app');
-process.chdir(originalCwd);
+const { buildStartScript, generateAppPackageJson, startApp } = await import('../src/app');
 
 after(() => {
   rmSync(testRoot, { recursive: true, force: true });
@@ -31,6 +28,7 @@ after(() => {
 
 const config: Config = {
   configVersion: 1,
+  fraqVersion: '1.2.3',
   milky: {
     url: 'http://localhost:3000',
     connectEvent: false,
@@ -39,7 +37,6 @@ const config: Config = {
     minLevel: 'warn',
   },
   versions: {
-    fraq: '1.2.3',
     alpha: '4.5.6',
   },
   additionalDependencies: {
@@ -116,18 +113,23 @@ export class Context {
   writeFileSync(path.join(colorLogDirectory, 'index.js'), 'export function createColoredLogHandler() {}\n');
   writeFileSync(path.join(pluginDirectory, 'index.js'), 'export default {};\n');
 
-  const exitCode = await startApp(config, {
-    name: 'npm',
-    commandPath: packageManagerPath,
-  });
+  process.chdir(testRoot);
+  try {
+    const exitCode = await startApp(config, {
+      name: 'npm',
+      commandPath: packageManagerPath,
+    });
 
-  assert.equal(exitCode, 0);
-  assert.equal(realpathSync(readFileSync(installCwdPath, 'utf-8').trim()), realpathSync(appDirectory));
-  assert.deepEqual(
-    JSON.parse(readFileSync(path.join(appDirectory, 'package.json'), 'utf-8')),
-    generateAppPackageJson(config),
-  );
-  assert.equal(readFileSync(path.join(appDirectory, 'index.js'), 'utf-8'), `${buildStartScript(config)}\n`);
+    assert.equal(exitCode, 0);
+    assert.equal(realpathSync(readFileSync(installCwdPath, 'utf-8').trim()), realpathSync(appDirectory));
+    assert.deepEqual(
+      JSON.parse(readFileSync(path.join(appDirectory, 'package.json'), 'utf-8')),
+      generateAppPackageJson(config),
+    );
+    assert.equal(readFileSync(path.join(appDirectory, 'index.js'), 'utf-8'), `${buildStartScript(config)}\n`);
+  } finally {
+    process.chdir(originalCwd);
+  }
 });
 
 test('does not start the app when installation fails', { skip: process.platform === 'win32' }, async () => {
@@ -135,13 +137,18 @@ test('does not start the app when installation fails', { skip: process.platform 
   writeFileSync(packageManagerPath, '#!/bin/sh\nexit 7\n');
   chmodSync(packageManagerPath, 0o755);
 
-  await assert.rejects(
-    startApp(config, {
-      name: 'npm',
-      commandPath: packageManagerPath,
-    }),
-    /Package manager install failed with exit code 7/,
-  );
+  process.chdir(testRoot);
+  try {
+    await assert.rejects(
+      startApp(config, {
+        name: 'npm',
+        commandPath: packageManagerPath,
+      }),
+      /Package manager install failed with exit code 7/,
+    );
+  } finally {
+    process.chdir(originalCwd);
+  }
 });
 
 test('forwards termination signals and preserves the signal exit code', {
@@ -189,9 +196,10 @@ export class Context {
   writeFileSync(path.join(colorLogDirectory, 'index.js'), 'export function createColoredLogHandler() {}\n');
 
   const runnerPath = path.join(workerRoot, 'runner.ts');
-  const appModuleUrl = pathToFileURL(path.resolve(originalCwd, 'packages/cli/src/app.ts')).href;
+  const appModuleUrl = pathToFileURL(path.resolve(originalCwd, 'packages/cli/src/app/index.ts')).href;
   const signalConfig: Config = {
     configVersion: 1,
+    fraqVersion: '1.2.3',
     milky: {
       url: 'http://localhost:3000',
       connectEvent: false,
@@ -199,9 +207,7 @@ export class Context {
     logging: {
       minLevel: 'info',
     },
-    versions: {
-      fraq: '1.2.3',
-    },
+    versions: {},
   };
   writeFileSync(
     runnerPath,

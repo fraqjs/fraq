@@ -4,3 +4,4 @@ fraq.yml
 fraq.yaml
 fraq.json
 versions.yml
+!src/**

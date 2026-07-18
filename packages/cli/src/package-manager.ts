@@ -17,56 +17,36 @@ export interface PackageManagerInfo {
   error?: string;
 }
 
-function stripWrappingQuotes(value: string): string {
-  if (value.startsWith('"') && value.endsWith('"')) {
-    return value.slice(1, -1);
-  }
-
-  return value;
-}
-
-function getExecutableNames(command: string): string[] {
-  if (process.platform !== 'win32') {
-    return [command];
-  }
-
-  const extensions = (process.env.PATHEXT ?? '.COM;.EXE;.BAT;.CMD').split(';').filter(Boolean);
-
-  return extensions.map((extension) => {
-    return `${command}${extension.toLowerCase()}`;
-  });
-}
-
-function isExecutable(filePath: string): boolean {
-  try {
-    const stats = statSync(filePath);
-
-    if (!stats.isFile()) {
-      return false;
-    }
-
-    accessSync(filePath, process.platform === 'win32' ? constants.F_OK : constants.X_OK);
-
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 function findExecutablesOnPath(command: string): string[] {
   const pathValue = process.env.PATH ?? '';
   const directories = pathValue.split(path.delimiter);
-  const executableNames = getExecutableNames(command);
+  const executableNames =
+    process.platform === 'win32'
+      ? (process.env.PATHEXT ?? '.COM;.EXE;.BAT;.CMD')
+          .split(';')
+          .filter(Boolean)
+          .map((extension) => `${command}${extension.toLowerCase()}`)
+      : [command];
   const results: string[] = [];
   const seen = new Set<string>();
 
   for (const rawDirectory of directories) {
-    const directory = stripWrappingQuotes(rawDirectory.trim()) || process.cwd();
+    let directory = rawDirectory.trim();
+    if (directory.startsWith('"') && directory.endsWith('"')) {
+      directory = directory.slice(1, -1);
+    }
+    directory = directory || process.cwd();
 
     for (const executableName of executableNames) {
       const candidate = path.resolve(directory, executableName);
 
-      if (!isExecutable(candidate)) {
+      try {
+        const stats = statSync(candidate);
+        if (!stats.isFile()) {
+          continue;
+        }
+        accessSync(candidate, process.platform === 'win32' ? constants.F_OK : constants.X_OK);
+      } catch {
         continue;
       }
 
