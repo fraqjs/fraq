@@ -8,10 +8,27 @@ import { findConfigPath, parseConfigFile, readVersions } from './shared';
 import { writeFileSync } from 'node:fs';
 import path from 'node:path';
 
+export type FilterConfigV1 =
+  | { type: 'allPass' | 'allFriends' | 'allGroups' | 'admin' }
+  | { type: 'friend' | 'group'; ids: number[] }
+  | { type: 'or' | 'and'; filters: FilterConfigV1[] }
+  | { type: 'not'; filter: FilterConfigV1 };
+
+const filterIds = z.array(z.number().int().positive()).min(1);
+
+export const FilterConfigV1: z.ZodType<FilterConfigV1> = z.lazy(() =>
+  z.discriminatedUnion('type', [
+    z.object({ type: z.enum(['allPass', 'allFriends', 'allGroups', 'admin']) }),
+    z.object({ type: z.enum(['friend', 'group']), ids: filterIds }),
+    z.object({ type: z.enum(['or', 'and']), filters: z.array(FilterConfigV1).min(1) }),
+    z.object({ type: z.literal('not'), filter: FilterConfigV1 }),
+  ]),
+);
+
 export const ContextConfigV1 = z.object({
   plugins: z.record(z.string(), z.any()).optional(),
   get forks() {
-    return z.record(z.string(), ContextConfigV1).optional();
+    return z.record(z.string(), ContextConfigV1.extend({ filter: FilterConfigV1.optional() })).optional();
   },
 });
 export type ContextConfigV1 = z.infer<typeof ContextConfigV1>;

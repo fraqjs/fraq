@@ -1,6 +1,24 @@
 import type { Config } from '../config';
-import type { ContextConfigV1 } from '../config/v1';
+import type { ContextConfigV1, FilterConfigV1 } from '../config/v1';
 import { normalizePluginName } from '../dependency';
+
+function buildFilterExpression(config: FilterConfigV1): string {
+  switch (config.type) {
+    case 'allPass':
+    case 'allFriends':
+    case 'allGroups':
+    case 'admin':
+      return `filter.${config.type}()`;
+    case 'friend':
+    case 'group':
+      return `filter.${config.type}(${config.ids.map((id) => JSON.stringify(id)).join(', ')})`;
+    case 'or':
+    case 'and':
+      return `filter.${config.type}(${config.filters.map(buildFilterExpression).join(', ')})`;
+    case 'not':
+      return `filter.not(${buildFilterExpression(config.filter)})`;
+  }
+}
 
 export function buildStartScript(config: Config): string {
   const lines: string[] = [];
@@ -9,7 +27,7 @@ export function buildStartScript(config: Config): string {
     `
 #!/usr/bin/env node
 
-import { Context } from '@fraqjs/fraq';
+import { Context, filter } from '@fraqjs/fraq';
 import { createColoredLogHandler } from '@fraqjs/color-log';
 
 const ctx = Context.fromUrl(${JSON.stringify(config.milky.url)}, {
@@ -30,7 +48,8 @@ const ctx = Context.fromUrl(${JSON.stringify(config.milky.url)}, {
     }
     for (const [forkName, forkConfig] of Object.entries(contextConfig.forks ?? {})) {
       const forkContextName = `context${++nextContextId}`;
-      lines.push(`const ${forkContextName} = ${parentContextName}.fork(${JSON.stringify(forkName)});`);
+      const filterArgument = forkConfig.filter ? `, ${buildFilterExpression(forkConfig.filter)}` : '';
+      lines.push(`const ${forkContextName} = ${parentContextName}.fork(${JSON.stringify(forkName)}${filterArgument});`);
       buildContextPart(forkContextName, forkConfig);
     }
   }
