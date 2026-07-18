@@ -8,17 +8,18 @@ import type { FraqDatabase } from './types';
 import { DatabaseSync, type DatabaseSyncOptions } from 'node:sqlite';
 
 export interface KyselyPluginOptions {
-  sqliteUrl: string;
+  sqliteUrl?: string;
   nodeSqliteOptions?: Omit<DatabaseSyncOptions, 'open'>;
 }
 
 export const KyselyPlugin = definePlugin({
   name: 'kysely',
   provides: [KyselyService],
-  apply(ctx, options: KyselyPluginOptions) {
+  apply(ctx, options?: KyselyPluginOptions) {
+    const sqliteUrl = options?.sqliteUrl ?? 'file:./fraq.db';
     const kysely = new Kysely<FraqDatabase>({
       dialect: new SqliteDialect({
-        database: new NodeSqliteDatabaseAdapter(new DatabaseSync(options.sqliteUrl, options.nodeSqliteOptions ?? {})),
+        database: new NodeSqliteDatabaseAdapter(new DatabaseSync(sqliteUrl, options?.nodeSqliteOptions ?? {})),
       }),
     });
     ctx.provide(KyselyService, new KyselyService(kysely));
