@@ -33,6 +33,7 @@ import { createColoredLogHandler } from '@fraqjs/color-log';
 const ctx = Context.fromUrl(${JSON.stringify(config.milky.url)}, {
   accessToken: ${JSON.stringify(config.milky.accessToken)},
   installEventSource: ${JSON.stringify(config.milky.connectEvent)},
+  routing: ${JSON.stringify(config.routing)},
   logHandler: createColoredLogHandler({ minLevel: ${JSON.stringify(config.logging.minLevel)} }),
 });
     `.trim(),

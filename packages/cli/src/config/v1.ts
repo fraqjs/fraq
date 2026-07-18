@@ -42,6 +42,7 @@ export const ConfigV1 = ContextConfigV1.extend({
     accessToken: z.string().optional(),
     connectEvent: z.boolean().default(true),
   }),
+  routing: z.any().optional(),
   logging: z
     .object({
       minLevel: z.enum(['debug', 'info', 'warn', 'error']),
