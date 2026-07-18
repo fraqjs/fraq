@@ -204,7 +204,7 @@ test('flushes expired records when the plugin starts', async (t) => {
 
   const firstClient = createMockMilkyClient();
   const firstCtx = Context.fromClient(firstClient);
-  installMessageStore(firstCtx, sqliteUrl, { autoFlush: false });
+  installMessageStore(firstCtx, sqliteUrl, { autoFlush: { enabled: false } });
   await firstCtx.start();
   const received = await firstClient.receiveFriend({ userId: 10001 }, inmsg`expired`);
   await tick();
@@ -239,7 +239,7 @@ test('allows automatic expiration flushing to be disabled', async (t) => {
   const sqliteUrl = join(tempDir, 'messages.sqlite');
   const firstClient = createMockMilkyClient();
   const firstCtx = Context.fromClient(firstClient);
-  installMessageStore(firstCtx, sqliteUrl, { autoFlush: false });
+  installMessageStore(firstCtx, sqliteUrl, { autoFlush: { enabled: false } });
   await firstCtx.start();
 
   const received = await firstClient.receiveFriend({ userId: 10001 }, inmsg`retained`);
@@ -252,7 +252,7 @@ test('allows automatic expiration flushing to be disabled', async (t) => {
   await firstCtx.stop();
 
   const secondCtx = Context.fromClient(createMockMilkyClient());
-  installMessageStore(secondCtx, sqliteUrl, { autoFlush: false });
+  installMessageStore(secondCtx, sqliteUrl, { autoFlush: { enabled: false } });
   await secondCtx.start();
 
   const stored = await secondCtx.resolve(MessageStoreService).getMessage({
