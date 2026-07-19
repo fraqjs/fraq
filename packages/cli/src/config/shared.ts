@@ -5,9 +5,9 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 export const RouteActivation = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('direct') }),
-  z.object({ type: z.literal('prefix'), prefix: z.string() }),
-  z.object({ type: z.literal('mention'), prefix: z.string().optional() }),
+  z.strictObject({ type: z.literal('direct') }),
+  z.strictObject({ type: z.literal('prefix'), prefix: z.string() }),
+  z.strictObject({ type: z.literal('mention'), prefix: z.string().optional() }),
 ]);
 export type RouteActivation = z.infer<typeof RouteActivation>;
 

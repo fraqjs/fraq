@@ -1,3 +1,4 @@
+import chalk from 'chalk';
 import * as YAML from 'yaml';
 import z from 'zod';
 
@@ -52,12 +53,12 @@ export const RouteActivationInputV1: z.ZodType<RouteActivation> = z
     return value;
   });
 
-export const ActivationConfigV1 = z.object({
+export const ActivationConfigV1 = z.strictObject({
   default: zSingleOrArray(RouteActivationInputV1).optional(),
   overrides: z
     .array(
-      z.object({
-        match: z.object({
+      z.strictObject({
+        match: z.strictObject({
           plugin: zSingleOrArray(z.string()).optional(),
           context: zSingleOrArray(z.string()).optional(),
           tag: zSingleOrArray(z.string()).optional(),
@@ -150,7 +151,13 @@ export async function loadConfigV1(): Promise<ConfigV1> {
   const configPath = findConfigPath();
   const rawConfig = parseConfigFile(configPath);
 
-  const parsedConfig = ConfigV1.parse(rawConfig);
+  const configParseResult = ConfigV1.safeParse(rawConfig);
+  if (configParseResult.error) {
+    console.log(chalk.red('There are issues with your configuration file:'));
+    console.log(chalk.red(z.prettifyError(configParseResult.error)));
+    process.exit(1);
+  }
+  const parsedConfig = configParseResult.data;
   const versions = {
     ...readVersions(),
     ...parsedConfig.versions,

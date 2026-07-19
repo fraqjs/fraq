@@ -1,6 +1,7 @@
 import * as YAML from 'yaml';
 
 import { loadConfig } from '../src/config';
+import { ActivationConfigInputV1 } from '../src/config/v1';
 
 import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -16,6 +17,60 @@ after(() => {
   process.chdir(originalCwd);
   globalThis.fetch = originalFetch;
   rmSync(testRoot, { recursive: true, force: true });
+});
+
+test('rejects unknown fields throughout activation config', () => {
+  const invalidConfigs = [
+    { defualt: 'mention' },
+    { default: { type: 'mention', prefex: '/' } },
+    {
+      overrides: [
+        {
+          match: { plugn: 'help' },
+          rule: 'mention',
+        },
+      ],
+    },
+    {
+      overrides: [
+        {
+          match: { plugin: 'help' },
+          rule: 'mention',
+          priority: 1,
+        },
+      ],
+    },
+  ];
+
+  for (const config of invalidConfigs) {
+    assert.equal(ActivationConfigInputV1.safeParse(config).success, false, JSON.stringify(config));
+  }
+});
+
+test('continues to normalize valid activation shorthands', () => {
+  assert.deepEqual(ActivationConfigInputV1.parse('mention'), {
+    default: [{ type: 'mention' }],
+  });
+  assert.deepEqual(
+    ActivationConfigInputV1.parse({
+      default: { type: 'prefix', prefix: '/' },
+      overrides: [
+        {
+          match: { plugin: 'help', tag: ['public', 'utility'] },
+          rule: ['direct', { type: 'mention', prefix: '/' }],
+        },
+      ],
+    }),
+    {
+      default: [{ type: 'prefix', prefix: '/' }],
+      overrides: [
+        {
+          match: { plugin: ['help'], tag: ['public', 'utility'] },
+          rule: [{ type: 'direct' }, { type: 'mention', prefix: '/' }],
+        },
+      ],
+    },
+  );
 });
 
 test('fills, merges, prunes, and persists plugin versions without rewriting fraq.yml', async () => {
