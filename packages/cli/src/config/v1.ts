@@ -8,22 +8,27 @@ import { findConfigPath, parseConfigFile, readVersions } from './shared';
 import { writeFileSync } from 'node:fs';
 import path from 'node:path';
 
-export type FilterConfigV1 =
-  | { type: 'allPass' | 'allFriends' | 'allGroups' | 'admin' }
-  | { type: 'friend' | 'group'; ids: number[] }
-  | { type: 'or' | 'and'; filters: FilterConfigV1[] }
-  | { type: 'not'; filter: FilterConfigV1 };
-
-const filterIds = z.array(z.number().int().positive()).min(1);
-
-export const FilterConfigV1: z.ZodType<FilterConfigV1> = z.lazy(() =>
-  z.discriminatedUnion('type', [
-    z.object({ type: z.enum(['allPass', 'allFriends', 'allGroups', 'admin']) }),
-    z.object({ type: z.enum(['friend', 'group']), ids: filterIds }),
-    z.object({ type: z.enum(['or', 'and']), filters: z.array(FilterConfigV1).min(1) }),
-    z.object({ type: z.literal('not'), filter: FilterConfigV1 }),
-  ]),
-);
+export const FilterConfigV1 = z.union([
+  z.enum(['allPass', 'allFriends', 'allGroups', 'admin']),
+  z.object({ friends: z.array(z.number()) }),
+  z.object({ groups: z.array(z.number()) }),
+  z.object({
+    get or() {
+      return z.array(FilterConfigV1);
+    },
+  }),
+  z.object({
+    get and() {
+      return z.array(FilterConfigV1);
+    },
+  }),
+  z.object({
+    get not() {
+      return FilterConfigV1;
+    },
+  }),
+]);
+export type FilterConfigV1 = z.infer<typeof FilterConfigV1>;
 
 export const ContextConfigV1 = z.object({
   plugins: z.record(z.string(), z.any()).optional(),

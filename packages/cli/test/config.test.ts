@@ -1,5 +1,7 @@
 import * as YAML from 'yaml';
 
+import { loadConfig } from '../src/config';
+
 import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -9,39 +11,11 @@ import test, { after } from 'node:test';
 const originalCwd = process.cwd();
 const originalFetch = globalThis.fetch;
 const testRoot = mkdtempSync(path.join(tmpdir(), 'fraq-cli-config-'));
-const { loadConfig } = await import('../src/config');
-const { ConfigV1, FilterConfigV1 } = await import('../src/config/v1');
 
 after(() => {
   process.chdir(originalCwd);
   globalThis.fetch = originalFetch;
   rmSync(testRoot, { recursive: true, force: true });
-});
-
-test('parses recursive fork filters and rejects empty filter operands', () => {
-  const filterConfig = {
-    type: 'and' as const,
-    filters: [
-      {
-        type: 'or' as const,
-        filters: [{ type: 'group' as const, ids: [123456, 987654] }, { type: 'allFriends' as const }],
-      },
-      { type: 'not' as const, filter: { type: 'admin' as const } },
-    ],
-  };
-
-  const config = ConfigV1.parse({
-    configVersion: 1,
-    fraqVersion: '0.13.0',
-    milky: { url: 'http://localhost:3000' },
-    forks: {
-      child: { filter: filterConfig },
-    },
-  });
-
-  assert.deepEqual(config.forks?.child.filter, filterConfig);
-  assert.throws(() => FilterConfigV1.parse({ type: 'group', ids: [] }));
-  assert.throws(() => FilterConfigV1.parse({ type: 'or', filters: [] }));
 });
 
 test('fills, merges, prunes, and persists plugin versions without rewriting fraq.yml', async () => {

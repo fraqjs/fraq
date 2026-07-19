@@ -19,19 +19,9 @@ test('builds recursive fork filters into the generated start script', () => {
     forks: {
       audience: {
         filter: {
-          type: 'and',
-          filters: [
-            {
-              type: 'or',
-              filters: [
-                { type: 'group', ids: [123456, 987654] },
-                { type: 'friend', ids: [456789] },
-                { type: 'allFriends' },
-                { type: 'allGroups' },
-                { type: 'allPass' },
-              ],
-            },
-            { type: 'not', filter: { type: 'admin' } },
+          and: [
+            { or: [{ groups: [123456, 987654] }, { friends: [456789] }, 'allFriends', 'allGroups', 'allPass'] },
+            { not: 'admin' },
           ],
         },
         forks: {

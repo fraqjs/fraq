@@ -3,21 +3,25 @@ import type { ContextConfigV1, FilterConfigV1 } from '../config/v1';
 import { normalizePluginName } from '../dependency';
 
 function buildFilterExpression(config: FilterConfigV1): string {
-  switch (config.type) {
-    case 'allPass':
-    case 'allFriends':
-    case 'allGroups':
-    case 'admin':
-      return `filter.${config.type}()`;
-    case 'friend':
-    case 'group':
-      return `filter.${config.type}(${config.ids.map((id) => JSON.stringify(id)).join(', ')})`;
-    case 'or':
-    case 'and':
-      return `filter.${config.type}(${config.filters.map(buildFilterExpression).join(', ')})`;
-    case 'not':
-      return `filter.not(${buildFilterExpression(config.filter)})`;
+  if (typeof config === 'string') {
+    return `filter.${config}()`;
   }
+  if ('friends' in config) {
+    return `filter.friend(${config.friends.map((id) => JSON.stringify(id)).join(', ')})`;
+  }
+  if ('groups' in config) {
+    return `filter.group(${config.groups.map((id) => JSON.stringify(id)).join(', ')})`;
+  }
+  if ('or' in config) {
+    return `filter.or(${config.or.map(buildFilterExpression).join(', ')})`;
+  }
+  if ('and' in config) {
+    return `filter.and(${config.and.map(buildFilterExpression).join(', ')})`;
+  }
+  if ('not' in config) {
+    return `filter.not(${buildFilterExpression(config.not)})`;
+  }
+  throw new Error(`Invalid filter configuration: ${JSON.stringify(config)}`);
 }
 
 export function buildStartScript(config: Config): string {
