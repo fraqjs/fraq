@@ -3,7 +3,7 @@ import z from 'zod';
 
 import { normalizePluginName } from '../dependency';
 import { getPackageJson } from '../package-jsons';
-import { findConfigPath, parseConfigFile, readVersions } from './shared';
+import { findConfigPath, parseConfigFile, RouteActivation, readVersions, zSingleOrArray } from './shared';
 
 import { writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -38,6 +38,50 @@ export const ContextConfigV1 = z.object({
 });
 export type ContextConfigV1 = z.infer<typeof ContextConfigV1>;
 
+export const RouteActivationInputV1: z.ZodType<RouteActivation> = z
+  .union([z.enum(['direct', 'mention']), RouteActivation])
+  .transform((value) => {
+    if (typeof value === 'string') {
+      if (value === 'direct') {
+        return { type: 'direct' };
+      }
+      if (value === 'mention') {
+        return { type: 'mention' };
+      }
+    }
+    return value;
+  });
+
+export const ActivationConfigV1 = z.object({
+  default: zSingleOrArray(RouteActivationInputV1).optional(),
+  overrides: z
+    .array(
+      z.object({
+        match: z.object({
+          plugin: zSingleOrArray(z.string()).optional(),
+          context: zSingleOrArray(z.string()).optional(),
+          tag: zSingleOrArray(z.string()).optional(),
+          command: zSingleOrArray(z.string()).optional(),
+        }),
+        rule: zSingleOrArray(RouteActivationInputV1),
+      }),
+    )
+    .optional(),
+});
+export type ActivationConfigV1 = z.infer<typeof ActivationConfigV1>;
+
+export const ActivationConfigInputV1: z.ZodType<ActivationConfigV1> = z
+  .union([RouteActivationInputV1, z.array(RouteActivationInputV1), ActivationConfigV1])
+  .transform((value) => {
+    if (Array.isArray(value)) {
+      return { default: value };
+    }
+    if ('type' in value) {
+      return { default: [value] };
+    }
+    return value;
+  });
+
 export const ConfigV1 = ContextConfigV1.extend({
   configVersion: z.literal(1),
   packageManager: z.enum(['npm', 'pnpm', 'yarn']).optional(),
@@ -47,7 +91,7 @@ export const ConfigV1 = ContextConfigV1.extend({
     accessToken: z.string().optional(),
     connectEvent: z.boolean().default(true),
   }),
-  routing: z.any().optional(),
+  activation: ActivationConfigInputV1.optional(),
   logging: z
     .object({
       minLevel: z.enum(['debug', 'info', 'warn', 'error']),

@@ -1,5 +1,6 @@
 import type { Config, ContextConfig, FilterConfig } from '../config';
 import { normalizePluginName } from '../dependency';
+import { compileActivationResolver } from './activation';
 
 function buildFilterExpression(config: FilterConfig): string {
   if (typeof config === 'string') {
@@ -32,11 +33,21 @@ export function buildStartScript(config: Config): string {
 
 import { Context, filter } from '@fraqjs/fraq';
 import { createColoredLogHandler } from '@fraqjs/color-log';
+    `.trim(),
+  );
+  lines.push('');
 
+  if (config.activation !== undefined) {
+    lines.push(`const activationResolver = ${compileActivationResolver(config.activation)};`);
+    lines.push('');
+  }
+
+  lines.push(
+    `
 const ctx = Context.fromUrl(${JSON.stringify(config.milky.url)}, {
   accessToken: ${JSON.stringify(config.milky.accessToken)},
   installEventSource: ${JSON.stringify(config.milky.connectEvent)},
-  routing: ${JSON.stringify(config.routing)},
+  routing: ${config.activation === undefined ? 'undefined' : '{ activationResolver }'},
   logHandler: createColoredLogHandler({ minLevel: ${JSON.stringify(config.logging.minLevel)} }),
 });
     `.trim(),
