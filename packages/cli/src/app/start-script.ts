@@ -1,8 +1,7 @@
-import type { Config } from '../config';
-import type { ContextConfigV1, FilterConfigV1 } from '../config/v1';
+import type { Config, ContextConfig, FilterConfig } from '../config';
 import { normalizePluginName } from '../dependency';
 
-function buildFilterExpression(config: FilterConfigV1): string {
+function buildFilterExpression(config: FilterConfig): string {
   if (typeof config === 'string') {
     return `filter.${config}()`;
   }
@@ -45,7 +44,7 @@ const ctx = Context.fromUrl(${JSON.stringify(config.milky.url)}, {
   lines.push('');
 
   let nextContextId = 0;
-  function buildContextPart(parentContextName: string, contextConfig: ContextConfigV1) {
+  function buildContextPart(parentContextName: string, contextConfig: ContextConfig) {
     for (const [pluginName, pluginConfig] of Object.entries(contextConfig.plugins ?? {})) {
       lines.push(
         `${parentContextName}.install((await import(${JSON.stringify(normalizePluginName(pluginName))})).default, ${JSON.stringify(pluginConfig)});`,

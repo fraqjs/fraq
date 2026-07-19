@@ -1,7 +1,9 @@
-import { type ConfigV1, loadConfigV1 } from './v1';
+import * as v1 from './v1';
+
+export type FilterConfig = v1.FilterConfigV1;
+export type ContextConfig = v1.ContextConfigV1;
+export type Config = v1.ConfigV1;
 
 export async function loadConfig(): Promise<Config> {
-  return loadConfigV1();
+  return v1.loadConfigV1();
 }
-
-export type Config = ConfigV1;

@@ -1,5 +1,4 @@
-import type { Config } from './config';
-import type { ContextConfigV1 } from './config/v1';
+import type { Config, ContextConfig } from './config';
 import { getPackageJson } from './package-jsons';
 
 export type PluginDependencyDiagnostic = { status: 'ok' } | { status: 'missing'; message: string[] };
@@ -60,7 +59,7 @@ export async function getPluginDependencyDiagnostic(config: Config): Promise<Plu
   const messages: string[] = [];
 
   async function inspectContext(
-    context: ContextConfigV1,
+    context: ContextConfig,
     parentPlugins: ReadonlySet<string>,
     contextPath: readonly string[],
   ): Promise<void> {
