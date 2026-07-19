@@ -19,17 +19,15 @@ export type RouteActivation =
   | { type: 'direct' }
   | { type: 'mention'; prefix?: string }
   | { type: 'prefix'; prefix: string };
-export type RouteActivationInput = RouteActivation | readonly RouteActivation[];
 
 export type RouteDescriptor =
-  | { type: 'command'; path: readonly string[]; name: string; aliases?: readonly string[]; meta?: RouteMeta }
-  | { type: 'rawPattern'; path: readonly string[]; meta?: RouteMeta };
+  | { type: 'command'; path: string[]; name: string; aliases?: string[]; meta?: RouteMeta }
+  | { type: 'rawPattern'; path: string[]; meta?: RouteMeta };
 
-export type RouteActivationResolver = (route: RouteDescriptor, session: Session) => RouteActivationInput | undefined;
+export type RouteActivationResolver = (route: RouteDescriptor, session: Session) => RouteActivation[];
 
-const DEFAULT_ACTIVATIONS: readonly RouteActivation[] = [{ type: 'direct' }];
-
-export const defaultRouteActivationResolver: RouteActivationResolver = () => DEFAULT_ACTIVATIONS;
+const defaultActivations: RouteActivation[] = [{ type: 'direct' }];
+export const defaultRouteActivationResolver: RouteActivationResolver = () => defaultActivations;
 
 export type RouteEntry =
   | { type: 'command'; command: Command<Pattern> }
@@ -139,11 +137,10 @@ export class Router {
               (parameter) => parameter.capturer.typeInstruction.type === 'literal',
             )
           : -1;
-      let activationInputs: readonly RouteActivation[] = DEFAULT_ACTIVATIONS;
+      let activationInputs: RouteActivation[] = defaultActivations;
       if (branch.type === 'command' || literalActivationIndex !== -1 || branch.path.length > 0) {
         const descriptor = this.describeBranch(branch);
-        const activations = this.activationResolver(descriptor, session) ?? DEFAULT_ACTIVATIONS;
-        activationInputs = Array.isArray(activations) ? activations : [activations as RouteActivation];
+        activationInputs = this.activationResolver(descriptor, session) ?? defaultActivations;
       }
 
       for (const activation of activationInputs) {

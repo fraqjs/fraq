@@ -194,7 +194,7 @@ test('dispatches commands only after mentioning the current bot when mention act
   const router = new Router();
   let called = 0;
 
-  router.setActivationResolver(() => ({ type: 'mention' }));
+  router.setActivationResolver(() => [{ type: 'mention' }]);
   router.command({
     name: 'ping',
     pattern: {},
@@ -213,7 +213,7 @@ test('dispatches commands only after mentioning the current bot and consuming a 
   const router = new Router();
   let called = 0;
 
-  router.setActivationResolver(() => ({ type: 'mention', prefix: '/' }));
+  router.setActivationResolver(() => [{ type: 'mention', prefix: '/' }]);
   router.command('ping').execute(() => {
     called += 1;
   });
@@ -547,7 +547,7 @@ test('activation resolver receives descriptor for raw patterns without literals 
 
   router.setActivationResolver((route) => {
     descriptors.push(route);
-    return { type: 'prefix', prefix: '/' };
+    return [{ type: 'prefix', prefix: '/' }];
   });
   router
     .group('teleport')

@@ -1,4 +1,3 @@
-export * from './core/activation';
 export * from './core/context';
 export * from './core/filter';
 export * from './core/logging';
