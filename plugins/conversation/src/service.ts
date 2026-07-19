@@ -1,6 +1,5 @@
 import {
   type Context,
-  createContextRouteActivationResolver,
   type milky,
   type Parameter,
   type ParamsOf,
@@ -137,7 +136,7 @@ export class ConversationService {
     this.defaultTimeout = options?.defaultTimeout ?? 30000;
     assertPositiveTimeout(this.defaultTimeout, 'defaultTimeout');
     this.onCollision = options?.onCollision ?? 'reject-incoming';
-    this.router.setActivationResolver(createContextRouteActivationResolver(undefined, ctx.routeActivationResolver));
+    this.router.setActivationResolver(ctx.routeActivationResolver);
 
     ctx.on('message_receive', ({ self_id, data }) => {
       void this.accept(self_id, data);
