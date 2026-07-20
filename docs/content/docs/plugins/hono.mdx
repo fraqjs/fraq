@@ -8,23 +8,19 @@ title: '@fraqjs/plugin-hono'
 
 ## 安装与配置
 
-将插件添加至 `dependencies`，然后在创建 `Context` 时引入并配置插件：
+将插件添加到 `fraq.yml` 的 `plugins` 字段下：
 
-```typescript
-import HonoPlugin from '@fraqjs/plugin-hono';
-
-ctx.install(HonoPlugin, {
-  // 在这里传入 HonoPlugin 的配置选项
-});
+```yaml
+plugins:
+  fraqjs/hono:
+    # HTTP 服务监听的主机名，默认值为 127.0.0.1
+    host: 127.0.0.1
+    # HTTP 服务监听的端口，默认值为 4649
+    port: 4649
+    # 传递给 @hono/node-server 的其他启动选项
+    # 除了 fetch、port、hostname 和 websocket 之外的字段都可以在这里配置
+    # serveOptions:
 ```
-
-`HonoPlugin` 有如下配置项：
-
-- `host`：HTTP 服务监听的主机名，默认值为 `127.0.0.1`。
-- `port`：HTTP 服务监听的端口，默认值为 `4649`。
-- `serveOptions`：传递给 [`@hono/node-server`](https://www.npmjs.com/package/@hono/node-server) 的其他启动选项，除了 `fetch`、`port`、`hostname` 和 `websocket` 之外的字段都可以在这里配置。
-
-`HonoService` 内部会创建一个 `noServer` 模式的 `WebSocketServer` 实例，并将其挂载到 HTTP 服务器上，因此你可以直接使用 `ctx.hono.upgradeWebSocket` 来处理 WebSocket 升级请求，无需额外配置。
 
 如果你是插件开发者，请将本插件添加到项目的 `peerDependencies` 中，并在自己的插件中声明依赖：
 

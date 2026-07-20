@@ -8,22 +8,19 @@ title: '@fraqjs/plugin-conversation'
 
 ## 安装与配置
 
-将插件添加至 `dependencies`，然后在创建 `Context` 时引入并配置插件：
+将插件添加到 `fraq.yml` 的 `plugins` 字段下：
 
-```typescript
-import ConversationPlugin from '@fraqjs/plugin-conversation';
-
-ctx.install(ConversationPlugin, {
-  // 在这里传入 ConversationPlugin 的配置选项
-});
+```yaml
+plugins:
+  fraqjs/conversation:
+    # 默认的对话超时时间，单位是毫秒。默认值为 30000（30 秒）
+    # 如果用户在这个时间内没有回复，当前对话会自动结束
+    defaultTimeout: 30000
+    # 当用户触发一个新的会话时，如何处理旧的会话。可选值有：
+    # - `reject-incoming`：默认值，拒绝建立新的会话，抛出一个 `ConversationRejectionError`
+    # - `abort-existing`：结束旧的会话，建立新的会话，并且在旧的会话处抛出一个 `ConversationAbortionError`
+    onCollision: reject-incoming
 ```
-
-`ConversationPlugin` 有如下配置项：
-
-- `defaultTimeout`：默认的对话超时时间，单位是毫秒。默认值为 30000（30 秒）。如果用户在这个时间内没有回复，当前对话会自动结束。
-- `onCollision`：当用户触发一个新的会话时，如何处理旧的会话。可选值有：
-  - `reject-incoming`：默认值，拒绝建立新的会话，抛出一个 `ConversationRejectionError`。
-  - `abort-existing`：结束旧的会话，建立新的会话，并且在旧的会话处抛出一个 `ConversationAbortionError`。
 
 如果你是插件开发者，请将本插件添加到项目的 `peerDependencies` 中，并在自己的插件中声明依赖：
 

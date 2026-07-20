@@ -8,26 +8,41 @@ title: '@fraqjs/plugin-message-store'
 
 ## 安装与配置
 
-将插件添加至 `dependencies`，然后在创建 `Context` 时引入并配置插件。本插件依赖 [`@fraqjs/plugin-kysely`](./kysely.mdx) 插件，因此需要一并安装。
+将插件添加到 `fraq.yml` 的 `plugins` 字段下：
 
-```typescript
-import KyselyPlugin from '@fraqjs/plugin-kysely';
-import MessageStorePlugin from '@fraqjs/plugin-message-store';
-
-ctx.install(KyselyPlugin, {
-  // 在这里传入 KyselyPlugin 的配置选项
-});
-ctx.install(MessageStorePlugin, {
-  // 在这里传入 MessageStorePlugin 的配置选项
-});
+```yaml
+plugins:
+  # 本插件依赖 @fraqjs/plugin-kysely，因此需要一并安装
+  fraqjs/kysely:
+    # 在这里传入 KyselyPlugin 的配置选项
+  fraqjs/message-store:
+    # 是否监听消息撤回事件，默认为 true
+    # 为 true 时，消息撤回事件会被存储在数据库中，并且撤回后的消息将无法再通过 get_message 方法获取
+    listenRecall: true
+    # 自动清理消息的相关配置
+    autoFlush:
+      # 是否启用自动清理功能，默认为 true
+      # 若为 false，则不会自动清理过期消息
+      enabled: true
+      # 自动清理的时间间隔，单位为分钟，默认为 60
+      intervalMinutes: 60
+      # 消息的最大存储天数，超过该天数的消息将被清理，默认为 7，即最长保存一周的消息
+      maxAgeDays: 7
 ```
 
-`MessageStorePlugin` 有如下配置项：
+插件开发者通常情况下无需直接使用 `MessageStorePlugin`。如果需要使用，请将本插件添加到项目的 `peerDependencies` 中，并在自己的插件中声明依赖：
 
-- `listenRecall`：是否监听消息撤回事件，默认为 `true`。为 `true` 时，消息撤回事件会被存储在数据库中，并且撤回后的消息将无法再通过 `getMessage` 方法获取。
-- `autoFlush`：自动清理消息的相关配置，有如下子配置项：
-  - `enabled`：是否启用自动清理功能，默认为 `true`。若为 `false`，则不会自动清理过期消息。
-  - `intervalMinutes`：自动清理的时间间隔，单位为分钟，默认为 `60`。
-  - `maxAgeDays`：消息的最大存储天数，超过该天数的消息将被清理，默认为 `7`，即最长保存一周的消息。
+```typescript
+import { definePlugin } from '@fraqjs/fraq';
+import { MessageStoreService } from '@fraqjs/plugin-message-store';
 
-插件开发者通常情况下无需直接使用 `MessageStorePlugin`。
+definePlugin({
+  name: 'my-plugin',
+  inject: {
+    messageStore: MessageStoreService,
+  },
+  apply(ctx) {
+    // 使用 ctx.messageStore 来访问 MessageStoreService
+  },
+});
+```

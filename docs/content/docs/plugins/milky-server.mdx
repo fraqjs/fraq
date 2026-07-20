@@ -8,24 +8,20 @@ title: '@fraqjs/plugin-milky-server'
 
 ## 安装与配置
 
-将插件添加至 `dependencies`，然后在创建 `Context` 时引入并配置插件。本插件依赖 [`@fraqjs/plugin-hono`](./hono.mdx) 插件，因此需要一并安装。
+将插件添加到 `fraq.yml` 的 `plugins` 字段下：
 
-```typescript
-import HonoPlugin from '@fraqjs/plugin-hono';
-import MilkyServerPlugin from '@fraqjs/plugin-milky-server';
-
-ctx.install(HonoPlugin, {
-  // 在这里传入 HonoPlugin 的配置选项
-});
-ctx.install(MilkyServerPlugin, {
-  // 在这里传入 MilkyServerPlugin 的配置选项
-});
+```yaml
+plugins:
+  # 本插件依赖 @fraqjs/plugin-hono，因此需要一并安装
+  fraqjs/hono:
+    # 在这里传入 HonoPlugin 的配置选项
+  fraqjs/milky-server:
+    # Milky 协议的访问令牌，用于验证 /api 和 /event 请求的 Authorization 头
+    # 默认不进行验证，请务必在生产环境中设置一个安全的访问令牌
+    accessToken: 'my-secret-token'
+    # 端点的路径前缀，默认为 /milky，即端点为 /milky/api/:api 和 /milky/event
+    prefix: /milky
 ```
-
-`MilkyServerPlugin` 有如下配置项：
-
-- `accessToken`：Milky 协议的访问令牌，用于验证 `/api` 和 `/event` 请求的 `Authorization` 头。默认为 `undefined`，即不进行验证。请务必在生产环境中设置一个安全的访问令牌。
-- `prefix`：端点的路径前缀。默认为 `/milky`，即端点为 `/milky/api/:api` 和 `/milky/event`。
 
 插件开发者通常情况下无需直接使用 `MilkyServerPlugin`。
 

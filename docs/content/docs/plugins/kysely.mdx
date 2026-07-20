@@ -8,20 +8,18 @@ title: '@fraqjs/plugin-kysely'
 
 ## 安装与配置
 
-将插件添加至 `dependencies`，然后在创建 `Context` 时引入并配置插件：
+将插件添加到 `fraq.yml` 的 `plugins` 字段下：
 
-```typescript
-import KyselyPlugin from '@fraqjs/plugin-kysely';
-
-ctx.install(KyselyPlugin, {
-  // 在这里传入 KyselyPlugin 的配置选项
-});
+```yaml
+plugins:
+  fraqjs/kysely:
+    # SQLite 数据库的连接 URL
+    # 默认值为 file:./fraq.db，表示在当前工作目录下创建一个名为 fraq.db 的 SQLite 数据库文件
+    sqliteUrl: file:./fraq.db
+    # 可选的数据库连接选项，除了 open 选项之外的其他选项都会被传递给 DatabaseSync 的构造函数
+    # 详见 Node.js 官方文档：https://nodejs.org/api/sqlite.html#new-databasesyncpath-options
+    # nodeSqliteOptions:
 ```
-
-`KyselyPlugin` 有如下配置项：
-
-- `sqliteUrl`：SQLite 数据库的连接 URL，默认为 `file:./fraq.db`，表示在当前工作目录下创建一个名为 `fraq.db` 的 SQLite 数据库文件。
-- `nodeSqliteOptions`：可选的数据库连接选项，除了 `open` 选项之外的其他选项都会被传递给 `DatabaseSync` 的构造函数，详见 [Node.js 官方文档](https://nodejs.org/api/sqlite.html#new-databasesyncpath-options)。
 
 如果你是插件开发者，请将本插件添加到项目的 `peerDependencies` 中，并在自己的插件中声明依赖：
 

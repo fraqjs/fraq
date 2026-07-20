@@ -6,37 +6,38 @@ title: '@fraqjs/plugin-takumi'
 
 `@fraqjs/plugin-takumi` 提供了基于 [Takumi](https://takumi.kane.tw/) 的图片渲染服务。
 
+## 安装与配置
+
+将插件添加到 `fraq.yml` 的 `plugins` 字段下：
+
+```yaml
+plugins:
+  fraqjs/takumi:
+    # 指定 renderJsx 等方法的默认渲染选项
+    # 这些选项会与调用时传入的选项进行合并，后者会覆盖前者
+    # 其中 stylesheets、fonts 和 images 会按顺序追加
+    # renderDefaults:
+    # 当注册字体时发生冲突（即尝试注册一个已存在的字体名称）时的处理方法，可选值有：
+    # - error：抛出错误
+    # - warn-and-ignore：默认值，发出警告并忽略新的注册
+    # - warn-and-replace：发出警告并替换已存在的字体
+    onFontRegisterConflict: warn-and-ignore
+    # 是否加载 Fraq 提供的内置字体，默认为 true
+    loadBuiltinFonts: true
+```
+
 {/* prettier-ignore */}
 <Callout type="warning">
-`@fraqjs/plugin-takumi` 依赖 `@takumi-rs/core` 包。Takumi 是一个 Rust 项目，只支持如下平台：
+`@fraqjs/plugin-takumi` 依赖 `@takumi-rs/core` 包。Takumi 是一个 Rust 项目，在 Node.js 环境下只支持如下平台：
 
 - Windows x64/arm64
 - macOS x64/arm64
 - Linux x64/arm64
 
+请确保你的部署环境符合上述要求。
+
 </Callout>
 {/* prettier-ignore-end */}
-
-## 安装与配置
-
-将插件添加至 `dependencies`，然后在创建 `Context` 时引入并配置插件：
-
-```typescript
-import TakumiPlugin from '@fraqjs/plugin-takumi';
-
-ctx.install(TakumiPlugin, {
-  // 在这里传入 TakumiPlugin 的配置选项
-});
-```
-
-`TakumiPlugin` 有如下配置项：
-
-- `renderDefaults`：一个对象，用于指定 `renderJsx` 等方法的默认渲染选项。这些选项会与调用时传入的选项进行合并，后者会覆盖前者；其中 `stylesheets`、`fonts` 和 `images` 会按顺序追加。
-- `onFontRegisterConflict`：当注册字体时发生冲突（即尝试注册一个已存在的字体名称）时的处理方法，可选值有：
-  - `error`：抛出错误。
-  - `warn-and-ignore`：发出警告并忽略新的注册，这是默认行为。
-  - `warn-and-replace`：发出警告并替换已存在的字体。
-- `loadBuiltinFonts`：是否加载 Fraq 提供的内置字体，默认为 `true`。
 
 如果你是插件开发者，请将本插件添加到项目的 `peerDependencies` 中，并在自己的插件中声明依赖：
 

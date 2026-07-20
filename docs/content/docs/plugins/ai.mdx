@@ -8,92 +8,74 @@ title: '@fraqjs/plugin-ai'
 
 ## 安装与配置
 
-将插件添加至 `dependencies`，然后在创建 `Context` 时引入并配置插件：
+将插件添加到 `fraq.yml` 的 `plugins` 字段下：
 
-```typescript
-import AiPlugin from '@fraqjs/plugin-ai';
-
-ctx.install(AiPlugin, {
-  // 在这里声明多个 AI SDK 提供商，每个提供商下配置多个模型
-  providers: {
-    // 提供商的名称可以自定义，建议使用 SDK 包名中的关键词以示区分
-    deepseek: {
-      // 目前支持自动配置的 SDK 包括：
-      // - `@ai-sdk/anthropic`
-      // - `@ai-sdk/deepseek`
-      // - `@ai-sdk/google`
-      // - `@ai-sdk/openai`
-      // - `@ai-sdk/openai-compatible`
-      // 在这里声明 SDK 之后，你需要手动将对应的 SDK 添加到项目的 `dependencies` 中
-      sdk: '@ai-sdk/deepseek',
-      // 这里用于提供传入 SDK 的配置项
-      // 基本的配置项有：
-      // - `apiKey`：必需，用户的 API Key
-      // - `baseURL`：可选，API 的基础 URL，默认为 SDK 内置的 URL
-      // 例如，DeepSeek 的默认 URL 是 `https://api.deepseek.com/v1`
-      // 不同 SDK 能接受的配置项不同，具体请参考对应 SDK 的文档
-      options: {
-        apiKey: 'ds-xxx',
-      },
-      // models 是一个字符串数组，用于声明用户想要使用的语言模型名称
-      // 具体模型名称需要参考对应提供商 / SDK 的文档
-      // 例如 DeepSeek 的模型名称包括 `deepseek-v4-flash`、`deepseek-v4-pro` 等
-      models: ['deepseek-v4-flash', 'deepseek-v4-pro'],
-    },
-    'openai-custom': {
-      sdk: '@ai-sdk/openai',
-      options: {
-        apiKey: 'sk-xxx',
-        // 可以通过 `baseURL` 配置自定义的 API URL
-        // OpenAI 风格的 API 通常以 `/v1` 结尾
-        baseURL: 'https://my-openai-api.com/v1',
-      },
-      models: ['gpt-5.5', 'gpt-5.5-mini'],
-      // imageModels 是一个可选的字符串数组，用于声明生图模型名称
-      // 例如 OpenAI 的生图模型包括 `gpt-image-2` 等
-      imageModels: ['gpt-image-2'],
-    },
-    // 也可以直接在 providers 中提供模型实例
-    moonshot: {
-      models: {
-        'kimi-k2.5': (await import('@ai-sdk/moonshotai')).moonshot('kimi-k2.5'),
-      },
-    },
-  },
-
-  // 在这里为模型配置别名，方便在插件中使用更友好的名称访问模型
-  // 键 (key) 为别名，值 (value) 为 providers 中声明的模型名称，格式为 `提供商名称/模型名称`
-  // 别名可以同时用于语言模型和生图模型
-  // 例如 `fast` 对应 `deepseek` 提供商下的 `deepseek-v4-flash` 模型
-  // `art` 对应 `openai-custom` 提供商下的 `gpt-image-2` 生图模型
-  aliases: {
-    fast: 'deepseek/deepseek-v4-flash',
-    'fast-gpt': 'openai-custom/gpt-5.5-mini',
-    balanced: 'deepseek/deepseek-v4-pro',
-    expert: 'openai-custom/gpt-5.5',
-    art: 'openai-custom/gpt-image-2',
-  },
-
-  // 默认语言模型，插件中通过 `ctx.ai.model()` 访问时，如果没有指定模型名称，就会使用这个默认模型
-  // 可以使用别名或者 `提供商名称/模型名称` 的格式指定默认模型
-  // 如果没有配置这一项，默认使用 providers 中第一个语言模型作为默认模型
-  defaultModel: 'fast',
-
-  // 默认生图模型，插件中通过 `ctx.ai.image()` 访问时，如果没有指定模型名称，就会使用这个默认模型
-  // 如果没有配置这一项，默认使用 providers 中第一个生图模型作为默认模型
-  defaultImageModel: 'art',
-});
+```yaml
+plugins:
+  fraqjs/ai:
+    # 在这里声明多个 AI SDK 提供商，每个提供商下配置多个模型
+    providers:
+      # 提供商的名称可以自定义，建议使用 SDK 包名中的关键词以示区分
+      deepseek:
+        # 目前支持自动配置的 SDK 包包括：
+        # - `@ai-sdk/anthropic`
+        # - `@ai-sdk/deepseek`
+        # - `@ai-sdk/google`
+        # - `@ai-sdk/openai`
+        # - `@ai-sdk/openai-compatible`
+        # 在这里声明 SDK 之后，你需要手动将对应的 SDK 添加到项目的 `additionalDependencies` 中
+        sdk: '@ai-sdk/deepseek'
+        # 这里用于提供传入 SDK 的配置项
+        # 基本的配置项有：
+        # - `apiKey`：必需，用户的 API Key
+        # - `baseURL`：可选，API 的基础 URL，默认为 SDK 内置的 URL
+        # 例如，DeepSeek 的默认 URL 是 `https://api.deepseek.com/v1`
+        # 不同 SDK 能接受的配置项不同，具体请参考对应 SDK 的文档
+        options:
+          apiKey: 'sk-xxx'
+        # models 是一个字符串数组，用于声明用户想要使用的语言模型名称
+        # 具体模型名称需要参考对应提供商 / SDK 的文档
+        # 例如 DeepSeek 的模型名称包括 `deepseek-v4-flash`、`deepseek-v4-pro` 等
+        models: [deepseek-v4-flash, deepseek-v4-pro]
+      openai-custom:
+        sdk: '@ai-sdk/openai'
+        options:
+          apiKey: 'sk-xxx'
+          # 可以通过 `baseURL` 配置自定义的 API URL
+          # OpenAI 风格的 API 通常以 `/v1` 结尾
+          baseURL: 'https://my-openai-api.com/v1'
+        models: [gpt-5.5, gpt-5.5-mini]
+        # imageModels 是一个可选的字符串数组，用于声明生图模型名称
+        # 例如 OpenAI 的生图模型包括 `gpt-image-2` 等
+        imageModels: [gpt-image-2]
+    # 在这里为模型配置别名，方便在插件中使用更友好的名称访问模型
+    # 键 (key) 为别名，值 (value) 为 providers 中声明的模型名称，格式为 `提供商名称/模型名称`
+    # 别名可以同时用于语言模型和生图模型
+    # 例如 `fast` 对应 `deepseek` 提供商下的 `deepseek-v4-flash` 模型
+    # `art` 对应 `openai-custom` 提供商下的 `gpt-image-2` 生图模型
+    aliases:
+      fast: deepseek/deepseek-v4-flash
+      'fast-gpt': openai-custom/gpt-5.5-mini
+      balanced: deepseek/deepseek-v4-pro
+      expert: openai-custom/gpt-5.5
+      art: openai-custom/gpt-image-2
+    # 默认语言模型，插件中通过 `ctx.ai.model()` 访问时，如果没有指定模型名称，就会使用这个默认模型
+    # 可以使用别名或者 `提供商名称/模型名称` 的格式指定默认模型
+    # 如果没有配置这一项，默认使用 providers 中第一个语言模型作为默认模型
+    defaultModel: fast
+    # 默认生图模型，插件中通过 `ctx.ai.image()` 访问时，如果没有指定模型名称，就会使用这个默认模型
+    # 如果没有配置这一项，默认使用 providers 中第一个生图模型作为默认模型
+    defaultImageModel: art
 ```
 
-{/* prettier-ignore-start */}
+你需要将配置中声明的 SDK 包以及 `ai` 包添加到 `additionalDependencies` 中。例如，对于上面的配置，应该在 `fraq.yml` 中添加如下内容：
 
-<Callout>
-`ai` 在不同的 provider 之间共享全局状态，请确保你的项目中只有一份 `ai` 实例。本插件将 `ai` 声明为 `peerDependencies`，你需要在自己的项目中将它添加到 `dependencies`。
-
-此外，如果你通过直接声明 SDK 名称的方式配置了模型提供商，也需要将对应的 SDK 包添加到 `dependencies` 中。
-
-</Callout>
-{/* prettier-ignore-end */}
+```yaml
+additionalDependencies:
+  '@ai-sdk/deepseek': ^3
+  '@ai-sdk/openai': ^4
+  ai: ^7
+```
 
 如果你是插件开发者，请将本插件添加到项目的 `peerDependencies` 中，并在自己的插件中声明依赖：
 

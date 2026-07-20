@@ -8,23 +8,19 @@ title: '@fraqjs/plugin-milky-webhook'
 
 ## 安装与配置
 
-将插件添加至 `dependencies`，然后在创建 `Context` 时引入并配置插件。本插件依赖 [`@fraqjs/plugin-hono`](./hono.mdx) 插件，因此需要一并安装。
+将插件添加到 `fraq.yml` 的 `plugins` 字段下：
 
-```typescript
-import HonoPlugin from '@fraqjs/plugin-hono';
-import MilkyWebhookPlugin from '@fraqjs/plugin-milky-webhook';
-
-ctx.install(HonoPlugin, {
-  // 在这里传入 HonoPlugin 的配置选项
-});
-ctx.install(MilkyWebhookPlugin, {
-  // 在这里传入 MilkyWebhookPlugin 的配置选项
-});
+```yaml
+plugins:
+  # 本插件依赖 @fraqjs/plugin-hono，因此需要一并安装
+  fraqjs/hono:
+    # 在这里传入 HonoPlugin 的配置选项
+  fraqjs/milky-webhook:
+    # Webhook 事件推送的接收端点，默认值为 /milky/webhook
+    endpoint: /milky/webhook
+    # Milky Webhook 的访问令牌，用于验证请求的合法性
+    # 默认不进行验证，请务必在生产环境中设置一个安全的访问令牌
+    accessToken: 'my-secret-token'
 ```
-
-`MilkyWebhookPlugin` 有如下配置项：
-
-- `endpoint`：Webhook 事件推送的接收端点，默认值为 `/milky/webhook`。
-- `accessToken`：Milky Webhook 的访问令牌，用于验证请求的合法性，默认为 `undefined`，即不进行验证。请务必在生产环境中设置一个安全的访问令牌。
 
 插件开发者通常情况下无需直接使用 `MilkyWebhookPlugin`。

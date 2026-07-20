@@ -8,20 +8,16 @@ title: '@fraqjs/plugin-random'
 
 ## 安装与配置
 
-将插件添加至 `dependencies`，然后在创建 `Context` 时引入并配置插件：
+将插件添加到 `fraq.yml` 的 `plugins` 字段下：
 
-```typescript
-import RandomPlugin from '@fraqjs/plugin-random';
-
-ctx.install(RandomPlugin, {
-  // 在这里传入 RandomPlugin 的配置选项
-});
+```yaml
+plugins:
+  fraqjs/random:
+    # 随机数生成器的全局种子，默认情况下会调用 Math.random() 来生成一个随机种子
+    # seed: 123456789
+    # 随机数生成器的全局序列，默认值为 1
+    # sequence: 1
 ```
-
-`RandomPlugin` 有如下配置项：
-
-- `seed`：随机数生成器的全局种子，默认情况下会调用 `Math.random()` 来生成一个随机种子。
-- `sequence`：随机数生成器的全局序列，默认值为 1。
 
 有关上述配置项的详细信息，请参阅 PCG32 算法的相关文档。
 
