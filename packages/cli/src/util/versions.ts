@@ -47,6 +47,41 @@ export function checkVersionsCompleteness(
   return { status: 'ok' };
 }
 
+export type VersionsConsistency =
+  | { status: 'ok' }
+  | {
+      status: 'inconsistent';
+      inconsistentPlugins: {
+        name: string;
+        configured: string;
+        lockfile: string;
+      }[];
+    };
+
+export function checkVersionsConsistency(
+  configuredVersions: Record<string, string>,
+  lockfileVersions: Record<string, string>,
+): VersionsConsistency {
+  const inconsistentPlugins: Array<{
+    name: string;
+    configured: string;
+    lockfile: string;
+  }> = [];
+  for (const [name, configuredVersion] of Object.entries(configuredVersions)) {
+    const lockfileVersion = lockfileVersions[name];
+    if (lockfileVersion && lockfileVersion !== configuredVersion) {
+      inconsistentPlugins.push({ name, configured: configuredVersion, lockfile: lockfileVersion });
+    }
+  }
+  if (inconsistentPlugins.length > 0) {
+    return {
+      status: 'inconsistent',
+      inconsistentPlugins: inconsistentPlugins.sort((a, b) => a.name.localeCompare(b.name)),
+    };
+  }
+  return { status: 'ok' };
+}
+
 export async function completePluginVersions(
   config: ContextConfig,
   versions: Record<string, string>,

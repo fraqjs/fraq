@@ -11,7 +11,12 @@ import { loadConfig } from './config';
 import { getVersionsPath } from './paths';
 import { getPluginDependencyDiagnostic } from './util/dependency';
 import { detectPackageManager, type PackageManagerInfo } from './util/package-manager';
-import { checkVersionsCompleteness, completePluginVersions, readVersions } from './util/versions';
+import {
+  checkVersionsCompleteness,
+  checkVersionsConsistency,
+  completePluginVersions,
+  readVersions,
+} from './util/versions';
 
 import { writeFileSync } from 'node:fs';
 
@@ -35,6 +40,25 @@ async function ensureConfigWithVersions(): Promise<Config> {
     );
     process.exit(1);
   }
+
+  const consistency = checkVersionsConsistency(config.versions, lockfileVersions);
+  if (consistency.status === 'inconsistent') {
+    console.log(chalk.red('The following plugin versions are inconsistent with the lockfile:'));
+    for (const inconsistentPlugin of consistency.inconsistentPlugins) {
+      console.log(chalk.red(`- ${inconsistentPlugin.name}`));
+      console.log(chalk.red(`  Configured version: ${chalk.yellow(inconsistentPlugin.configured)}`));
+      console.log(chalk.red(`  Lockfile version: ${chalk.yellow(inconsistentPlugin.lockfile)}`));
+    }
+    console.log();
+    console.log('Please resolve the above conflicts in your configuration file or lockfile.');
+    console.log(
+      'Alternatively, you can run',
+      chalk.cyan('fraq lock'),
+      'to align the lockfile versions to your configuration automatically.',
+    );
+    process.exit(1);
+  }
+
   return config;
 }
 
@@ -66,6 +90,21 @@ function ensurePackageManager(config: Config): PackageManagerInfo & { commandPat
     process.exit(1);
   }
   return { ...packageManager, commandPath: packageManager.commandPath };
+}
+
+async function lock() {
+  const config = await loadConfig();
+  const lockfileVersions = readVersions();
+  config.versions = { ...lockfileVersions, ...config.versions };
+  const completeness = checkVersionsCompleteness(config, config.versions);
+  const consistency = checkVersionsConsistency(config.versions, lockfileVersions);
+  if (completeness.status === 'ok' && consistency.status === 'ok') {
+    console.log(chalk.green('Nothing to do since all plugin versions are already complete and aligned.'));
+    return;
+  }
+  const completedVersions = await completePluginVersions(config, config.versions);
+  writeFileSync(getVersionsPath(), YAML.stringify(completedVersions));
+  console.log(chalk.green('Successfully completed the plugin versions in versions.yml.'));
 }
 
 async function main(runInstall: boolean = true): Promise<void> {
@@ -100,8 +139,16 @@ const cli = c.subcommands({
           long: 'no-install',
           description: 'Skip installing dependencies before starting the application',
         }),
+        autoLock: c.flag({
+          long: 'auto-lock',
+          short: 'l',
+          description: 'Automatically run locking before starting the application',
+        }),
       },
-      handler: async ({ noInstall }) => {
+      handler: async ({ noInstall, autoLock }) => {
+        if (autoLock) {
+          await lock();
+        }
         await main(!noInstall);
       },
     }),
@@ -110,17 +157,7 @@ const cli = c.subcommands({
       description: 'Automatically complete the versions of plugins in the configuration file',
       args: {},
       handler: async () => {
-        const config = await loadConfig();
-        const lockfileVersions = readVersions();
-        config.versions = { ...config.versions, ...lockfileVersions };
-        const completeness = checkVersionsCompleteness(config, config.versions);
-        if (completeness.status === 'ok') {
-          console.log(chalk.green('Nothing to do since all plugin versions are already complete.'));
-          return;
-        }
-        const completedVersions = await completePluginVersions(config, config.versions);
-        writeFileSync(getVersionsPath(), YAML.stringify(completedVersions));
-        console.log(chalk.green('Successfully completed the plugin versions in versions.yml.'));
+        await lock();
       },
     }),
     install: c.command({
