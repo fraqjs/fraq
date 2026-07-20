@@ -1,13 +1,8 @@
 import { getAppPath } from '../paths';
-import type { PackageManagerName } from '../util/package-manager';
+import type { PackageManagerInfo } from '../util/package-manager';
 
 import { type ChildProcess, spawn } from 'node:child_process';
 import { constants as osConstants } from 'node:os';
-
-interface PackageManagerCommand {
-  name: PackageManagerName;
-  commandPath: string;
-}
 
 interface ChildResult {
   code: number | null;
@@ -62,7 +57,7 @@ export function waitForChild(child: ChildProcess): Promise<ChildResult> {
   });
 }
 
-export function installAppDependencies(packageManager: PackageManagerCommand): ChildProcess {
+export function installAppDependencies(packageManager: PackageManagerInfo & { commandPath: string }): ChildProcess {
   const appPath = getAppPath();
   const options = {
     cwd: appPath,

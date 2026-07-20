@@ -4,33 +4,14 @@ import chalk from 'chalk';
 import * as c from 'cmd-ts';
 
 import pkg from '../package.json';
-import { startApp } from './app';
+import { startApp, startInstall } from './app';
+import type { Config } from './config';
 import { loadConfig } from './config';
 import { getPluginDependencyDiagnostic } from './util/dependency';
 import { detectPackageManager, type PackageManagerInfo } from './util/package-manager';
 import { checkVersionsCompleteness, readVersions } from './util/versions';
 
-async function main() {
-  const config = await loadConfig();
-  const lockfileVersions = readVersions();
-  config.versions = { ...config.versions, ...lockfileVersions };
-
-  const completeness = checkVersionsCompleteness(config, config.versions);
-  if (completeness.status === 'missing') {
-    console.log(chalk.red('The following plugin versions are missing:'));
-    for (const missingPlugin of completeness.missingPlugins) {
-      console.log(chalk.red(`- ${missingPlugin}`));
-    }
-    console.log();
-    console.log('Please complete the versions in the `versions` section of your configuration file.');
-    console.log(
-      'Alternatively, you can run',
-      chalk.cyan('fraq lock'),
-      'to automatically complete the versions for you.',
-    );
-    process.exit(1);
-  }
-
+function ensurePackageManager(config: Config): PackageManagerInfo & { commandPath: string } {
   let packageManager: PackageManagerInfo | undefined;
   if (config.packageManager) {
     const result = detectPackageManager(config.packageManager);
@@ -57,6 +38,29 @@ async function main() {
     );
     process.exit(1);
   }
+  return { ...packageManager, commandPath: packageManager.commandPath };
+}
+
+async function main(runInstall: boolean = true): Promise<void> {
+  const config = await loadConfig();
+  const lockfileVersions = readVersions();
+  config.versions = { ...config.versions, ...lockfileVersions };
+
+  const completeness = checkVersionsCompleteness(config, config.versions);
+  if (completeness.status === 'missing') {
+    console.log(chalk.red('The following plugin versions are missing:'));
+    for (const missingPlugin of completeness.missingPlugins) {
+      console.log(chalk.red(`- ${missingPlugin}`));
+    }
+    console.log();
+    console.log('Please complete the versions in the `versions` section of your configuration file.');
+    console.log(
+      'Alternatively, you can run',
+      chalk.cyan('fraq lock'),
+      'to automatically complete the versions for you.',
+    );
+    process.exit(1);
+  }
 
   const diagnostic = await getPluginDependencyDiagnostic(config);
   if (diagnostic.status === 'missing') {
@@ -68,9 +72,10 @@ async function main() {
     process.exit(1);
   }
 
-  const exitCode = await startApp(config, {
-    name: packageManager.name,
-    commandPath: packageManager.commandPath,
+  const exitCode = await startApp({
+    config: config,
+    pmInfo: ensurePackageManager(config),
+    runInstall: runInstall,
   });
   process.exit(exitCode);
 }
@@ -82,9 +87,26 @@ const cli = c.subcommands({
       name: 'start',
       description: 'Start the Fraq application',
       aliases: ['run'],
+      args: {
+        noInstall: c.flag({
+          long: 'no-install',
+          description: 'Skip installing dependencies before starting the application',
+        }),
+      },
+      handler: async ({ noInstall }) => {
+        await main(!noInstall);
+      },
+    }),
+    install: c.command({
+      name: 'install',
+      description: 'Install dependencies without starting the application',
+      aliases: ['i'],
       args: {},
       handler: async () => {
-        await main();
+        const config = await loadConfig();
+        const pmInfo = ensurePackageManager(config);
+        const exitCode = await startInstall(pmInfo);
+        process.exit(exitCode);
       },
     }),
     version: c.command({
