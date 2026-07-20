@@ -1,11 +1,11 @@
 import YAML from 'yaml';
 
 import type { ContextConfig } from '../config';
+import { getVersionsPath } from '../paths';
 import { normalizePluginName } from './dependency';
 import { getPackageJson } from './package-jsons';
 
 import { existsSync, readFileSync } from 'node:fs';
-import path from 'node:path';
 
 function collectPluginNamesFromConfig(context: ContextConfig, pluginNames: Set<string>): void {
   for (const pluginName of Object.keys(context.plugins ?? {})) {
@@ -17,7 +17,7 @@ function collectPluginNamesFromConfig(context: ContextConfig, pluginNames: Set<s
 }
 
 export function readVersions(): Record<string, string> {
-  const versionsPath = path.resolve(process.cwd(), 'versions.yml');
+  const versionsPath = getVersionsPath();
   if (!existsSync(versionsPath)) {
     return {};
   }
