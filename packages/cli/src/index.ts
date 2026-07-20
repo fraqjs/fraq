@@ -1,15 +1,19 @@
 #!/usr/bin/env node
 
+import * as inq from '@inquirer/prompts';
 import chalk from 'chalk';
 import * as c from 'cmd-ts';
 import YAML from 'yaml';
+import type z from 'zod';
 
 import pkg from '../package.json';
 import { startApp, startInstall } from './app';
 import type { Config } from './config';
 import { loadConfig } from './config';
+import type { ConfigV1 } from './config/v1';
 import { getVersionsPath } from './paths';
 import { getPluginDependencyDiagnostic } from './util/dependency';
+import { getLatestPackageJson } from './util/package-jsons';
 import { detectPackageManager, type PackageManagerInfo } from './util/package-manager';
 import {
   checkOutdatedVersions,
@@ -19,7 +23,8 @@ import {
   readVersions,
 } from './util/versions';
 
-import { writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
 
 function printBanner() {
   console.log(chalk.bold(chalk.cyan(`Fraq CLI ${chalk.green(`v${pkg.version}`)}`)));
@@ -150,6 +155,56 @@ async function outdated() {
   }
 }
 
+async function wizard() {
+  const latestFraqVersion: string = (await getLatestPackageJson('@fraqjs/fraq')).version;
+  const projectName = await inq.input({
+    message: 'Project name:',
+    default: 'my-fraq-app',
+  });
+  const fraqVersion = await inq.input({
+    message: 'Fraq version to use:',
+    default: latestFraqVersion,
+  });
+  const milkyAddress = await inq.input({
+    message: 'Milky server address:',
+    default: 'localhost',
+  });
+  const milkyPort = await inq.number({
+    message: 'Milky server port:',
+    default: 30001,
+  });
+  console.log();
+
+  const yaml = YAML.stringify({
+    configVersion: 1,
+    fraqVersion: fraqVersion,
+    milky: {
+      url: `http://${milkyAddress}:${milkyPort}/`,
+    },
+  } satisfies z.input<typeof ConfigV1>);
+  console.log(`Fraq CLI is going to create ${chalk.cyan(`${projectName}/fraq.yml`)} with the following content:`);
+  console.log();
+  console.log(yaml);
+
+  const ok = await inq.confirm({
+    message: 'Is it ok?',
+  });
+
+  console.log();
+  if (!ok) {
+    console.log(chalk.red('Wizard aborted.'));
+    process.exit(1);
+  }
+  mkdirSync(projectName, { recursive: true });
+  writeFileSync(path.resolve(projectName, 'fraq.yml'), yaml, 'utf-8');
+  console.log(chalk.green('Configuration file created successfully.'));
+  console.log();
+  console.log('Please run:');
+  console.log(chalk.cyan(`cd ${projectName}`));
+  console.log(chalk.cyan('fraq start'));
+  console.log('to start your Fraq application.');
+}
+
 const cli = c.subcommands({
   name: 'fraq',
   cmds: {
@@ -211,6 +266,16 @@ const cli = c.subcommands({
       handler: async () => {
         printBanner();
         await outdated();
+      },
+    }),
+    wizard: c.command({
+      name: 'wizard',
+      aliases: ['init'],
+      description: 'Initialize a fraq.yml through a wizard',
+      args: {},
+      handler: async () => {
+        printBanner();
+        await wizard();
       },
     }),
   },
