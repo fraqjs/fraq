@@ -1,12 +1,7 @@
 import chalk from 'chalk';
-import * as YAML from 'yaml';
 import z from 'zod';
 
-import { completePluginVersions, readVersions } from '../util/versions';
 import { findConfigPath, parseConfigFile, RouteActivation, zSingleOrArray } from './shared';
-
-import { writeFileSync } from 'node:fs';
-import path from 'node:path';
 
 export const FilterConfigV1 = z.union([
   z.enum(['allPass', 'allFriends', 'allGroups', 'admin']),
@@ -102,7 +97,7 @@ export const ConfigV1 = ContextConfigV1.extend({
 });
 export type ConfigV1 = z.infer<typeof ConfigV1>;
 
-export async function loadConfigV1(): Promise<ConfigV1> {
+export function loadConfigV1(): ConfigV1 {
   const configPath = findConfigPath();
   const rawConfig = parseConfigFile(configPath);
 
@@ -113,15 +108,6 @@ export async function loadConfigV1(): Promise<ConfigV1> {
     process.exit(1);
   }
   const parsedConfig = configParseResult.data;
-  const completedVersions = await completePluginVersions(parsedConfig, {
-    ...readVersions(),
-    ...parsedConfig.versions,
-  });
 
-  const mergedConfig = ConfigV1.parse({
-    ...parsedConfig,
-    versions: completedVersions,
-  });
-  writeFileSync(path.resolve(process.cwd(), 'versions.yml'), YAML.stringify(completedVersions), 'utf-8');
-  return mergedConfig;
+  return parsedConfig;
 }

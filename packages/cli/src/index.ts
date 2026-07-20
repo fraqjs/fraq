@@ -8,9 +8,28 @@ import { startApp } from './app';
 import { loadConfig } from './config';
 import { getPluginDependencyDiagnostic } from './util/dependency';
 import { detectPackageManager, type PackageManagerInfo } from './util/package-manager';
+import { checkVersionsCompleteness, readVersions } from './util/versions';
 
 async function main() {
   const config = await loadConfig();
+  const lockfileVersions = readVersions();
+  config.versions = { ...config.versions, ...lockfileVersions };
+
+  const completeness = checkVersionsCompleteness(config, config.versions);
+  if (completeness.status === 'missing') {
+    console.log(chalk.red('The following plugin versions are missing:'));
+    for (const missingPlugin of completeness.missingPlugins) {
+      console.log(chalk.red(`- ${missingPlugin}`));
+    }
+    console.log();
+    console.log('Please complete the versions in the `versions` section of your configuration file.');
+    console.log(
+      'Alternatively, you can run',
+      chalk.cyan('fraq lock'),
+      'to automatically complete the versions for you.',
+    );
+    process.exit(1);
+  }
 
   let packageManager: PackageManagerInfo | undefined;
   if (config.packageManager) {
