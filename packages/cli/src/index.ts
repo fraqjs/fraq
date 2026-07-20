@@ -139,14 +139,13 @@ const cli = c.subcommands({
           long: 'no-install',
           description: 'Skip installing dependencies before starting the application',
         }),
-        autoLock: c.flag({
-          long: 'auto-lock',
-          short: 'l',
-          description: 'Automatically run locking before starting the application',
+        frozenLockfile: c.flag({
+          long: 'frozen-lockfile',
+          description: 'Use the frozen lockfile, i.e. no automatic locking, when starting the application',
         }),
       },
-      handler: async ({ noInstall, autoLock }) => {
-        if (autoLock) {
+      handler: async ({ noInstall, frozenLockfile }) => {
+        if (!frozenLockfile) {
           await lock();
         }
         await main(!noInstall);
