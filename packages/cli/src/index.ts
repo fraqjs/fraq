@@ -21,6 +21,11 @@ import {
 
 import { writeFileSync } from 'node:fs';
 
+function printBanner() {
+  console.log(chalk.bold(chalk.cyan(`Fraq CLI ${chalk.green(`v${pkg.version}`)}`)));
+  console.log();
+}
+
 async function ensureConfigWithVersions(): Promise<Config> {
   const config = await loadConfig();
   const lockfileVersions = readVersions();
@@ -87,16 +92,7 @@ function ensurePackageManager(config: Config): PackageManagerInfo & { commandPat
   return { ...packageManager, commandPath: packageManager.commandPath };
 }
 
-async function lock() {
-  const config = await loadConfig();
-  const lockfileVersions = readVersions();
-  config.versions = { ...lockfileVersions, ...config.versions };
-  const completedVersions = await completeAndSyncVersions(config, config.versions);
-  writeFileSync(getVersionsPath(), YAML.stringify(completedVersions));
-  console.log(chalk.green('Successfully synced lockfile versions.'));
-}
-
-async function main(runInstall: boolean = true): Promise<void> {
+async function start(runInstall: boolean = true): Promise<void> {
   const config = await ensureConfigWithVersions();
   const diagnostic = await getPluginDependencyDiagnostic(config);
   if (diagnostic.status === 'missing') {
@@ -114,6 +110,44 @@ async function main(runInstall: boolean = true): Promise<void> {
     runInstall: runInstall,
   });
   process.exit(exitCode);
+}
+
+async function lock() {
+  console.log(chalk.cyan('Syncing lockfile versions...'));
+  const config = await loadConfig();
+  const lockfileVersions = readVersions();
+  config.versions = { ...lockfileVersions, ...config.versions };
+  const completedVersions = await completeAndSyncVersions(config, config.versions);
+  writeFileSync(getVersionsPath(), YAML.stringify(completedVersions));
+  console.log(chalk.green('Successfully synced lockfile versions.'));
+}
+
+async function installOnly() {
+  const config = await ensureConfigWithVersions();
+  const pmInfo = ensurePackageManager(config);
+  const exitCode = await startInstall(pmInfo);
+  process.exit(exitCode);
+}
+
+async function outdated() {
+  const config = await ensureConfigWithVersions();
+  const outdated = await checkOutdatedVersions(config.versions);
+  if (outdated.outdated.length === 0 && outdated.errors.length === 0) {
+    console.log(chalk.green('All plugin versions are up to date.'));
+    return;
+  }
+  if (outdated.outdated.length > 0) {
+    console.log(chalk.yellow('The following plugins have newer versions available:'));
+    for (const { name, current, latest } of outdated.outdated) {
+      console.log(`- ${name}: current ${chalk.red(current)} -> latest ${chalk.green(latest)}`);
+    }
+  }
+  if (outdated.errors.length > 0) {
+    console.log(chalk.red('Failed to check for updates for the following plugins:'));
+    for (const { name, error } of outdated.errors) {
+      console.log(`- ${name}:`, error);
+    }
+  }
 }
 
 const cli = c.subcommands({
@@ -134,14 +168,12 @@ const cli = c.subcommands({
         }),
       },
       handler: async ({ noInstall, frozenLockfile }) => {
-        console.log(chalk.bold(chalk.cyan(`Fraq CLI ${chalk.green(`v${pkg.version}`)}`)));
-        console.log();
+        printBanner();
         if (!frozenLockfile) {
-          console.log(chalk.cyan('Syncing lockfile versions...'));
           await lock();
           console.log();
         }
-        await main(!noInstall);
+        await start(!noInstall);
       },
     }),
     lock: c.command({
@@ -149,6 +181,7 @@ const cli = c.subcommands({
       description: 'Automatically complete the versions of plugins in the configuration file',
       args: {},
       handler: async () => {
+        printBanner();
         await lock();
       },
     }),
@@ -158,10 +191,8 @@ const cli = c.subcommands({
       aliases: ['i'],
       args: {},
       handler: async () => {
-        const config = await ensureConfigWithVersions();
-        const pmInfo = ensurePackageManager(config);
-        const exitCode = await startInstall(pmInfo);
-        process.exit(exitCode);
+        printBanner();
+        await installOnly();
       },
     }),
     version: c.command({
@@ -178,24 +209,8 @@ const cli = c.subcommands({
       description: 'Check for outdated plugin versions',
       args: {},
       handler: async () => {
-        const config = await ensureConfigWithVersions();
-        const outdated = await checkOutdatedVersions(config.versions);
-        if (outdated.outdated.length === 0 && outdated.errors.length === 0) {
-          console.log(chalk.green('All plugin versions are up to date.'));
-          return;
-        }
-        if (outdated.outdated.length > 0) {
-          console.log(chalk.yellow('The following plugins have newer versions available:'));
-          for (const { name, current, latest } of outdated.outdated) {
-            console.log(`- ${name}: current ${chalk.red(current)} -> latest ${chalk.green(latest)}`);
-          }
-        }
-        if (outdated.errors.length > 0) {
-          console.log(chalk.red('Failed to check for updates for the following plugins:'));
-          for (const { name, error } of outdated.errors) {
-            console.log(`- ${name}:`, error);
-          }
-        }
+        printBanner();
+        await outdated();
       },
     }),
   },
