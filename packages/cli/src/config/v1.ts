@@ -113,19 +113,15 @@ export async function loadConfigV1(): Promise<ConfigV1> {
     process.exit(1);
   }
   const parsedConfig = configParseResult.data;
-  const versions = {
+  const completedVersions = await completePluginVersions(parsedConfig, {
     ...readVersions(),
     ...parsedConfig.versions,
-  };
-  await completePluginVersions(parsedConfig, versions);
-  const orderedVersions = Object.fromEntries(
-    Object.entries(versions).sort(([left], [right]) => left.localeCompare(right)),
-  );
+  });
 
   const mergedConfig = ConfigV1.parse({
     ...parsedConfig,
-    versions: orderedVersions,
+    versions: completedVersions,
   });
-  writeFileSync(path.resolve(process.cwd(), 'versions.yml'), YAML.stringify(orderedVersions), 'utf-8');
+  writeFileSync(path.resolve(process.cwd(), 'versions.yml'), YAML.stringify(completedVersions), 'utf-8');
   return mergedConfig;
 }

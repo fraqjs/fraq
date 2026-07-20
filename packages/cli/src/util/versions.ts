@@ -32,19 +32,33 @@ export function readVersions(): Record<string, string> {
   return versions;
 }
 
-export async function completePluginVersions(config: ContextConfig, versions: Record<string, string>): Promise<void> {
+export type VersionsCompleteness = { status: 'ok' } | { status: 'missing'; missingPlugins: string[] };
+
+export function checkVersionsCompleteness(
+  config: ContextConfig,
+  versions: Record<string, string>,
+): VersionsCompleteness {
   const pluginNames = new Set<string>();
   collectPluginNamesFromConfig(config, pluginNames);
-
-  for (const pluginName of Object.keys(versions)) {
-    if (!pluginNames.has(pluginName)) {
-      delete versions[pluginName];
-    }
+  const missingPlugins = Array.from(pluginNames).filter((pluginName) => !versions[pluginName]);
+  if (missingPlugins.length > 0) {
+    return { status: 'missing', missingPlugins: missingPlugins.sort((a, b) => a.localeCompare(b)) };
   }
+  return { status: 'ok' };
+}
+
+export async function completePluginVersions(
+  config: ContextConfig,
+  versions: Record<string, string>,
+): Promise<Record<string, string>> {
+  const pluginNames = new Set<string>();
+  collectPluginNamesFromConfig(config, pluginNames);
+  const completedVersions: Record<string, string> = {};
 
   for (const pluginName of pluginNames) {
     const version = versions[pluginName];
     if (typeof version === 'string' && version.trim().length > 0) {
+      completedVersions[pluginName] = version;
       continue;
     }
 
@@ -63,6 +77,8 @@ export async function completePluginVersions(config: ContextConfig, versions: Re
     if (typeof packageJson.version !== 'string' || packageJson.version.length === 0) {
       throw new Error(`Package metadata for plugin "${pluginName}" does not contain a valid version.`);
     }
-    versions[pluginName] = packageJson.version;
+    completedVersions[pluginName] = packageJson.version;
   }
+
+  return Object.fromEntries(Object.entries(completedVersions).sort(([left], [right]) => left.localeCompare(right)));
 }
