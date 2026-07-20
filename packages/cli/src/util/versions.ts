@@ -111,7 +111,7 @@ export async function checkOutdatedVersions(versions: Record<string, string>): P
   };
 }
 
-export async function alignLockfileVersions(
+export async function completeAndSyncVersions(
   config: ContextConfig,
   lockfileVersions: Record<string, string>,
 ): Promise<Record<string, string>> {

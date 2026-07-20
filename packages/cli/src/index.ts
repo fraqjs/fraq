@@ -12,10 +12,10 @@ import { getVersionsPath } from './paths';
 import { getPluginDependencyDiagnostic } from './util/dependency';
 import { detectPackageManager, type PackageManagerInfo } from './util/package-manager';
 import {
-  alignLockfileVersions,
   checkOutdatedVersions,
   checkVersionsCompleteness,
   checkVersionsConsistency,
+  completeAndSyncVersions,
   readVersions,
 } from './util/versions';
 
@@ -35,9 +35,7 @@ async function ensureConfigWithVersions(): Promise<Config> {
     console.log();
     console.log('Please complete the versions in the `versions` section of your configuration file.');
     console.log(
-      'Alternatively, you can run',
-      chalk.cyan('fraq lock'),
-      'to automatically complete the versions for you.',
+      `Alternatively, you can run ${chalk.cyan('fraq lock')} to automatically complete the versions for you.`,
     );
     process.exit(1);
   }
@@ -52,11 +50,7 @@ async function ensureConfigWithVersions(): Promise<Config> {
     }
     console.log();
     console.log('Please resolve the above conflicts in your configuration file or lockfile.');
-    console.log(
-      'Alternatively, you can run',
-      chalk.cyan('fraq lock'),
-      'to align the lockfile versions to your configuration automatically.',
-    );
+    console.log(`Alternatively, you can run ${chalk.cyan('fraq lock')} to sync the lockfile automatically.`);
     process.exit(1);
   }
 
@@ -97,9 +91,9 @@ async function lock() {
   const config = await loadConfig();
   const lockfileVersions = readVersions();
   config.versions = { ...lockfileVersions, ...config.versions };
-  const completedVersions = await alignLockfileVersions(config, config.versions);
+  const completedVersions = await completeAndSyncVersions(config, config.versions);
   writeFileSync(getVersionsPath(), YAML.stringify(completedVersions));
-  console.log(chalk.green('Successfully aligned the lockfile versions to the configuration.'));
+  console.log(chalk.green('Successfully synced lockfile versions.'));
 }
 
 async function main(runInstall: boolean = true): Promise<void> {
@@ -140,8 +134,12 @@ const cli = c.subcommands({
         }),
       },
       handler: async ({ noInstall, frozenLockfile }) => {
+        console.log(chalk.bold(chalk.cyan(`Fraq CLI ${chalk.green(`v${pkg.version}`)}`)));
+        console.log();
         if (!frozenLockfile) {
+          console.log(chalk.cyan('Syncing lockfile versions...'));
           await lock();
+          console.log();
         }
         await main(!noInstall);
       },

@@ -26,13 +26,16 @@ export async function startApp({ config, pmInfo, runInstall }: StartAppParams): 
   writeFileSync(path.resolve(appPath, 'index.js'), `${buildStartScript(config)}\n`);
 
   if (runInstall) {
+    console.log(chalk.cyan(`Installing application dependencies with ${chalk.bold(chalk.magenta(pmInfo.name))}...`));
     const installResult = await startInstall(pmInfo);
     if (installResult !== 0) {
       console.error(chalk.red(`Package manager install failed with exit code ${installResult}.`));
       process.exit(1);
     }
+    console.log();
   }
 
+  console.log(chalk.cyan('Starting the Fraq application...'));
   const appResult = await waitForChild(startAppProcess());
   return exitCodeFromChildResult(appResult);
 }
