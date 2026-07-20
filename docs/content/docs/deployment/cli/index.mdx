@@ -1,0 +1,153 @@
+---
+title: 使用 Fraq CLI
+---
+
+<NpmBadge packageName="@fraqjs/cli" />
+
+Fraq CLI 是一个命令行工具，提供了快速创建和运行 Fraq 机器人项目的能力。
+
+## 准备工作
+
+### 安装 Node.js
+
+你可以在 [Node.js 官方网站](https://nodejs.org/zh-cn/download)查阅如何在你的操作系统上安装 Node.js。Fraq 所需的最低 Node.js 版本为 **22**，推荐安装最新的 LTS 版本。
+
+### 安装 Fraq CLI
+
+你可以用 `npm i -g` 在你的计算机上全局安装 Fraq CLI：
+
+```bash
+npm i -g @fraqjs/cli
+```
+
+安装完成后，你可以执行一次 `fraq version` 命令来查看是否安装成功。正常情况下，它会打印当前安装的 Fraq CLI 版本号。
+
+### 启动 Milky 协议端
+
+你可以在 [Milky 的官方网站](https://milky.ntqqrev.org/awesome#%E5%8D%8F%E8%AE%AE%E5%AE%9E%E7%8E%B0)寻找并安装你喜欢的 Milky 协议端实现。安装完成后，你需要配置协议端监听的 IP 和端口，并且在协议端登录你的 QQ 账号。
+
+### 安装 pnpm（可选）
+
+`pnpm` 是一个快速、节省磁盘空间的包管理器。你可以在 [pnpm 的官方网站](https://pnpm.io/zh/installation)查阅如何安装 pnpm。例如，使用 `npm` 来全局安装 `pnpm`：
+
+```bash
+npm i -g pnpm
+```
+
+Fraq 会按照 `pnpm -> yarn -> npm` 的顺序查找可用的包管理器，并使用第一个找到的包管理器来安装依赖。
+
+## 创建 `fraq.yml`
+
+新建一个空的目录，然后在目录下创建一个名为 `fraq.yml` 的文件，并且添加以下内容：
+
+```yaml
+configVersion: 1
+
+fraqVersion: 0.14.0 # 可以替换为最新的 Fraq 版本号（在网页左上角查看）
+
+milky:
+  url: <替换为你的协议端的 HTTP API 地址, 例如 http://localhost:30001>
+  # accessToken: <如果你配置了 accessToken，请在这里填写，并且取消这一行的注释>
+```
+
+{/* prettier-ignore */}
+<Callout>
+YAML 是一种表达力较强但也较为复杂的配置文件格式。你可以在[这里](https://quickref.me/yaml.html)快速查阅 YAML 的语法规则。
+</Callout>
+{/* prettier-ignore-end */}
+
+保存完成后，你可以在命令行中执行 `fraq start` 来启动 Fraq 机器人。Fraq CLI 会在当前目录的 `app` 子目录下创建一个默认的 Fraq 机器人项目，并且自动安装依赖。安装完成后，Fraq CLI 会启动 Fraq 机器人，并且在命令行中打印出启动日志。如果你安装了 `pnpm`，日志可能形如：
+
+```
+> fraq start
+Nothing to do since all plugin versions are already complete and aligned.
+✓ Lockfile passes supply-chain policies (verified 11h ago)
+Lockfile is up to date, resolution step is skipped
+Already up to date
+Done in 310ms using pnpm v11.7.0
+2026/07/20 12:57:08 DEBUG context:root Connecting websocket (attempt=1)
+2026/07/20 12:57:08  INFO context:root websocket connected
+```
+
+你可以随时使用 `Ctrl + C` 来停止 Fraq 机器人。
+
+## 安装与配置插件
+
+你可以在配置文件的 `plugins` 字段下添加你想要安装的插件。例如：
+
+```yaml
+plugins:
+  status: # 状态监测插件，发送 `fraq` 命令可以查看 Fraq 机器人的运行状态
+  retrieve: # 消息获取插件，回复一条消息并输入 `retrieve` 命令可以获取该消息的 Milky 消息段表示
+```
+
+每一个插件都对应一个 npm Registry 包。例如：
+
+- `status` 对应 [`fraq-plugin-status`](https://www.npmjs.com/package/fraq-plugin-status)
+- `retrieve` 对应 [`fraq-plugin-retrieve`](https://www.npmjs.com/package/fraq-plugin-retrieve)
+- `some-scope/foo` 对应 `@some-scope/fraq-plugin-foo`，其中 `some-scope` 是 npm Registry 的 scope 名称
+- `fraqjs/ai` 对应 [`@fraqjs/plugin-ai`](https://www.npmjs.com/package/@fraqjs/fraq-plugin-ai)，属于官方插件，不需要 `fraq-` 前缀
+
+可以在插件市场 (WIP) 中查找更多你喜欢的插件，并且在配置文件中添加它们。
+
+{/* prettier-ignore */}
+<Callout type="warning">
+谨慎对待你的每一个插件。群聊中的每一条消息都有意外触发指令的可能性，这会影响其他人的聊天体验，甚至导致你的机器人被移出群聊乃至封禁。后面的章节会介绍如何通过配置过滤器和触发方式来限制指令的触发，从而避免其他人的消息意外触发插件。
+</Callout>
+{/* prettier-ignore-end */}
+
+大多数插件都支持特定的配置。你可以在插件名称下添加配置字段。例如，[`status`](https://github.com/fraqjs/plugin-status) 插件支持配置命令名称，你可以在 `plugins.status` 下添加 `commandName` 字段来修改默认的触发命令：
+
+```yaml
+plugins:
+  status:
+    commandName: status # 修改触发命令为 `status`
+```
+
+其他插件也可以通过类似的方式进行配置。你可以在插件的 README 中查找它们支持的配置字段。
+
+### 插件依赖关系
+
+此外，需要注意不同插件之间可能存在依赖关系。例如，[`chatsalt`](https://github.com/fraqjs/plugin-chatsalt) 插件依赖 Fraq 官方的 `ai` 和 `kysely`（数据库存储）插件，因此在安装 `chatsalt` 插件时，同时也需要安装 `fraqjs/ai` 和 `fraqjs/kysely` 插件：
+
+```yaml
+plugins:
+  fraqjs/ai:
+    # 在这里配置 ai 插件
+  fraqjs/kysely:
+    # 在这里配置 kysely 插件
+  chatsalt:
+    # 在这里配置 chatsalt 插件
+```
+
+你可以在插件的 README 中查找它们的依赖关系。如果一个插件的依赖缺失，Fraq CLI 会在启动时打印出错误信息，并且提示你安装缺失的依赖插件。
+
+## 配置 `additionalDependencies`
+
+部分插件可能会要求安装额外的依赖包，版本声明方式遵循 [Semantic Versioning 规范](https://github.com/npm/node-semver#versions)。通常情况下，插件的 README 中会说明它们所依赖的额外依赖包及其版本要求。例如，在 `fraqjs/ai` 的配置中声明的 `sdk` 包也需要同时添加到 `additionalDependencies` 字段中。
+
+```yaml
+plugins:
+  fraqjs/ai:
+    providers:
+      ds:
+        sdk: '@ai-sdk/deepseek' # 这里声明了 DeepSeek SDK 的依赖
+        options:
+          apiKey: sk-your-api-key
+        models: [deepseek-v4-flash, deepseek-v4-pro]
+
+additionalDependencies:
+  '@ai-sdk/deepseek': ^3
+  ai: ^7
+```
+
+这部分的依赖会被直接注入到生成的 `package.json` 中，并且在安装依赖时会被自动安装。
+
+## 配置日志等级
+
+Fraq CLI 使用 [`@fraqjs/color-log`](https://www.npmjs.com/package/@fraqjs/color-log) 将日志打印到命令行中。你可以在配置文件中添加 `logging.minLevel` 字段来设置日志的最小等级。默认情况下，`logging.minLevel` 的值为 `debug`，这意味着所有等级的日志都会被打印到命令行中。你可以将其设置为 `info`、`warn` 或 `error` 来减少日志输出。
+
+```yaml
+logging:
+  minLevel: info # 设置日志最小等级为 info，低于 info 等级
+```

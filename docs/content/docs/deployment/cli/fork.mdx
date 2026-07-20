@@ -1,0 +1,108 @@
+---
+title: 配置 Fork 与过滤器
+---
+
+在 `fraq.yml` 中，可以通过 `fork` 把机器人划分成多个相互隔离的部分，每个 fork 可以安装自己的插件并配置过滤器，只处理特定会话的事件。这样可以让你在不同的群聊或私聊中使用不同的插件组合，或者让某些插件只在特定会话中生效。
+
+## 基本用法
+
+`forks` 字段是一个键值对，键是 fork 的名称，值是该 fork 的配置。每个 fork 都可以配置自己的 `filter`、`plugins` 和嵌套的 `forks`。例如：
+
+```yaml
+plugins:
+  status: # 默认安装的 status 插件，处理所有未被过滤的事件
+
+forks:
+  adminGroup:
+    filter:
+      groups: [123456]
+    plugins:
+      retrieve: # retrieve 插件只在群聊 123456 中可用
+```
+
+上面的配置默认安装了 `status` 插件，它会处理所有事件；同时创建了一个名为 `adminGroup` 的 fork，它只处理群聊 `123456` 的事件，并在该 fork 上安装了 `retrieve` 插件。这样 `retrieve` 指令只在群聊 `123456` 中可用。
+
+## 过滤器类型
+
+`filter` 字段支持以下几种形式：
+
+| 过滤器                         | 含义                       |
+| ------------------------------ | -------------------------- |
+| `allPass`                      | 放行所有事件               |
+| `allFriends`                   | 只处理来自好友的事件       |
+| `allGroups`                    | 只处理来自群聊的事件       |
+| `admin`                        | 只处理来自管理员的事件     |
+| `{ friends: [10001, 10002] }`  | 只处理来自指定好友的事件   |
+| `{ groups: [123456, 654321] }` | 只处理来自指定群聊的事件   |
+| `{ or: [...过滤器] }`          | 满足任意一个子过滤器即可   |
+| `{ and: [...过滤器] }`         | 需要满足所有子过滤器       |
+| `{ not: ...过滤器 }`           | 取反，不满足子过滤器时通过 |
+
+例如，让一个 fork 只处理来自群聊 `123456` 和好友 `10001` 的事件：
+
+```yaml
+forks:
+  special:
+    filter:
+      or:
+        - groups: [123456]
+        - friends: [10001]
+    plugins:
+      status:
+```
+
+或者让一个 fork 处理除群聊 `123456` 外的所有群聊事件：
+
+```yaml
+forks:
+  otherGroups:
+    filter:
+      and:
+        - allGroups
+        - not:
+            groups: [123456]
+    plugins:
+      status:
+```
+
+## 嵌套 fork
+
+fork 可以嵌套，从而形成更细粒度的事件过滤。例如：
+
+```yaml
+forks:
+  groups:
+    filter: allGroups
+    forks:
+      mainGroup:
+        filter:
+          groups: [123456]
+        plugins:
+          status:
+```
+
+上面的配置创建了一个 `groups` fork，它只处理来自群聊的事件；在 `groups` fork 下又创建了一个 `mainGroup` fork，它只处理来自群聊 `123456` 的事件，并在该 fork 上安装了 `status` 插件。
+
+## 处理插件依赖
+
+fork 中安装的插件如果依赖其他插件，需要将它和它依赖的插件安装在同一个 fork 上，或者将依赖的插件安装在 fork 的上级 fork 或顶层。同级的 fork 之间插件是不共享的，这提供了更好的隔离性，但也需要注意插件依赖关系。例如：
+
+```yaml
+forks:
+  groupA:
+    filter:
+      groups: [123456]
+    plugins:
+      fraqjs/ai:
+      fraqjs/kysely:
+      chatsalt: # chatsalt 依赖 ai 和 kysely
+  groupB:
+    filter:
+      groups: [654321]
+    plugins:
+      chatsalt:
+```
+
+在这种情况下，`groupA` fork 安装了 `chatsalt` 插件，并且同时安装了它依赖的 `fraqjs/ai` 和 `fraqjs/kysely` 插件；而 `groupB` fork 也安装了 `chatsalt` 插件，但没有安装它的依赖插件，因此在启动时会报错，提示缺少依赖。正确的做法应该是将 `fraqjs/ai` 和 `fraqjs/kysely` 插件也安装在 `groupB` fork 上，或者直接提升到顶层安装，这样两个 fork 都可以使用它们。
+
+顶层安装的插件在所有 fork 中都可用。详见[开发文档的相关章节](../development/digging/context.mdx#继承与隔离)。

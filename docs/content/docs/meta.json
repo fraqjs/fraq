@@ -1,10 +1,10 @@
 {
   "pages": [
     "index",
+    "---[Server]部署指南---",
+    "...deployment",
     "---[SquareCode]开发指南---",
     "...development",
-    "---[Server]使用指南---",
-    "...usage",
     "---[Puzzle]官方插件---",
     "...plugins",
     "---外部资源---",
