@@ -1,8 +1,8 @@
 import chalk from 'chalk';
 
 import type { Config } from '../config';
-import type { PackageManagerName } from '../package-manager';
 import { ensureAppPaths, getAppPath } from '../paths';
+import type { PackageManagerName } from '../util/package-manager';
 import { generateAppPackageJson } from './package-json';
 import { exitCodeFromChildResult, installAppDependencies, startAppProcess, waitForChild } from './process';
 import { buildStartScript } from './start-script';

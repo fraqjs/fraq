@@ -2,9 +2,8 @@ import chalk from 'chalk';
 import * as YAML from 'yaml';
 import z from 'zod';
 
-import { normalizePluginName } from '../dependency';
-import { getPackageJson } from '../package-jsons';
-import { findConfigPath, parseConfigFile, RouteActivation, readVersions, zSingleOrArray } from './shared';
+import { completePluginVersions, readVersions } from '../util/versions';
+import { findConfigPath, parseConfigFile, RouteActivation, zSingleOrArray } from './shared';
 
 import { writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -102,50 +101,6 @@ export const ConfigV1 = ContextConfigV1.extend({
   additionalDependencies: z.record(z.string(), z.string()).optional(),
 });
 export type ConfigV1 = z.infer<typeof ConfigV1>;
-
-function collectPluginNames(context: ContextConfigV1, pluginNames: Set<string>): void {
-  for (const pluginName of Object.keys(context.plugins ?? {})) {
-    pluginNames.add(pluginName);
-  }
-  for (const fork of Object.values(context.forks ?? {})) {
-    collectPluginNames(fork, pluginNames);
-  }
-}
-
-async function completePluginVersions(config: ConfigV1, versions: Record<string, string>): Promise<void> {
-  const pluginNames = new Set<string>();
-  collectPluginNames(config, pluginNames);
-
-  for (const pluginName of Object.keys(versions)) {
-    if (!pluginNames.has(pluginName)) {
-      delete versions[pluginName];
-    }
-  }
-
-  for (const pluginName of pluginNames) {
-    const version = versions[pluginName];
-    if (typeof version === 'string' && version.trim().length > 0) {
-      continue;
-    }
-
-    const packageName = normalizePluginName(pluginName);
-    // biome-ignore lint/suspicious/noExplicitAny: PackageJson type is not defined, so we use any here
-    let packageJson: any;
-    try {
-      packageJson = await getPackageJson(packageName, 'latest');
-    } catch (error) {
-      const reason = error instanceof Error ? `: ${error.message}` : '';
-      throw new Error(`Failed to resolve the latest version for plugin "${pluginName}"${reason}`, {
-        cause: error,
-      });
-    }
-
-    if (typeof packageJson.version !== 'string' || packageJson.version.length === 0) {
-      throw new Error(`Package metadata for plugin "${pluginName}" does not contain a valid version.`);
-    }
-    versions[pluginName] = packageJson.version;
-  }
-}
 
 export async function loadConfigV1(): Promise<ConfigV1> {
   const configPath = findConfigPath();

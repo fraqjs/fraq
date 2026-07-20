@@ -6,8 +6,8 @@ import * as c from 'cmd-ts';
 import pkg from '../package.json';
 import { startApp } from './app';
 import { loadConfig } from './config';
-import { getPluginDependencyDiagnostic } from './dependency';
-import { detectPackageManager, type PackageManagerInfo } from './package-manager';
+import { getPluginDependencyDiagnostic } from './util/dependency';
+import { detectPackageManager, type PackageManagerInfo } from './util/package-manager';
 
 async function main() {
   const config = await loadConfig();

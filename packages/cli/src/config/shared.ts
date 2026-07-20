@@ -33,20 +33,3 @@ export function findConfigPath(): string {
   }
   throw new Error('No configuration file found. Please create a fraq.yml, fraq.yaml, or fraq.json file.');
 }
-
-export function readVersions(): Record<string, string> {
-  const versionsPath = path.resolve(process.cwd(), 'versions.yml');
-  if (!existsSync(versionsPath)) {
-    return {};
-  }
-
-  const parsedVersions = parseConfigFile(versionsPath);
-  const versions: Record<string, string> = {};
-  for (const [name, version] of Object.entries(parsedVersions ?? {})) {
-    if (typeof version !== 'string') {
-      throw new Error(`Invalid version for ${name} in versions.yml: expected a string.`);
-    }
-    versions[name] = version;
-  }
-  return versions;
-}

@@ -1,5 +1,5 @@
-import type { PackageManagerName } from '../package-manager';
 import { getAppPath } from '../paths';
+import type { PackageManagerName } from '../util/package-manager';
 
 import { type ChildProcess, spawn } from 'node:child_process';
 import { constants as osConstants } from 'node:os';

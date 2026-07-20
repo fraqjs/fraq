@@ -1,4 +1,5 @@
 import type { Config } from '../src/config';
+import { getPluginDependencyDiagnostic, normalizePluginName } from '../src/util/dependency';
 
 import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
@@ -8,7 +9,6 @@ import test, { after } from 'node:test';
 
 const originalCwd = process.cwd();
 const testRoot = mkdtempSync(path.join(tmpdir(), 'fraq-cli-dependency-'));
-const { getPluginDependencyDiagnostic, normalizePluginName } = await import('../src/dependency');
 
 after(() => {
   process.chdir(originalCwd);
