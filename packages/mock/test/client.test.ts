@@ -1,4 +1,5 @@
-import { Context, type milky } from '../../fraq/src';
+import { Context, type milky } from '@fraqjs/fraq';
+
 import { createMockMilkyClient, inmsg, MockInbox } from '../src';
 
 import assert from 'node:assert/strict';
