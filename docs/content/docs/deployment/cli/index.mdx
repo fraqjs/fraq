@@ -36,19 +36,39 @@ npm i -g pnpm
 
 Fraq 会按照 `pnpm -> yarn -> npm` 的顺序查找可用的包管理器，并使用第一个找到的包管理器来安装依赖。
 
-## 创建 `fraq.yml`
+## 初始化 `fraq.yml`
 
-新建一个空的目录，然后在目录下创建一个名为 `fraq.yml` 的文件，并且添加以下内容：
+在命令行中执行 `fraq wizard` 命令来初始化一个新的 Fraq 机器人项目。Fraq CLI 会询问你一些问题来生成一个默认的 `fraq.yml` 配置文件，你可以在命令行中直接输入答案，或者按 `Enter` 键使用默认值。最后，Fraq CLI 会打印出生成的配置文件内容，并且询问你是否确认创建该配置文件。命令行输出形如：
 
-```yaml
-configVersion: 1
-
-fraqVersion: 0.14.0 # 可以替换为最新的 Fraq 版本号（在网页左上角查看）
-
-milky:
-  url: <替换为你的协议端的 HTTP API 地址, 例如 http://localhost:30001>
-  # accessToken: <如果你配置了 accessToken，请在这里填写，并且取消这一行的注释>
 ```
+> fraq wizard
+Fraq CLI v0.6.0
+
+✔ Project name: my-fraq-app
+✔ Fraq version to use: 0.14.0
+✔ Milky server address: localhost
+✔ Milky server port: 30001
+
+Fraq CLI is going to create my-fraq-app/fraq.yml with the following content:
+
+configVersion: 1
+fraqVersion: 0.14.0
+milky:
+  url: http://localhost:30001/
+
+✔ Is it ok? Yes
+
+Configuration file created succesfully.
+
+Please run:
+cd my-fraq-app
+fraq start
+to start your Fraq application.
+```
+
+随后，你可以 `cd` 到指定的项目目录下，查看和修改生成的 `fraq.yml` 配置文件。
+
+你可以在在命令行中执行 `fraq start` 来启动。Fraq CLI 会在当前目录的 `app` 子目录下创建一个默认的 Fraq 机器人项目，并且自动安装依赖。安装完成后，Fraq CLI 会启动 Fraq 机器人，并且在命令行中打印出启动日志。如果你安装了 `pnpm`，日志可能形如：
 
 {/* prettier-ignore */}
 <Callout>
@@ -56,17 +76,22 @@ YAML 是一种表达力较强但也较为复杂的配置文件格式。你可以
 </Callout>
 {/* prettier-ignore-end */}
 
-保存完成后，你可以在命令行中执行 `fraq start` 来启动 Fraq 机器人。Fraq CLI 会在当前目录的 `app` 子目录下创建一个默认的 Fraq 机器人项目，并且自动安装依赖。安装完成后，Fraq CLI 会启动 Fraq 机器人，并且在命令行中打印出启动日志。如果你安装了 `pnpm`，日志可能形如：
-
 ```
 > fraq start
-Nothing to do since all plugin versions are already complete and aligned.
-✓ Lockfile passes supply-chain policies (verified 11h ago)
+Fraq CLI v0.6.0
+
+Syncing lockfile versions...
+Successfully synced lockfile versions.
+
+Installing application dependencies with pnpm...
+✓ Lockfile passes supply-chain policies (verified 8h ago)
 Lockfile is up to date, resolution step is skipped
 Already up to date
-Done in 310ms using pnpm v11.7.0
-2026/07/20 12:57:08 DEBUG context:root Connecting websocket (attempt=1)
-2026/07/20 12:57:08  INFO context:root websocket connected
+Done in 279ms using pnpm v11.7.0
+
+Starting the Fraq application...
+2026/07/21 00:29:39 DEBUG context:root Connecting websocket (attempt=1)
+2026/07/21 00:29:39  INFO context:root websocket connected
 ```
 
 你可以随时使用 `Ctrl + C` 来停止 Fraq 机器人。
