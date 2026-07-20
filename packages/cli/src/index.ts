@@ -12,9 +12,10 @@ import { getVersionsPath } from './paths';
 import { getPluginDependencyDiagnostic } from './util/dependency';
 import { detectPackageManager, type PackageManagerInfo } from './util/package-manager';
 import {
+  alignLockfileVersions,
+  checkOutdatedVersions,
   checkVersionsCompleteness,
   checkVersionsConsistency,
-  completePluginVersions,
   readVersions,
 } from './util/versions';
 
@@ -96,15 +97,9 @@ async function lock() {
   const config = await loadConfig();
   const lockfileVersions = readVersions();
   config.versions = { ...lockfileVersions, ...config.versions };
-  const completeness = checkVersionsCompleteness(config, config.versions);
-  const consistency = checkVersionsConsistency(config.versions, lockfileVersions);
-  if (completeness.status === 'ok' && consistency.status === 'ok') {
-    console.log(chalk.green('Nothing to do since all plugin versions are already complete and aligned.'));
-    return;
-  }
-  const completedVersions = await completePluginVersions(config, config.versions);
+  const completedVersions = await alignLockfileVersions(config, config.versions);
   writeFileSync(getVersionsPath(), YAML.stringify(completedVersions));
-  console.log(chalk.green('Successfully completed the plugin versions in versions.yml.'));
+  console.log(chalk.green('Successfully aligned the lockfile versions to the configuration.'));
 }
 
 async function main(runInstall: boolean = true): Promise<void> {
@@ -178,6 +173,31 @@ const cli = c.subcommands({
       args: {},
       handler: () => {
         console.log(pkg.version);
+      },
+    }),
+    outdated: c.command({
+      name: 'outdated',
+      description: 'Check for outdated plugin versions',
+      args: {},
+      handler: async () => {
+        const config = await ensureConfigWithVersions();
+        const outdated = await checkOutdatedVersions(config.versions);
+        if (outdated.outdated.length === 0 && outdated.errors.length === 0) {
+          console.log(chalk.green('All plugin versions are up to date.'));
+          return;
+        }
+        if (outdated.outdated.length > 0) {
+          console.log(chalk.yellow('The following plugins have newer versions available:'));
+          for (const { name, current, latest } of outdated.outdated) {
+            console.log(`- ${name}: current ${chalk.red(current)} -> latest ${chalk.green(latest)}`);
+          }
+        }
+        if (outdated.errors.length > 0) {
+          console.log(chalk.red('Failed to check for updates for the following plugins:'));
+          for (const { name, error } of outdated.errors) {
+            console.log(`- ${name}:`, error);
+          }
+        }
       },
     }),
   },

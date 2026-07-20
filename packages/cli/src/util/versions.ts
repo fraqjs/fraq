@@ -3,7 +3,7 @@ import YAML from 'yaml';
 import type { ContextConfig } from '../config';
 import { getVersionsPath } from '../paths';
 import { normalizePluginName } from './dependency';
-import { getPackageJson } from './package-jsons';
+import { getLatestPackageJson, getPackageJson } from './package-jsons';
 
 import { existsSync, readFileSync } from 'node:fs';
 
@@ -82,16 +82,45 @@ export function checkVersionsConsistency(
   return { status: 'ok' };
 }
 
-export async function completePluginVersions(
+export interface OutdatedVersionsCheckResult {
+  outdated: Array<{ name: string; current: string; latest: string }>;
+  errors: Array<{ name: string; error: unknown }>;
+}
+
+export async function checkOutdatedVersions(versions: Record<string, string>): Promise<OutdatedVersionsCheckResult> {
+  const outdated: Array<{ name: string; current: string; latest: string }> = [];
+  const errors: Array<{ name: string; error: unknown }> = [];
+
+  await Promise.all(
+    Object.entries(versions).map(async ([name, currentVersion]) => {
+      try {
+        const latestPackageJson = await getLatestPackageJson(normalizePluginName(name));
+        const latestVersion = latestPackageJson.version;
+        if (latestVersion && latestVersion !== currentVersion) {
+          outdated.push({ name, current: currentVersion, latest: latestVersion });
+        }
+      } catch (error) {
+        errors.push({ name, error });
+      }
+    }),
+  );
+
+  return {
+    outdated: outdated.sort((a, b) => a.name.localeCompare(b.name)),
+    errors: errors.sort((a, b) => a.name.localeCompare(b.name)),
+  };
+}
+
+export async function alignLockfileVersions(
   config: ContextConfig,
-  versions: Record<string, string>,
+  lockfileVersions: Record<string, string>,
 ): Promise<Record<string, string>> {
   const pluginNames = new Set<string>();
   collectPluginNamesFromConfig(config, pluginNames);
   const completedVersions: Record<string, string> = {};
 
   for (const pluginName of pluginNames) {
-    const version = versions[pluginName];
+    const version = lockfileVersions[pluginName];
     if (typeof version === 'string' && version.trim().length > 0) {
       completedVersions[pluginName] = version;
       continue;
