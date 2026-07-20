@@ -15,7 +15,7 @@
     "@orama/orama": "^3.1.18",
     "@radix-ui/react-accordion": "^1.2.12",
     "class-variance-authority": "^0.7.1",
-    "fumadocs-core": "16.9.3",
+    "fumadocs-core": "16.11.2",
     "fumadocs-mdx": "15.0.10",
     "fumadocs-ui": "16.11.2",
     "lucide-react": "^1.17.0",
