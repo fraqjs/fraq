@@ -1,7 +1,8 @@
-import * as YAML from 'yaml';
 import z from 'zod';
 
-import { existsSync, readFileSync } from 'node:fs';
+import { parseConfigReferences } from './references';
+
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 
 export const RouteActivation = z.discriminatedUnion('type', [
@@ -16,11 +17,7 @@ export function zSingleOrArray<T>(schema: z.ZodType<T>): z.ZodType<T[]> {
 }
 
 export function parseConfigFile(filePath: string): unknown {
-  const configContent = readFileSync(filePath, 'utf-8');
-  if (filePath.endsWith('.json')) {
-    return JSON.parse(configContent);
-  }
-  return YAML.parse(configContent);
+  return parseConfigReferences(filePath);
 }
 
 export function findConfigPath(): string {
