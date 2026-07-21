@@ -1,8 +1,8 @@
 {
   "name": "@fraqjs/plugin-conversation",
   "type": "module",
-  "version": "0.7.0",
-  "description": "Conversation utility plugin for Fraq",
+  "version": "0.7.1",
+  "description": "提供对多轮对话的支持，帮助开发者编写交互式机器人功能",
   "files": [
     "dist"
   ],
@@ -19,12 +19,15 @@
     "type": "git",
     "url": "git+https://github.com/fraqjs/fraq.git"
   },
-  "homepage": "https://fraq.dev/",
+  "homepage": "https://fraq.dev/docs/plugins/conversation",
   "license": "MIT",
   "peerDependencies": {
     "@fraqjs/fraq": "workspace:^"
   },
   "devDependencies": {
     "@fraqjs/mock": "workspace:^"
+  },
+  "fraq": {
+    "category": "infrastructure"
   }
 }

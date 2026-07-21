@@ -1,8 +1,8 @@
 {
   "name": "@fraqjs/plugin-message-store",
   "type": "module",
-  "version": "0.3.0",
-  "description": "Local message storage plugin for Fraq",
+  "version": "0.3.1",
+  "description": "提供将消息存储在本地数据库的能力",
   "files": [
     "dist"
   ],
@@ -19,7 +19,7 @@
     "type": "git",
     "url": "git+https://github.com/fraqjs/fraq.git"
   },
-  "homepage": "https://fraq.dev/",
+  "homepage": "https://fraq.dev/docs/plugins/message-store",
   "license": "MIT",
   "peerDependencies": {
     "@fraqjs/fraq": "workspace:^",
@@ -27,5 +27,8 @@
   },
   "devDependencies": {
     "@fraqjs/mock": "workspace:^"
+  },
+  "fraq": {
+    "category": "infrastructure"
   }
 }

@@ -1,8 +1,8 @@
 {
   "name": "@fraqjs/plugin-milky-server",
   "type": "module",
-  "version": "0.1.0",
-  "description": "Milky server proxy plugin for Fraq",
+  "version": "0.1.1",
+  "description": "提供在 Fraq 上代理上游 Milky 服务的能力",
   "files": [
     "dist"
   ],
@@ -19,7 +19,7 @@
     "type": "git",
     "url": "git+https://github.com/fraqjs/fraq.git"
   },
-  "homepage": "https://fraq.dev/",
+  "homepage": "https://fraq.dev/docs/plugins/milky-server",
   "license": "MIT",
   "peerDependencies": {
     "@fraqjs/fraq": "workspace:^",
@@ -28,5 +28,8 @@
   },
   "devDependencies": {
     "@fraqjs/mock": "workspace:^"
+  },
+  "fraq": {
+    "category": "infrastructure"
   }
 }

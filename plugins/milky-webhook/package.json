@@ -1,8 +1,8 @@
 {
   "name": "@fraqjs/plugin-milky-webhook",
   "type": "module",
-  "version": "0.1.0",
-  "description": "Milky Webhook utility plugin for Fraq",
+  "version": "0.1.1",
+  "description": "提供将 Fraq 接入 Milky 协议端 Webhook 事件推送的能力",
   "files": [
     "dist"
   ],
@@ -19,7 +19,7 @@
     "type": "git",
     "url": "git+https://github.com/fraqjs/fraq.git"
   },
-  "homepage": "https://fraq.dev/",
+  "homepage": "https://fraq.dev/docs/plugins/milky-webhook",
   "license": "MIT",
   "peerDependencies": {
     "@fraqjs/fraq": "workspace:^",
@@ -27,5 +27,8 @@
   },
   "devDependencies": {
     "@fraqjs/mock": "workspace:^"
+  },
+  "fraq": {
+    "category": "infrastructure"
   }
 }

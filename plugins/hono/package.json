@@ -1,8 +1,8 @@
 {
   "name": "@fraqjs/plugin-hono",
   "type": "module",
-  "version": "0.2.0",
-  "description": "Hono integration plugin for Fraq",
+  "version": "0.2.1",
+  "description": "提供基于 Hono 的 HTTP 服务器集成",
   "files": [
     "dist"
   ],
@@ -19,18 +19,21 @@
     "type": "git",
     "url": "git+https://github.com/fraqjs/fraq.git"
   },
-  "homepage": "https://fraq.dev/",
+  "homepage": "https://fraq.dev/docs/plugins/hono",
   "license": "MIT",
   "peerDependencies": {
     "@fraqjs/fraq": "workspace:^"
   },
   "dependencies": {
-    "@hono/node-server": "^2.0.5",
-    "hono": "^4.12.26",
-    "ws": "^8.21.0"
+    "@hono/node-server": "^2.0.10",
+    "hono": "^4.12.31",
+    "ws": "^8.21.1"
   },
   "devDependencies": {
     "@fraqjs/mock": "workspace:^",
     "@types/ws": "^8.18.1"
+  },
+  "fraq": {
+    "category": "infrastructure"
   }
 }

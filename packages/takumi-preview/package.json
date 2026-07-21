@@ -29,14 +29,14 @@
   },
   "devDependencies": {
     "@fraqjs/plugin-takumi": "workspace:^",
-    "@takumi-rs/helpers": "^2.0.1",
-    "@types/react": "^19.2.15"
+    "@takumi-rs/helpers": "^2.3.2",
+    "@types/react": "^19.2.17"
   },
   "dependencies": {
-    "@hono/node-server": "^2.0.5",
+    "@hono/node-server": "^2.0.10",
     "chokidar": "^5.0.0",
     "commander": "^15.0.0",
-    "hono": "^4.12.26",
-    "tsx": "^4.23.0"
+    "hono": "^4.12.31",
+    "tsx": "^4.23.1"
   }
 }

@@ -1,8 +1,8 @@
 {
   "name": "@fraqjs/plugin-kysely",
   "type": "module",
-  "version": "0.2.1",
-  "description": "Kysely integration plugin for Fraq",
+  "version": "0.2.2",
+  "description": "提供基于 Kysely 的 SQLite 数据库服务",
   "files": [
     "dist"
   ],
@@ -19,18 +19,21 @@
     "type": "git",
     "url": "git+https://github.com/fraqjs/fraq.git"
   },
-  "homepage": "https://fraq.dev/",
+  "homepage": "https://fraq.dev/docs/plugins/kysely",
   "license": "MIT",
   "peerDependencies": {
     "@fraqjs/fraq": "workspace:^"
   },
   "dependencies": {
-    "kysely": "^0.29.3"
+    "kysely": "^0.29.4"
   },
   "devDependencies": {
     "@fraqjs/mock": "workspace:^"
   },
   "engines": {
     "node": ">=22.13"
+  },
+  "fraq": {
+    "category": "infrastructure"
   }
 }
