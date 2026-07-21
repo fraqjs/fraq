@@ -176,3 +176,31 @@ Fraq CLI 使用 [`@fraqjs/color-log`](https://www.npmjs.com/package/@fraqjs/colo
 logging:
   minLevel: info # 设置日志最小等级为 info，低于 info 等级
 ```
+
+## 插值语法
+
+`fraq.yml` 支持使用 `${{ 类型:目标 }}` 引用环境变量、文本文件以及其他 YAML/JSON 文件。例如：
+
+```yaml
+milky:
+  url: http://${{ env:MILKY_HOST }}:${{ env:MILKY_PORT }}
+  accessToken: ${{ text:secrets/milky-token.txt }}
+
+plugins: ${{ tree:config/plugins.yml }}
+```
+
+支持以下引用类型：
+
+- `${{ env:NAME }}` 读取环境变量。环境变量不存在时，Fraq CLI 会停止并报告错误。
+- `${{ text:path }}` 以 UTF-8 读取文本文件。Fraq CLI 会移除文件末尾的一个 `LF` 或 `CRLF` 换行符，并保留其他空白。
+- `${{ tree:path }}` 解析 `.yml`、`.yaml` 或 `.json` 文件，保留其中对象、数组、数字、布尔值和 `null` 等原生类型。
+
+`env` 和 `text` 引用既可以独占一个值，也可以嵌入普通字符串；`tree` 引用必须独占整个值，不能写成 `prefix-${{ tree:file.yml }}`。只有配置值会被插值，字段名称不会被处理。
+
+相对文件路径以包含该引用的文件为基准，因此被 `tree` 引用的文件可以继续使用相对于自身的 `text` 或 `tree` 引用。Fraq CLI 允许使用绝对路径和 `..`，并会检测递归引用造成的循环。环境变量和文本文件的内容不会被再次插值。
+
+如果需要将插值语法作为普通文本使用，请在开头增加一个 `$`：
+
+```yaml
+example: $${{ env:NAME }} # 解析结果为字面量 `${{ env:NAME }}`
+```
