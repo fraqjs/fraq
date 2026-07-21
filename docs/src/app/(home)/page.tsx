@@ -55,7 +55,7 @@ export default function HomePage() {
             install
           </div>
           <pre className="overflow-x-auto px-4 py-4 text-sm">
-            <code>npm i @fraqjs/fraq</code>
+            <code>npm i @fraqjs/cli</code>
           </pre>
         </div>
 
