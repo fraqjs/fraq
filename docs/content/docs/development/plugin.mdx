@@ -4,6 +4,19 @@ title: 开发插件
 
 在 Fraq 中，插件（Plugin）是一个可选、可复用的模块化组件，用于封装特定的功能或一组相关的功能。插件可以包含指令、事件处理器等，并且可以被其他插件依赖和调用，只要声明并提供了对应的服务（Service）。下面我们来介绍一下如何定义和使用插件，以及插件项目的规范。
 
+## 创建插件项目
+
+Fraq 对于插件项目也提供了一个[模板仓库](https://github.com/fraqjs/plugin-template)，你可以克隆这个仓库来创建一个新的插件项目。克隆完成后，修改项目的 `package.json` 文件，其中用中文标注出了若干需要修改的地方，包括：
+
+- `name` 字段：插件的包名，**必须**满足以下条件之一：
+  - 以 `fraq-plugin-` 开头，例如 `fraq-plugin-echo`。
+  - 在你的 npm scope 下以 `fraq-plugin-` 开头，例如 `@your-scope/fraq-plugin-echo`。
+- `description` 字段：插件的描述信息，应当用中文在 1～2 句话内概括插件的功能。
+- `author` 字段：插件的作者信息，通常是你的 GitHub 用户名。
+- `repository` 字段：插件的源代码仓库地址，通常是你的 GitHub 仓库地址，形如 `git+https://github.com/your-username/your-repo.git`。
+- `fraq` 字段：专属于 Fraq 的插件元信息，目前包含以下字段：
+  - `category`：插件的分类。可用的分类见[准备发布](#准备发布)章节。
+
 ## 定义与安装插件
 
 插件通过 `definePlugin` 函数来定义。例如，我们将之前例子中的 Echo 机器人封装成一个插件：
@@ -12,7 +25,7 @@ title: 开发插件
 import { definePlugin } from '@fraqjs/fraq';
 
 export const EchoPlugin = definePlugin({
-  name: 'echo',
+  name: 'echo', // 插件的名称，需要与包名保持一致
   apply(ctx) {
     ctx.router
       .command('echo')
@@ -23,7 +36,7 @@ export const EchoPlugin = definePlugin({
   },
 });
 
-// 推荐同时将插件进行默认导出
+// 必须同时将插件进行默认导出
 export default EchoPlugin;
 ```
 
@@ -91,7 +104,7 @@ definePlugin({
 
 但建议不要定义过多的参数，以免让用户在安装插件时感到困惑。
 
-强烈建议接受一个配置对象作为参数，并且所有的配置项都是 **JSON 可序列化**的类型。
+强烈建议接受一个配置对象作为参数，并且所有的配置项都是 **JSON 可序列化**的类型。这样可以方便通过 [Fraq CLI](../deployment/cli/index.mdx) 来进行插件的安装和配置。
 
 </Callout>
 {/* prettier-ignore-end */}
@@ -246,119 +259,6 @@ interface Disposable {
 </Callout>
 {/* prettier-ignore-end */}
 
-## 项目规范
-
-import { File, Folder, Files } from 'fumadocs-ui/components/files';
-
-Fraq 对于插件项目也提供了一个[模板仓库](https://github.com/fraqjs/plugin-template)。项目的目录结构大致如下：
-
-<Files>
-  <Folder name="src" defaultOpen>
-    <File name="index.ts" />
-  </Folder>
-  <Folder name="test" defaultOpen>
-    <File name="smoke.ts" />
-  </Folder>
-  <File name="package.json" />
-  <File name="tsconfig.json" />
-  <File name="tsdown.config.ts" />
-</Files>
-
-下面我们来逐一介绍这些文件的作用和内容。
-
-### `tsconfig.json`
-
-以下是 Fraq 本身及官方插件使用的 `tsconfig.json`，供参考：
-
-```json
-{
-  "compilerOptions": {
-    "target": "ESNext",
-    "useDefineForClassFields": true,
-    "module": "esnext",
-    "lib": ["ESNext"],
-    "skipLibCheck": true,
-    "moduleResolution": "bundler",
-    "allowImportingTsExtensions": false,
-    "allowSyntheticDefaultImports": true,
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "declaration": true,
-    "strict": true,
-    "noFallthroughCasesInSwitch": true,
-    "types": ["node"]
-  }
-}
-```
-
-### `tsdown.config.ts`
-
-Fraq 推荐使用 [tsdown](https://tsdown.dev/) 来构建你的插件。你可以将 `tsdown` 添加到 `devDependencies`，在项目根目录下创建一个 `tsdown.config.ts` 文件来配置 tsdown，例如：
-
-```ts
-import { defineConfig } from 'tsdown';
-
-export default defineConfig({
-  entry: 'src/index.ts',
-  dts: true,
-});
-```
-
-### `package.json`
-
-#### 命名规范
-
-插件的包名应该以 `fraq-plugin-` 开头，或者在你的 npm scope 下以 `fraq-plugin-` 开头，例如：
-
-- `fraq-plugin-echo`
-- `@your-scope/fraq-plugin-echo`
-
-官方插件则以 `@fraqjs/plugin-` 开头，例如：
-
-- `@fraqjs/plugin-conversation`
-- `@fraqjs/plugin-random`
-
-#### `type` 字段
-
-虽然不是必需，但强烈建议在你的 `package.json` 文件中添加 `"type": "module"` 字段。这会将项目下所有的 JS 文件视为 ES Module，这对于现代 JavaScript 开发来说是一个好习惯，可以帮助你规避许多潜在的 CJS/ESM 语法问题。
-
-#### 入口点文件
-
-你的插件需要在 `package.json` 中正确包含并导出。通常，我们不直接导出 `src/index.ts`，而是将构建后的文件（例如 `dist/index.js`）作为入口点。例如，对于用 `tsdown` 构建的插件，文件会位于 `dist` 目录下，你可以在 `package.json` 中这样配置：
-
-```json
-{
-  "files": ["dist"],
-  "main": "dist/index.mjs",
-  "typings": "dist/index.d.mts"
-}
-```
-
-如果你的项目除了 `dist` 之外还有其他用到的文件，请确保它们也被正确地包含在 `files` 字段中。
-
-#### 声明依赖
-
-插件应该至少将 `@fraqjs/fraq` 声明为 `peerDependencies`。此外，如果你的插件依赖了其他的插件，你也应该将它们声明为 `peerDependencies`。
-
-如果你的插件在运行时需要使用某些库（例如 `axios`），你可以将它们声明为 `dependencies`。
-
-对于开发时所用的工具，例如 `tsdown`、`tsx` 和 `typescript`，则应该声明为 `devDependencies`。
-
-#### 开放源代码
-
-Fraq 鼓励插件开发者积极开源自己的插件。为了方便使用者查询源代码仓库，可以在 `package.json` 中添加 `repository` 字段来指向你的代码仓库，例如：
-
-```json
-{
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/your-username/your-repo.git"
-  }
-}
-```
-
-此外，还可以通过 `license` 字段来声明你的插件的许可证类型，例如 `GPL-3.0-only`、`MIT`、`ISC` 等。
-
 ## 编写测试
 
 Fraq 建议将测试代码放在 `test` 目录下。Fraq 中的测试一般分为两大类：
@@ -395,7 +295,22 @@ npx tsx smoke-test.ts
 
 ## 准备发布
 
-在完成了一个插件后，你可能会想要将其发布到 npm Registry 上，以便其他人也能使用它。发布插件的过程与发布普通的 npm 包是一样的，你需要在你的项目中的 `package.json` 文件中确保你的插件代码被正确地导出，并且在发布前触发一次构建来生成最终的输出文件。为此，你可以配置 `prepack` script（这些已经包含在 Fraq 官方插件模板中）：
+在完成了一个插件后，你可能会想要将其发布到 npm Registry 上，以便其他人也能使用它。在发布之前，你还需要修改 `package.json` 中的 `fraq.category` 字段来指定插件的分类。Fraq 官方提供了以下几种分类：
+
+| 分类             | 中文名     | 说明                                                       |
+| ---------------- | ---------- | ---------------------------------------------------------- |
+| `infrastructure` | 基础服务   | 给其他插件提供额外能力，例如数据库、鉴权、网络请求         |
+| `development`    | 开发与运维 | 帮助管理员维护 Fraq，例如控制台、日志、状态查询            |
+| `management`     | 管理工具   | 监听并处理群聊事件，例如群管理、内容审核、入群欢迎         |
+| `information`    | 资讯与生活 | 获取外部公共信息，例如新闻、天气、百科、交通               |
+| `media`          | 媒体与创作 | 处理或生成图片、音频、视频，例如表情包、截图、公式渲染     |
+| `ai`             | 人工智能   | 提供人工智能相关的功能，例如对话、图像生成、语音识别       |
+| `social`         | 社交与互动 | 促进成员之间的参与和关系，例如签到、投票、关系系统         |
+| `entertainment`  | 娱乐与游戏 | 具有抽取、胜负、角色等游戏属性，例如抽奖、竞猜、修仙       |
+| `game-tools`     | 游戏辅助   | 提供与市面游戏相关的辅助功能，例如攻略、战绩查询、音游查分 |
+| `utilities`      | 工具与效率 | 不在上述分类，但解决某个具体问题，例如计算、翻译、定时提醒 |
+
+发布插件的过程与发布普通的 npm 包是一样的，你需要在你的项目中的 `package.json` 文件中确保你的插件代码被正确地导出，并且在发布前触发一次构建来生成最终的输出文件。为此，你可以配置 `prepack` script（这些已经包含在 Fraq 官方插件模板中）：
 
 ```json
 {
