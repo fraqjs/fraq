@@ -1,6 +1,7 @@
 {
   "pages": [
     "index",
+    "[插件市场](/plugins)",
     "---[Server]部署指南---",
     "...deployment",
     "---[SquareCode]开发指南---",

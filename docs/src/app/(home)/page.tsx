@@ -40,6 +40,10 @@ export default function HomePage() {
             <BookOpenIcon className="size-4" />
             阅读文档
           </Link>
+          <Link href="/plugins" className={cn(buttonVariants({ color: 'outline' }), 'gap-2 px-4 py-2')}>
+            <PuzzleIcon className="size-4" />
+            插件市场
+          </Link>
           <Link
             href={`https://github.com/${gitConfig.user}/${gitConfig.repo}`}
             className={cn(buttonVariants({ color: 'outline' }), 'gap-2 px-4 py-2')}
