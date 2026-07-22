@@ -1,6 +1,7 @@
 'use client';
 
-import { BadgeCheckIcon, ExternalLinkIcon, PuzzleIcon } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+import * as lucide from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
 
@@ -29,6 +30,19 @@ const CATEGORY_LABELS: Record<string, string> = {
   entertainment: '娱乐与游戏',
   'game-tools': '游戏辅助',
   utilities: '工具与效率',
+};
+
+const CATEGORY_ICONS: Record<string, LucideIcon> = {
+  infrastructure: lucide.ServerCogIcon,
+  development: lucide.CodeXmlIcon,
+  management: lucide.GaugeIcon,
+  information: lucide.NewspaperIcon,
+  media: lucide.PaletteIcon,
+  ai: lucide.BotIcon,
+  social: lucide.MessagesSquareIcon,
+  entertainment: lucide.Dice3Icon,
+  'game-tools': lucide.Gamepad2Icon,
+  utilities: lucide.ZapIcon,
 };
 
 const SESSION_KEY = 'fraq-plugin-order';
@@ -93,7 +107,7 @@ export function PluginMarketplace({ plugins, categories }: Props) {
         {/* Header */}
         <div className="mb-10 max-w-2xl">
           <div className="mb-4 flex items-center gap-3">
-            <PuzzleIcon className="size-8 text-fd-muted-foreground" />
+            <lucide.PuzzleIcon className="size-8 text-fd-muted-foreground" />
             <h1 className="text-4xl font-semibold tracking-normal text-fd-foreground md:text-5xl">插件市场</h1>
           </div>
           <p className="text-lg text-fd-muted-foreground">浏览和发现由社区构建的 Fraq 插件，扩展你的机器人功能。</p>
@@ -109,18 +123,22 @@ export function PluginMarketplace({ plugins, categories }: Props) {
             onClick={() => setActiveCategory('__official__')}
             className={categoryPillClass(activeCategory === '__official__')}
           >
-            <BadgeCheckIcon className="size-3 shrink-0" />
+            <lucide.BadgeCheckIcon className="size-3 shrink-0" />
             官方插件
           </button>
-          {usedCategories.map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setActiveCategory(cat)}
-              className={categoryPillClass(activeCategory === cat)}
-            >
-              {CATEGORY_LABELS[cat] ?? cat}
-            </button>
-          ))}
+          {usedCategories.map((cat) => {
+            const CategoryIcon = CATEGORY_ICONS[cat] ?? lucide.TagIcon;
+            return (
+              <button
+                key={cat}
+                onClick={() => setActiveCategory(cat)}
+                className={categoryPillClass(activeCategory === cat)}
+              >
+                <CategoryIcon className="size-3 shrink-0" />
+                {CATEGORY_LABELS[cat] ?? cat}
+              </button>
+            );
+          })}
         </div>
 
         {/* Plugin grid */}
@@ -160,11 +178,11 @@ function PluginCard({ plugin }: { plugin: PluginEntry }) {
     <>
       <div className="flex items-start justify-between gap-2">
         <div className="flex min-w-0 flex-1 items-center gap-1.5">
-          {official && <BadgeCheckIcon className="size-3.5 shrink-0 text-fd-primary" />}
+          {official && <lucide.BadgeCheckIcon className="size-3.5 shrink-0 text-fd-primary" />}
           <p className="truncate font-mono text-xs text-fd-muted-foreground">{plugin.id}</p>
         </div>
         {!official && (
-          <ExternalLinkIcon className="size-3.5 shrink-0 text-fd-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+          <lucide.ExternalLinkIcon className="size-3.5 shrink-0 text-fd-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
         )}
       </div>
 
