@@ -2,7 +2,6 @@
 
 import type { LucideIcon } from 'lucide-react';
 import * as lucide from 'lucide-react';
-import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
 const REGISTRY_URL = 'https://registry.fraq.dev/plugins.json';
@@ -293,14 +292,6 @@ function PluginCard({ plugin }: { plugin: PluginEntry }) {
       </div>
     </>
   );
-
-  if (official) {
-    return (
-      <Link href={href} className={cardClass}>
-        {inner}
-      </Link>
-    );
-  }
 
   return (
     <a href={href} target="_blank" rel="noopener noreferrer" className={cardClass}>
