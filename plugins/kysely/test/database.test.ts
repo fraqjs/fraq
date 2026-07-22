@@ -1,4 +1,4 @@
-import { Context } from '@fraqjs/fraq';
+import { Context, definePlugin } from '@fraqjs/fraq';
 import { createMockMilkyClient } from '@fraqjs/mock';
 import type { Kysely } from 'kysely';
 
@@ -36,5 +36,60 @@ test('provides a working Kysely database service backed by node:sqlite', async (
   assert.equal(row.id, 1);
   assert.equal(row.name, 'alpha');
 
+  await ctx.stop();
+});
+
+test('vacuums the database automatically after startup', async () => {
+  const ctx = Context.fromClient(createMockMilkyClient());
+  let vacuumRuns = 0;
+
+  ctx.install(KyselyPlugin, { sqliteUrl: ':memory:' });
+  ctx.install(
+    definePlugin({
+      name: 'observe-vacuum',
+      requires: [KyselyService],
+      apply(ctx) {
+        const service = ctx.resolve(KyselyService);
+        const vacuum = service.vacuum.bind(service);
+        service.vacuum = async () => {
+          vacuumRuns += 1;
+          await vacuum();
+        };
+      },
+    }),
+  );
+
+  await ctx.start();
+
+  assert.equal(vacuumRuns, 1);
+  await ctx.stop();
+});
+
+test('allows automatic vacuum to be disabled', async () => {
+  const ctx = Context.fromClient(createMockMilkyClient());
+  let vacuumRuns = 0;
+
+  ctx.install(KyselyPlugin, {
+    sqliteUrl: ':memory:',
+    autoVacuum: { enabled: false },
+  });
+  ctx.install(
+    definePlugin({
+      name: 'observe-disabled-vacuum',
+      requires: [KyselyService],
+      apply(ctx) {
+        const service = ctx.resolve(KyselyService);
+        const vacuum = service.vacuum.bind(service);
+        service.vacuum = async () => {
+          vacuumRuns += 1;
+          await vacuum();
+        };
+      },
+    }),
+  );
+
+  await ctx.start();
+
+  assert.equal(vacuumRuns, 0);
   await ctx.stop();
 });

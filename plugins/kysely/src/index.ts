@@ -2,7 +2,7 @@ import { definePlugin } from '@fraqjs/fraq';
 import { Kysely, SqliteDialect } from 'kysely';
 
 import { NodeSqliteDatabaseAdapter } from './node-sqlite-adapter';
-import { KyselyService } from './service';
+import { type KyselyAutoVacuumOptions, KyselyService } from './service';
 import type { FraqDatabase } from './types';
 
 import { DatabaseSync, type DatabaseSyncOptions } from 'node:sqlite';
@@ -10,6 +10,7 @@ import { DatabaseSync, type DatabaseSyncOptions } from 'node:sqlite';
 export interface KyselyPluginOptions {
   sqliteUrl?: string;
   nodeSqliteOptions?: Omit<DatabaseSyncOptions, 'open'>;
+  autoVacuum?: KyselyAutoVacuumOptions;
 }
 
 export const KyselyPlugin = definePlugin({
@@ -22,11 +23,34 @@ export const KyselyPlugin = definePlugin({
         database: new NodeSqliteDatabaseAdapter(new DatabaseSync(sqliteUrl, options?.nodeSqliteOptions ?? {})),
       }),
     });
-    ctx.provide(KyselyService, new KyselyService(kysely));
+    ctx.provide(KyselyService, new KyselyService(kysely, options?.autoVacuum));
   },
   async start(ctx) {
     ctx.logger.info('Migrating database schema to latest version...');
-    await ctx.resolve(KyselyService).schemas.migrateToLatest();
+    const service = ctx.resolve(KyselyService);
+    await service.schemas.migrateToLatest();
+
+    if (service.autoVacuum?.enabled === false) {
+      return;
+    }
+
+    const intervalMinutes = service.autoVacuum?.intervalMinutes ?? 60;
+    let vacuumInProgress = false;
+    const vacuum = async () => {
+      if (vacuumInProgress) {
+        return;
+      }
+      vacuumInProgress = true;
+      try {
+        await service.vacuum();
+        ctx.logger.debug('Vacuumed SQLite database.');
+      } finally {
+        vacuumInProgress = false;
+      }
+    };
+
+    await vacuum();
+    ctx.interval(intervalMinutes * 60 * 1_000, vacuum);
   },
 });
 
