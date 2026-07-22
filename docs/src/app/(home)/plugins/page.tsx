@@ -4,7 +4,7 @@ import { PluginMarketplace } from './client';
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://fraq.dev'),
-  title: '插件市场 - Fraq',
+  title: 'Fraq | 插件市场',
   description: '浏览和发现由社区构建的 Fraq 插件，扩展你的机器人功能。',
 };
 
