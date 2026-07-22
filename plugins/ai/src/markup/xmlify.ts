@@ -15,12 +15,15 @@ export interface ResourceIndex {
   image: number;
   record: number;
   video: number;
+  file: number;
+  forward: number;
 }
 
 export interface XmlifyContext {
   xmlContent: string;
   resources: Record<string, { url: string }>;
   files: Record<string, milky.IncomingFileSegment['data']>;
+  forwards: Record<string, milky.IncomingForwardSegment['data']>;
 }
 
 function stringifySegments(segments: milky.IncomingSegment[]): string {
@@ -63,10 +66,14 @@ function buildTaggedTextNode(tag: string, text: string, attrs?: object) {
   return element;
 }
 
+export function createResourceIndex(): ResourceIndex {
+  return { image: 0, record: 0, video: 0, file: 0, forward: 0 };
+}
+
 export async function xmlifyToElement(ctx: Context, message: milky.IncomingMessage, options?: XmlifyOptions) {
   const maxForwardDepth = options?.maxForwardDepth ?? 0;
   const inThread = options?.resourceIndex !== undefined;
-  const resourceIndex: ResourceIndex = options?.resourceIndex ?? { image: 0, record: 0, video: 0 };
+  const resourceIndex: ResourceIndex = options?.resourceIndex ?? createResourceIndex();
 
   const root = buildAttributedElement(
     'message',
@@ -87,8 +94,9 @@ export async function xmlifyToElement(ctx: Context, message: milky.IncomingMessa
 
   const contentNode = new Element('content', {});
   const resources: Record<string, { url: string }> = {};
+  const forwards: Record<string, milky.IncomingForwardSegment['data']> = {};
   const files: Record<string, milky.IncomingFileSegment['data']> = {};
-  function newResourceKey(type: 'image' | 'record' | 'video') {
+  function newResourceKey(type: keyof ResourceIndex): string {
     resourceIndex[type]++;
     return `${type}${resourceIndex[type]}`;
   }
@@ -140,18 +148,21 @@ export async function xmlifyToElement(ctx: Context, message: milky.IncomingMessa
       }
       case 'file': {
         const { file_name, file_size } = segment.data;
-        const fileNode = buildTaggedTextNode('file', file_name, { size: file_size });
-        files[file_name] = segment.data;
-        return fileNode;
+        const resourceKey = newResourceKey('file');
+        files[resourceKey] = segment.data;
+        return buildTaggedTextNode('file', file_name, { id: resourceKey, size: file_size });
       }
       case 'forward': {
-        if (maxForwardDepth === 0) {
-          return buildTaggedTextNode('forward', '(Forwarded message)', { title: segment.data.title });
-        }
-
         const { forward_id, title } = segment.data;
+        if (maxForwardDepth === 0) {
+          const resourceKey = newResourceKey('forward');
+          forwards[resourceKey] = segment.data;
+          return buildTaggedTextNode('forward', '(Forwarded message)', { id: resourceKey, title });
+        }
         if (forwardDepth > maxForwardDepth) {
-          return buildTaggedTextNode('forward', '(Too deeply nested)', { title });
+          const resourceKey = newResourceKey('forward');
+          forwards[resourceKey] = segment.data;
+          return buildTaggedTextNode('forward', '(Too deeply nested)', { id: resourceKey, title });
         }
         const forwardNode = buildAttributedElement('forward', { depth: forwardDepth, title });
 
@@ -217,7 +228,7 @@ export async function xmlifyToElement(ctx: Context, message: milky.IncomingMessa
     );
   }
 
-  return { node: root, resources, files };
+  return { node: root, resources, files, forwards };
 }
 
 export async function xmlify(
@@ -225,7 +236,7 @@ export async function xmlify(
   message: milky.IncomingMessage,
   options?: XmlifyOptions,
 ): Promise<XmlifyContext> {
-  const { node, resources, files } = await xmlifyToElement(ctx, message, options);
+  const { node, resources, files, forwards } = await xmlifyToElement(ctx, message, options);
   const serializeOptions = options?.serialize ?? {};
   const formatOptions = options?.format ?? {};
   const xml = render(node, {
@@ -241,6 +252,7 @@ export async function xmlify(
     }),
     resources,
     files,
+    forwards,
   };
 }
 
@@ -252,7 +264,7 @@ export async function xmlifyThread(ctx: Context, messages: milky.IncomingMessage
     scene: messages[0].message_scene,
     peer_id: messages[0].peer_id,
   });
-  const resourceIndex: ResourceIndex = options?.resourceIndex ?? { image: 0, record: 0, video: 0 };
+  const resourceIndex: ResourceIndex = options?.resourceIndex ?? createResourceIndex();
   const resources: Record<string, { url: string }> = {};
   const files: Record<string, milky.IncomingFileSegment['data']> = {};
   for (const message of messages) {
