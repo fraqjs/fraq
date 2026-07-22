@@ -19,6 +19,13 @@ plugins:
     # 可选的数据库连接选项，除了 open 选项之外的其他选项都会被传递给 DatabaseSync 的构造函数
     # 详见 Node.js 官方文档：https://nodejs.org/api/sqlite.html#new-databasesyncpath-options
     # nodeSqliteOptions:
+    # 自动清理数据库（运行 VACUUM 命令）的相关配置
+    autoVacuum:
+      # 是否启用自动清理功能，默认为 true
+      # 若为 false，则不会自动清理数据库
+      enabled: true
+      # 自动清理的时间间隔，单位为分钟，默认为 60
+      intervalMinutes: 60
 ```
 
 如果你是插件开发者，请将本插件添加到项目的 `peerDependencies` 中，并在自己的插件中声明依赖：
@@ -239,6 +246,8 @@ ctx.kysely.schemas.register({
 ## 操作数据表
 
 完成表结构声明和迁移注册之后，`KyselyService` 会在应用启动时自动完成迁移工作，随后就可以通过 `ctx.kysely.db` 来访问 Kysely 实例，并使用它来执行各种数据库操作了。下面介绍一些基本的 CRUD 操作，你可以查看 Kysely 文档的 [Examples](https://kysely.dev/docs/category/examples) 章节来了解更多用法。
+
+启用自动 vacuum 后，插件会在迁移完成后立即整理一次数据库文件，并按配置的时间间隔重复执行。默认情况下该功能处于启用状态；如果不希望插件自动执行，可以设置 `autoVacuum.enabled` 为 `false`。也可以在需要时直接调用 `KyselyService` 的 `vacuum()` 方法。
 
 {/* prettier-ignore */}
 <Callout>
