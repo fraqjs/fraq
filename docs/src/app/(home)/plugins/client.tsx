@@ -3,9 +3,34 @@
 import type { LucideIcon } from 'lucide-react';
 import * as lucide from 'lucide-react';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
-import type { PluginEntry } from './page';
+const REGISTRY_URL = 'https://registry.fraq.dev/plugins.json';
+
+interface RawPlugin {
+  name: string;
+  version: string;
+  description: string;
+  category: string | null;
+  repository: string;
+  market: { unlisted: boolean };
+}
+
+interface PluginRegistry {
+  version: number;
+  updatedAt: string;
+  categories: string[];
+  plugins: Record<string, RawPlugin>;
+}
+
+interface PluginEntry {
+  id: string;
+  name: string;
+  version: string;
+  description: string;
+  category: string | null;
+  repository: string;
+}
 
 function isOfficial(plugin: PluginEntry): boolean {
   return plugin.id.startsWith('fraqjs/');
@@ -33,7 +58,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 const CATEGORY_ICONS: Record<string, LucideIcon> = {
-  infrastructure: lucide.ServerCogIcon,
+  infrastructure: lucide.ServerIcon,
   development: lucide.CodeXmlIcon,
   management: lucide.GaugeIcon,
   information: lucide.NewspaperIcon,
@@ -57,39 +82,99 @@ function shuffled<T extends { id: string }>(items: T[]): T[] {
 }
 
 function useShuffledPlugins(plugins: PluginEntry[]): PluginEntry[] {
-  return useState<PluginEntry[]>(() => {
+  const [shuffledPlugins, setShuffledPlugins] = useState<PluginEntry[]>([]);
+
+  useEffect(() => {
+    if (plugins.length === 0) {
+      setShuffledPlugins([]);
+      return;
+    }
+
+    let ordered: PluginEntry[] | undefined;
     try {
       const stored = sessionStorage.getItem(SESSION_KEY);
       if (stored) {
-        const ids: string[] = JSON.parse(stored) as string[];
-        const map = new Map(plugins.map((p) => [p.id, p]));
-        // Restore stored order; append any plugins not yet in the stored list
-        // biome-ignore lint/style/noNonNullAssertion: We've already checked that the map has the id
-        const ordered = ids.flatMap((id) => (map.has(id) ? [map.get(id)!] : []));
-        const appended = plugins.filter((p) => !ids.includes(p.id));
-        return [...ordered, ...appended];
+        const ids = JSON.parse(stored) as unknown;
+        if (Array.isArray(ids) && ids.every((id): id is string => typeof id === 'string')) {
+          const map = new Map(plugins.map((plugin) => [plugin.id, plugin]));
+          const restored = ids.flatMap((id) => {
+            const plugin = map.get(id);
+            return plugin ? [plugin] : [];
+          });
+          const appended = plugins.filter((plugin) => !ids.includes(plugin.id));
+          if (restored.length > 0) {
+            ordered = [...restored, ...appended];
+          }
+        }
       }
     } catch {
       // sessionStorage unavailable (e.g. private browsing restrictions) — fall through
     }
-    const result = shuffled(plugins);
+
+    const result = ordered ?? shuffled(plugins);
+    setShuffledPlugins(result);
     try {
-      sessionStorage.setItem(SESSION_KEY, JSON.stringify(result.map((p) => p.id)));
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify(result.map((plugin) => plugin.id)));
     } catch {
-      // ignore write failures
+      // Ignore read-only or unavailable storage.
     }
-    return result;
-  })[0];
+  }, [plugins]);
+
+  return shuffledPlugins;
 }
 
-interface Props {
-  plugins: PluginEntry[];
-  categories: string[];
-}
-
-export function PluginMarketplace({ plugins, categories }: Props) {
+export function PluginMarketplace() {
+  const [updatedAt, setUpdatedAt] = useState<string | null>(null);
+  const [plugins, setPlugins] = useState<PluginEntry[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const shuffledPlugins = useShuffledPlugins(plugins);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    let cancelled = false;
+
+    fetch(REGISTRY_URL, { signal: controller.signal })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`Failed to fetch plugins registry: ${res.status}`);
+        return (await res.json()) as PluginRegistry;
+      })
+      .then((data) => {
+        if (cancelled) return;
+
+        const listedPlugins: PluginEntry[] = Object.entries(data.plugins)
+          .filter(([, plugin]) => !plugin.market.unlisted)
+          .map(([id, plugin]) => ({
+            id,
+            name: plugin.name,
+            version: plugin.version,
+            description: plugin.description,
+            category: plugin.category,
+            repository: plugin.repository,
+          }));
+
+        setUpdatedAt(data.updatedAt);
+        setPlugins(listedPlugins);
+        setCategories(data.categories);
+      })
+      .catch((reason: unknown) => {
+        if (cancelled) return;
+        if (reason instanceof DOMException && reason.name === 'AbortError') return;
+        setError(true);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, []);
+
+  const updatedAtLocale = updatedAt ? new Date(updatedAt).toLocaleString() : null;
 
   // Only show categories that have at least one listed plugin
   const usedCategories = categories.filter((cat) => plugins.some((p) => p.category === cat));
@@ -111,7 +196,13 @@ export function PluginMarketplace({ plugins, categories }: Props) {
             <h1 className="text-4xl font-semibold tracking-normal text-fd-foreground md:text-5xl">插件市场</h1>
           </div>
           <p className="text-lg text-fd-muted-foreground">浏览和发现由社区构建的 Fraq 插件，扩展你的机器人功能。</p>
-          <p className="mt-1 text-sm text-fd-muted-foreground">共 {plugins.length} 个插件</p>
+          <p className="mt-1 text-sm text-fd-muted-foreground">
+            {loading
+              ? '正在加载插件...'
+              : error
+                ? '插件信息加载失败，请稍后重试。'
+                : `共 ${plugins.length} 个插件 · 最后更新于 ${updatedAtLocale ?? '未知时间'}`}
+          </p>
         </div>
 
         {/* Category filter */}
@@ -142,7 +233,11 @@ export function PluginMarketplace({ plugins, categories }: Props) {
         </div>
 
         {/* Plugin grid */}
-        {filtered.length === 0 ? (
+        {loading ? (
+          <p className="text-fd-muted-foreground">正在加载插件...</p>
+        ) : error ? (
+          <p className="text-fd-muted-foreground">暂时无法加载插件信息。</p>
+        ) : filtered.length === 0 ? (
           <p className="text-fd-muted-foreground">该分类下暂无插件。</p>
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -169,10 +264,8 @@ function PluginCard({ plugin }: { plugin: PluginEntry }) {
   const official = isOfficial(plugin);
   const href = pluginHref(plugin);
 
-  const cardClass = [
-    'group flex flex-col gap-3 rounded-lg border bg-fd-card p-4 text-fd-card-foreground transition-colors hover:border-fd-primary/50 hover:bg-fd-accent/30',
-    official ? 'border-fd-foreground/20' : 'border-fd-border',
-  ].join(' ');
+  const cardClass =
+    'group flex flex-col gap-3 rounded-lg border bg-fd-card p-4 text-fd-card-foreground transition-colors hover:border-fd-primary/50 hover:bg-fd-accent/30 border-fd-border';
 
   const inner = (
     <>
