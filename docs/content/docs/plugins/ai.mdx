@@ -236,22 +236,6 @@ const { toolResults } = await generateText({
 console.log(toolResults);
 ```
 
-## 使用内置工具
-
-`AiService` 提供了一个 `milkyToolset` 方法，可以构造 `tools` 选项所需的工具集，方便 AI 直接调用 Milky 协议功能。你需要提供一个 `ctx` 实例和一个数组，数组中包含你想要开放给 AI 调用的 Milky API 名称：
-
-```typescript
-import { milkyToolset } from '@fraqjs/plugin-ai';
-
-const tools = milkyToolset(ctx, ['get_login_info', 'set_nickname']);
-
-await generateText({
-  model: ctx.ai.model(),
-  prompt: '获取当前帐户的登录信息。',
-  tools,
-});
-```
-
 ## 将消息转换为 XML
 
 `@fraqjs/plugin-ai` 提供了 `xmlify` 系列函数，将 `milky.IncomingMessage` 转换为结构化的 XML 文本。在把聊天消息作为上下文提供给语言模型时，XML 的结构化形式比 JSON 更利于模型理解消息的各个组成部分（如图片、@提及、回复引用、合并转发等）。
@@ -289,13 +273,14 @@ ctx.on('message_receive', async ({ data }) => {
 
 - `xmlContent`：格式化后的 XML 字符串。
 - `resources`：资源键到临时 URL 的映射，例如 `{ image1: { url: 'https://...' } }`。其中 `image`、`record`、`video` 类型的消息段会分别以 `image1`、`record1`、`video1` 等递增编号作为键。
-- `files`：文件名到文件数据的映射，对应 `file` 类型的消息段。
+- `files`：资源键到文件数据的映射，对应 `file` 类型的消息段。
+- `forward`：资源键到转发消息的映射，对应 `forward` 类型的消息段。
 
 `<message>` 根元素上会附带 `scene`、`peer_id`、`seq`、`sender_id`、`time` 等属性；根据消息场景，还会包含 `<friend>`、`<group>`、`<group_member>` 等子元素，描述发送者与会话的上下文信息。
 
 ### 转换多条消息
 
-`xmlifyThread` 用于将多条消息合并为一个 `<thread>` 元素，适合将一段对话历史整体提供给模型。它会复用同一个资源编号空间，确保所有消息中的 `image`、`record`、`video` 键互不冲突：
+`xmlifyThread` 用于将多条消息合并为一个 `<thread>` 元素，适合将一段对话历史整体提供给模型。它会复用同一个资源编号空间，确保所有消息中的 `image`、`record`、`video`、`file`、`forward` 键互不冲突：
 
 ```typescript
 import { xmlifyThread } from '@fraqjs/plugin-ai';
@@ -331,6 +316,22 @@ const { xmlContent } = await xmlifyThread(ctx, messages);
 
 `xmlify` 和 `xmlifyThread` 的第三个参数是一个可选的 `XmlifyOptions` 对象，支持以下配置项：
 
-- `maxForwardDepth`：合并转发消息的展开深度，默认为 `0`。为 `0` 时，合并转发不会被展开，仅输出占位文本；大于 `0` 时，会通过 `ctx.client.get_forwarded_messages` 拉取转发内容，并递归展开到指定深度。超出 `maxForwardDepth` 的嵌套层级会以 `(Too deeply nested)` 占位，避免无限制地拉取深层转发内容。
+- `maxForwardDepth`：合并转发消息的展开深度，默认为 `0`。为 `0` 时，合并转发不会被展开，仅输出一个 `id` 及占位文本；大于 `0` 时，会通过 `ctx.client.get_forwarded_messages` 拉取转发内容，并递归展开到指定深度。超出 `maxForwardDepth` 的嵌套层级会以 `(Too deeply nested)` 占位，同样包含一个 `id`，避免无限制地拉取深层转发内容。
 - `serialize`：传递给 `dom-serializer` 的序列化选项，默认使用 `encodeEntities: 'utf8'`。
 - `format`：传递给 `xml-formatter` 的格式化选项，默认使用两个空格缩进。
+
+## 使用内置工具
+
+`AiService` 提供了一个 `milkyToolset` 方法，可以构造 `tools` 选项所需的工具集，方便 AI 直接调用 Milky 协议功能。你需要提供一个 `ctx` 实例和一个数组，数组中包含你想要开放给 AI 调用的 Milky API 名称：
+
+```typescript
+import { milkyToolset } from '@fraqjs/plugin-ai';
+
+const tools = milkyToolset(ctx, ['get_login_info', 'set_nickname']);
+
+await generateText({
+  model: ctx.ai.model(),
+  prompt: '获取当前帐户的登录信息。',
+  tools,
+});
+```
