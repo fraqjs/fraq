@@ -1,6 +1,6 @@
-import { createMockMilkyClient } from '@fraqjs/mock';
+import { createMockContext, type MockService } from '@fraqjs/plugin-mock';
 
-import { Context, type Disposable, definePlugin, type LogMessage, type MilkyClient } from '../src';
+import { type Context, type Disposable, definePlugin, type LogMessage } from '../src';
 
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -47,11 +47,11 @@ async function flushTimers(): Promise<void> {
 }
 
 function createSlowStoppingClient(): {
-  client: MilkyClient;
+  ctx: Context;
   stopStarted: Promise<void>;
   resolveStopped: () => void;
 } {
-  const client = createMockMilkyClient();
+  const ctx = createMockContext();
   let resolveStopStarted!: () => void;
   let resolveStopped!: () => void;
   const stopStarted = new Promise<void>((resolve) => {
@@ -61,7 +61,7 @@ function createSlowStoppingClient(): {
     resolveStopped = resolve;
   });
 
-  (client as MilkyClient & { start: typeof client.start }).start = async () => ({
+  (ctx.mock as unknown as { start: MockService['start'] }).start = async () => ({
     closed: stopped,
     async stop() {
       resolveStopStarted();
@@ -69,12 +69,11 @@ function createSlowStoppingClient(): {
     },
   });
 
-  return { client, stopStarted, resolveStopped };
+  return { ctx, stopStarted, resolveStopped };
 }
 
 test('event handlers can be unsubscribed', async () => {
-  const client = createMockMilkyClient();
-  const ctx = Context.fromClient(client);
+  const ctx = createMockContext();
   let receivedMessageEvents = 0;
 
   const off = ctx.on('message_receive', () => {
@@ -82,16 +81,15 @@ test('event handlers can be unsubscribed', async () => {
   });
 
   await ctx.start();
-  await client.receiveFriend({ userId: 1 }, []);
+  await ctx.mock.receiveFriend({ userId: 1 }, []);
   off();
-  await client.receiveFriend({ userId: 1 }, []);
+  await ctx.mock.receiveFriend({ userId: 1 }, []);
 
   assert.equal(receivedMessageEvents, 1);
 });
 
 test('stops the root event stream and ignores later stream events', async () => {
-  const client = createMockMilkyClient();
-  const ctx = Context.fromClient(client);
+  const ctx = createMockContext();
   let receivedMessageEvents = 0;
 
   ctx.on('message_receive', () => {
@@ -100,15 +98,15 @@ test('stops the root event stream and ignores later stream events', async () => 
 
   await ctx.start();
   await ctx.stop();
-  await client.receiveFriend({ userId: 1 }, []);
+  await ctx.mock.receiveFriend({ userId: 1 }, []);
 
-  assert.equal(client.startEventCalls, 1);
+  assert.equal(ctx.mock.startEventCalls, 1);
   assert.equal(receivedMessageEvents, 0);
 });
 
 test('stops child contexts before parent services and disposes services in reverse provision order', async () => {
   const calls: string[] = [];
-  const parent = Context.fromClient(createMockMilkyClient());
+  const parent = createMockContext();
   const child = parent.fork('child');
 
   parent.provide(ParentDisposableService, new ParentDisposableService(calls));
@@ -123,7 +121,7 @@ test('stops child contexts before parent services and disposes services in rever
 });
 
 test('clears context timers when the context stops', async () => {
-  const ctx = Context.fromClient(createMockMilkyClient());
+  const ctx = createMockContext();
   let timeoutCalls = 0;
   let intervalCalls = 0;
 
@@ -142,7 +140,7 @@ test('clears context timers when the context stops', async () => {
 });
 
 test('rejects timers scheduled after the context has stopped', async () => {
-  const ctx = Context.fromClient(createMockMilkyClient());
+  const ctx = createMockContext();
 
   await ctx.start();
   await ctx.stop();
@@ -152,8 +150,7 @@ test('rejects timers scheduled after the context has stopped', async () => {
 });
 
 test('rejects timers scheduled while the context is stopping', async () => {
-  const { client, stopStarted, resolveStopped } = createSlowStoppingClient();
-  const ctx = Context.fromClient(client);
+  const { ctx, stopStarted, resolveStopped } = createSlowStoppingClient();
 
   await ctx.start();
   const stopPromise = ctx.stop();
@@ -167,8 +164,7 @@ test('rejects timers scheduled while the context is stopping', async () => {
 });
 
 test('ignores queued timer callbacks once the context is stopping', async () => {
-  const { client, stopStarted, resolveStopped } = createSlowStoppingClient();
-  const ctx = Context.fromClient(client);
+  const { ctx, stopStarted, resolveStopped } = createSlowStoppingClient();
   let calls = 0;
   let stopPromise: Promise<void> | undefined;
 
@@ -188,8 +184,7 @@ test('ignores queued timer callbacks once the context is stopping', async () => 
 });
 
 test('stops child context timers before waiting for the parent event stream to stop', async () => {
-  const { client, stopStarted, resolveStopped } = createSlowStoppingClient();
-  const parent = Context.fromClient(client);
+  const { ctx: parent, stopStarted, resolveStopped } = createSlowStoppingClient();
   const child = parent.fork('child');
   let calls = 0;
 
@@ -208,7 +203,7 @@ test('stops child context timers before waiting for the parent event stream to s
 });
 
 test('removes completed timeouts from context timer tracking', async () => {
-  const ctx = Context.fromClient(createMockMilkyClient());
+  const ctx = createMockContext();
   let calls = 0;
 
   await ctx.start();
@@ -224,7 +219,7 @@ test('removes completed timeouts from context timer tracking', async () => {
 test('logs timer callback errors', async () => {
   const logs: LogMessage[] = [];
   const error = new Error('boom');
-  const ctx = Context.fromClient(createMockMilkyClient(), {
+  const ctx = createMockContext({
     logHandler(message) {
       logs.push(message);
     },
@@ -247,7 +242,7 @@ test('logs timer callback errors', async () => {
 
 test('applies the context tree before starting plugins from parents to children', async () => {
   const calls: string[] = [];
-  const parent = Context.fromClient(createMockMilkyClient());
+  const parent = createMockContext();
   const child = parent.fork('child');
 
   parent.install(
@@ -279,8 +274,7 @@ test('applies the context tree before starting plugins from parents to children'
 });
 
 test('recovers the parent context state when a child context fails to start', async () => {
-  const client = createMockMilkyClient();
-  const parent = Context.fromClient(client);
+  const parent = createMockContext();
   const child = parent.fork('child');
   let applyCalls = 0;
   let shouldThrow = true;
@@ -304,5 +298,5 @@ test('recovers the parent context state when a child context fails to start', as
 
   await parent.start();
 
-  assert.equal(client.startEventCalls, 1);
+  assert.equal(parent.mock.startEventCalls, 1);
 });

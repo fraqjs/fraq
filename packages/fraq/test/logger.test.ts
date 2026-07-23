@@ -1,12 +1,12 @@
-import { createMockMilkyClient } from '@fraqjs/mock';
+import { createMockContext } from '@fraqjs/plugin-mock';
 
-import { Context, definePlugin, type LogMessage } from '../src';
+import { type Context, definePlugin, type LogMessage } from '../src';
 
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
 function createTestContext(logs: LogMessage[] = []): Context {
-  return Context.fromClient(createMockMilkyClient(), {
+  return createMockContext({
     logHandler(message) {
       logs.push(message);
     },

@@ -1,4 +1,4 @@
-import { createMockMilkyClient, inmsg, inseg } from '@fraqjs/mock';
+import { createMockContext, inmsg, inseg } from '@fraqjs/plugin-mock';
 
 import { Context, definePlugin, filter, type milky, type RouteDescriptor } from '../src';
 
@@ -6,9 +6,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 test('fork filters reject events without an explicit predicate', async () => {
-  const client = createMockMilkyClient();
-  const parent = Context.fromClient(client);
-  const child = parent.fork(
+  const ctx = createMockContext();
+  const child = ctx.fork(
     'child',
     filter.define({
       message_receive: () => true,
@@ -20,8 +19,8 @@ test('fork filters reject events without an explicit predicate', async () => {
     receivedRecallEvents += 1;
   });
 
-  await parent.start();
-  await client.emitEvent({
+  await ctx.start();
+  await ctx.mock.emitEvent({
     event_type: 'message_recall',
     time: 1,
     self_id: 1,
@@ -39,9 +38,8 @@ test('fork filters reject events without an explicit predicate', async () => {
 });
 
 test('fork filters pass events when the predicate accepts them', async () => {
-  const client = createMockMilkyClient();
-  const parent = Context.fromClient(client);
-  const child = parent.fork(
+  const ctx = createMockContext();
+  const child = ctx.fork(
     'child',
     filter.define({
       message_receive: () => true,
@@ -53,15 +51,14 @@ test('fork filters pass events when the predicate accepts them', async () => {
     receivedMessageEvents += 1;
   });
 
-  await parent.start();
-  await client.receiveFriend({ userId: 1 }, []);
+  await ctx.start();
+  await ctx.mock.receiveFriend({ userId: 1 }, []);
 
   assert.equal(receivedMessageEvents, 1);
 });
 
 test('plugin context registers routes with plugin metadata', async () => {
-  const client = createMockMilkyClient();
-  const ctx = Context.fromClient(client);
+  const ctx = createMockContext();
   const descriptors: RouteDescriptor[] = [];
   let calls = 0;
 
@@ -81,8 +78,8 @@ test('plugin context registers routes with plugin metadata', async () => {
   );
 
   await ctx.start();
-  await client.receiveFriend({ userId: 1 }, inmsg`hello`);
-  await client.receiveFriend({ userId: 1 }, inmsg`/hello`);
+  await ctx.mock.receiveFriend({ userId: 1 }, inmsg`hello`);
+  await ctx.mock.receiveFriend({ userId: 1 }, inmsg`/hello`);
   await ctx.stop();
 
   assert.equal(calls, 1);
@@ -95,8 +92,7 @@ test('plugin context registers routes with plugin metadata', async () => {
 });
 
 test('context routing accepts a low-level activationResolver', async () => {
-  const client = createMockMilkyClient();
-  const ctx = Context.fromClient(client, {
+  const ctx = createMockContext({
     routing: {
       activationResolver(route) {
         return route.type === 'command' && route.name === 'ping' ? [{ type: 'prefix', prefix: '/' }] : [];
@@ -110,21 +106,20 @@ test('context routing accepts a low-level activationResolver', async () => {
   });
 
   await ctx.start();
-  await client.receiveFriend({ userId: 1 }, inmsg`ping`);
-  await client.receiveFriend({ userId: 1 }, inmsg`/ping`);
+  await ctx.mock.receiveFriend({ userId: 1 }, inmsg`ping`);
+  await ctx.mock.receiveFriend({ userId: 1 }, inmsg`/ping`);
   await ctx.stop();
 
   assert.equal(calls, 1);
 });
 
 test('forked contexts inherit the activation resolver from their parent context', async () => {
-  const client = createMockMilkyClient();
-  const parent = Context.fromClient(client, {
+  const ctx = createMockContext({
     routing: {
       activationResolver: () => [{ type: 'mention' }],
     },
   });
-  const child = parent.fork(
+  const child = ctx.fork(
     'child',
     filter.define({
       message_receive: () => true,
@@ -136,18 +131,17 @@ test('forked contexts inherit the activation resolver from their parent context'
     calls += 1;
   });
 
-  await parent.start();
-  await client.receiveGroup({ groupId: 10, userId: 1 }, inmsg`ping`);
-  await client.receiveGroup({ groupId: 10, userId: 1 }, inmsg`${inseg.mention(10000)} ping`);
-  await parent.stop();
+  await ctx.start();
+  await ctx.mock.receiveGroup({ groupId: 10, userId: 1 }, inmsg`ping`);
+  await ctx.mock.receiveGroup({ groupId: 10, userId: 1 }, inmsg`${inseg.mention(10000)} ping`);
+  await ctx.stop();
 
   assert.equal(calls, 1);
 });
 
 test('forked contexts receive filtered root events and call through the same base client', async () => {
-  const client = createMockMilkyClient();
-  const parent = Context.fromClient(client);
-  const child = parent.fork(
+  const ctx = createMockContext();
+  const child = ctx.fork(
     'child',
     filter.define({
       message_receive: () => true,
@@ -159,17 +153,17 @@ test('forked contexts receive filtered root events and call through the same bas
     childMessageEvents += 1;
   });
 
-  await parent.start();
-  await client.receiveFriend({ userId: 1 }, []);
+  await ctx.start();
+  await ctx.mock.receiveFriend({ userId: 1 }, []);
   await child.client.get_friend_info({
     user_id: 1,
     no_cache: false,
   });
 
-  assert.notEqual(child.client, parent.client);
-  assert.equal(client.startEventCalls, 1);
+  assert.notEqual(child.client, ctx.client);
+  assert.equal(ctx.mock.startEventCalls, 1);
   assert.equal(childMessageEvents, 1);
-  assert.deepEqual(client.apiCalls.at(-1), {
+  assert.deepEqual(ctx.mock.apiCalls.at(-1), {
     endpoint: 'get_friend_info',
     params: {
       user_id: 1,
@@ -179,8 +173,7 @@ test('forked contexts receive filtered root events and call through the same bas
 });
 
 test('session replies through the client API', async () => {
-  const client = createMockMilkyClient();
-  const ctx = Context.fromClient(client);
+  const ctx = createMockContext();
   const replyMessage: milky.OutgoingSegment_ZodInput[] = [
     {
       type: 'text',
@@ -199,10 +192,10 @@ test('session replies through the client API', async () => {
   });
 
   await ctx.start();
-  await client.receiveGroup({ groupId: 123, userId: 456 }, inmsg`ping`);
+  await ctx.mock.receiveGroup({ groupId: 123, userId: 456 }, inmsg`ping`);
   await new Promise((resolve) => setTimeout(resolve, 0));
 
-  assert.deepEqual(client.apiCalls, [
+  assert.deepEqual(ctx.mock.apiCalls, [
     {
       endpoint: 'send_group_message',
       params: {

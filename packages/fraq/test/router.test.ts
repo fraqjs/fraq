@@ -1,4 +1,4 @@
-import { createMockInbox, inmsg, inseg } from '@fraqjs/mock';
+import { createMockInbox, inmsg, inseg } from '@fraqjs/plugin-mock';
 
 import { type milky, param, type RouteDescriptor, Router, type Session } from '../src';
 

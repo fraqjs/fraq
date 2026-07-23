@@ -1,6 +1,6 @@
 import { Context } from '@fraqjs/fraq';
-import { createSimpleLogHandler } from '@fraqjs/mock';
 import HonoPlugin from '@fraqjs/plugin-hono';
+import { createSimpleLogHandler } from '@fraqjs/plugin-mock';
 
 import MilkyWebhookPlugin from '../src';
 

@@ -1,5 +1,4 @@
-import { Context } from '@fraqjs/fraq';
-import { createMockMilkyClient } from '@fraqjs/mock';
+import { createMockContext } from '@fraqjs/plugin-mock';
 import { generateImage, generateText } from 'ai';
 
 import AiPlugin, { AiService } from '../src';
@@ -9,7 +8,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 test('AiPlugin provides AiService through the context', async () => {
-  const ctx = Context.fromClient(createMockMilkyClient());
+  const ctx = createMockContext();
 
   ctx.install(AiPlugin, {
     providers: {
@@ -30,7 +29,7 @@ test('AiPlugin provides AiService through the context', async () => {
 });
 
 test('AiPlugin registers multiple provider aliases, default model, and all concrete models', async () => {
-  const ctx = Context.fromClient(createMockMilkyClient());
+  const ctx = createMockContext();
   const primary = mockLanguageModel('from primary');
   const mini = mockLanguageModel('from mini');
   const sonnet = mockLanguageModel('from sonnet');
@@ -75,7 +74,7 @@ test('AiPlugin registers multiple provider aliases, default model, and all concr
 });
 
 test('AiPlugin registers image models from direct provider instances', async () => {
-  const ctx = Context.fromClient(createMockMilkyClient());
+  const ctx = createMockContext();
   const dalle = mockImageModel('aGVsbG8=');
 
   ctx.install(AiPlugin, {

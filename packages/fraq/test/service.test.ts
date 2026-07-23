@@ -1,6 +1,6 @@
-import { createMockMilkyClient } from '@fraqjs/mock';
+import { createMockContext } from '@fraqjs/plugin-mock';
 
-import { Context, definePlugin } from '../src';
+import { type Context, definePlugin } from '../src';
 
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -16,7 +16,7 @@ class BetaService {
 class GammaService {}
 
 function createTestContext(): Context {
-  return Context.fromClient(createMockMilkyClient());
+  return createMockContext();
 }
 
 test('provides and resolves service instances by class', () => {

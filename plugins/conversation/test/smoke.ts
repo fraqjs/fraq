@@ -1,5 +1,5 @@
 import { Context, definePlugin, msg, param } from '@fraqjs/fraq';
-import { createSimpleLogHandler } from '@fraqjs/mock';
+import { createSimpleLogHandler } from '@fraqjs/plugin-mock';
 
 import { ConversationPlugin, ConversationService } from '../src';
 

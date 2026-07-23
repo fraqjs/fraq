@@ -1,5 +1,5 @@
-import { Context, msg, param } from '@fraqjs/fraq';
-import { createMockMilkyClient, inmsg } from '@fraqjs/mock';
+import { msg, param } from '@fraqjs/fraq';
+import { createMockContext, inmsg } from '@fraqjs/plugin-mock';
 
 import { ConversationService } from '../src';
 
@@ -11,9 +11,11 @@ async function tick(): Promise<void> {
 }
 
 test('open resolves when a later message matches its temporary router', async () => {
-  const client = createMockMilkyClient();
-  client.stubApi('send_private_message', () => ({ message_seq: 3, time: 3 }));
-  const ctx = Context.fromClient(client);
+  const ctx = createMockContext();
+  ctx.hookApi('send_private_message', async (_params, next) => {
+    await next();
+    return { message_seq: 3, time: 3 };
+  });
   const conversation = new ConversationService(ctx, { defaultTimeout: 1000 });
   let resultPromise: Promise<'origin' | 'answer' | null> | undefined;
   let answerSeq: number | undefined;
@@ -34,16 +36,16 @@ test('open resolves when a later message matches its temporary router', async ()
     );
   });
   await ctx.start();
-  await client.receiveFriend({ userId: 1 }, inmsg`ask`);
+  await ctx.mock.receiveFriend({ userId: 1 }, inmsg`ask`);
   await tick();
 
   assert.ok(resultPromise);
 
-  await client.receiveFriend({ userId: 1 }, inmsg`yes`);
+  await ctx.mock.receiveFriend({ userId: 1 }, inmsg`yes`);
 
   assert.equal(await resultPromise, 'answer');
   assert.equal(answerSeq, 2);
-  assert.deepEqual(client.apiCalls, [
+  assert.deepEqual(ctx.mock.apiCalls, [
     {
       endpoint: 'send_private_message',
       params: {
@@ -55,8 +57,7 @@ test('open resolves when a later message matches its temporary router', async ()
 });
 
 test('command builder captures command parameters', async () => {
-  const client = createMockMilkyClient();
-  const ctx = Context.fromClient(client);
+  const ctx = createMockContext();
   const conversation = new ConversationService(ctx, { defaultTimeout: 1000 });
   let captured: string | undefined;
 
@@ -68,15 +69,14 @@ test('command builder captures command parameters', async () => {
     });
 
   await ctx.start();
-  await client.receiveFriend({ userId: 1 }, inmsg`ask weather`);
+  await ctx.mock.receiveFriend({ userId: 1 }, inmsg`ask weather`);
   await tick();
 
   assert.equal(captured, 'weather');
 });
 
 test('open tracks active conversations independently by sender, scene, and peer', async () => {
-  const client = createMockMilkyClient();
-  const ctx = Context.fromClient(client);
+  const ctx = createMockContext();
   const conversation = new ConversationService(ctx, { defaultTimeout: 1000 });
   const results = new Map<number, Promise<number | null>>();
 
@@ -103,20 +103,19 @@ test('open tracks active conversations independently by sender, scene, and peer'
   });
 
   await ctx.start();
-  await client.receiveFriend({ userId: 1 }, inmsg`ask`);
-  await client.receiveFriend({ userId: 2 }, inmsg`ask`);
+  await ctx.mock.receiveFriend({ userId: 1 }, inmsg`ask`);
+  await ctx.mock.receiveFriend({ userId: 2 }, inmsg`ask`);
   await tick();
 
-  await client.receiveFriend({ userId: 2 }, inmsg`yes`);
-  await client.receiveFriend({ userId: 1 }, inmsg`yes`);
+  await ctx.mock.receiveFriend({ userId: 2 }, inmsg`yes`);
+  await ctx.mock.receiveFriend({ userId: 1 }, inmsg`yes`);
 
   assert.equal(await results.get(1), 1);
   assert.equal(await results.get(2), 2);
 });
 
 test('open resolves null when the conversation times out', async () => {
-  const client = createMockMilkyClient();
-  const ctx = Context.fromClient(client);
+  const ctx = createMockContext();
   const conversation = new ConversationService(ctx, { defaultTimeout: 1 });
   let resultPromise: Promise<boolean | null> | undefined;
 
@@ -131,7 +130,7 @@ test('open resolves null when the conversation times out', async () => {
   });
 
   await ctx.start();
-  await client.receiveFriend({ userId: 1 }, inmsg`ask`);
+  await ctx.mock.receiveFriend({ userId: 1 }, inmsg`ask`);
   await tick();
 
   assert.ok(resultPromise);
@@ -141,8 +140,7 @@ test('open resolves null when the conversation times out', async () => {
 });
 
 test('requires defaultTimeout and timeout to be positive finite numbers', async () => {
-  const client = createMockMilkyClient();
-  const ctx = Context.fromClient(client);
+  const ctx = createMockContext();
 
   assert.throws(() => new ConversationService(ctx, { defaultTimeout: 0 }), /defaultTimeout/);
 
@@ -164,7 +162,7 @@ test('requires defaultTimeout and timeout to be positive finite numbers', async 
   });
 
   await ctx.start();
-  await client.receiveFriend({ userId: 1 }, inmsg`ask`);
+  await ctx.mock.receiveFriend({ userId: 1 }, inmsg`ask`);
   await tick();
 
   assert.ok(resultPromise);
@@ -172,9 +170,11 @@ test('requires defaultTimeout and timeout to be positive finite numbers', async 
 });
 
 test('active conversation handles a repeated triggering command without dispatching the command again', async () => {
-  const client = createMockMilkyClient();
-  client.stubApi('send_private_message', () => ({ message_seq: 2, time: 2 }));
-  const ctx = Context.fromClient(client);
+  const ctx = createMockContext();
+  ctx.hookApi('send_private_message', async (_params, next) => {
+    await next();
+    return { message_seq: 2, time: 2 };
+  });
   const conversation = new ConversationService(ctx, { defaultTimeout: 1000 });
   let prompts = 0;
   let resultPromise: Promise<string | null> | undefined;
@@ -197,14 +197,14 @@ test('active conversation handles a repeated triggering command without dispatch
   });
 
   await ctx.start();
-  await client.receiveFriend({ userId: 1 }, inmsg`天气`);
+  await ctx.mock.receiveFriend({ userId: 1 }, inmsg`天气`);
   await tick();
-  await client.receiveFriend({ userId: 1 }, inmsg`天气`);
+  await ctx.mock.receiveFriend({ userId: 1 }, inmsg`天气`);
 
   assert.ok(resultPromise);
   assert.equal(await resultPromise, '天气');
   assert.equal(prompts, 1);
-  assert.deepEqual(client.apiCalls, [
+  assert.deepEqual(ctx.mock.apiCalls, [
     {
       endpoint: 'send_private_message',
       params: {

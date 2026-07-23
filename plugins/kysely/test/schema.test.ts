@@ -1,5 +1,5 @@
-import { Context, definePlugin } from '@fraqjs/fraq';
-import { createMockMilkyClient } from '@fraqjs/mock';
+import { definePlugin } from '@fraqjs/fraq';
+import { createMockContext } from '@fraqjs/plugin-mock';
 import type { Kysely } from 'kysely';
 
 import KyselyPlugin, { KyselyService } from '../src';
@@ -18,7 +18,7 @@ interface TestDatabase {
 }
 
 test('registers schemas and migrates them to latest during startup', async () => {
-  const ctx = Context.fromClient(createMockMilkyClient());
+  const ctx = createMockContext();
 
   ctx.install(KyselyPlugin, { sqliteUrl: ':memory:' });
   ctx.install(
@@ -67,7 +67,7 @@ test('registers schemas and migrates them to latest during startup', async () =>
 });
 
 test('migrateToLatest can be called again after migrations have already run', async () => {
-  const ctx = Context.fromClient(createMockMilkyClient());
+  const ctx = createMockContext();
   let migrationRuns = 0;
 
   ctx.install(KyselyPlugin, { sqliteUrl: ':memory:' });
@@ -110,7 +110,7 @@ test('migrateToLatest can be called again after migrations have already run', as
 });
 
 test('runs migrations in the order they are registered', async () => {
-  const ctx = Context.fromClient(createMockMilkyClient());
+  const ctx = createMockContext();
   const calls: string[] = [];
 
   ctx.install(KyselyPlugin, { sqliteUrl: ':memory:' });
@@ -166,7 +166,7 @@ test('migrateToLatest applies newly registered migrations after schema changes',
   });
   const sqliteUrl = join(tempDir, 'database.sqlite');
 
-  const firstCtx = Context.fromClient(createMockMilkyClient());
+  const firstCtx = createMockContext();
   firstCtx.install(KyselyPlugin, { sqliteUrl });
   firstCtx.install(
     definePlugin({
@@ -204,7 +204,7 @@ test('migrateToLatest applies newly registered migrations after schema changes',
 
   let createTableRuns = 0;
   let addColumnRuns = 0;
-  const secondCtx = Context.fromClient(createMockMilkyClient());
+  const secondCtx = createMockContext();
   secondCtx.install(KyselyPlugin, { sqliteUrl });
   secondCtx.install(
     definePlugin({

@@ -1,15 +1,10 @@
-import { Context, type milky } from '@fraqjs/fraq';
-import { createMockInbox, createMockMilkyClient, createSimpleLogHandler } from '@fraqjs/mock';
+import type { milky } from '@fraqjs/fraq';
 import HonoPlugin from '@fraqjs/plugin-hono';
+import { createMockContext, createSimpleLogHandler } from '@fraqjs/plugin-mock';
 
 import MilkyServerPlugin from '../src';
 
-const inbox = createMockInbox({ selfId: 123456 });
-const client = createMockMilkyClient({ inbox });
-
-const ctx = Context.fromClient(client, {
-  logHandler: createSimpleLogHandler(),
-});
+const ctx = createMockContext({ selfId: 123456, logHandler: createSimpleLogHandler() });
 
 ctx.install(HonoPlugin);
 ctx.install(MilkyServerPlugin, { accessToken: 'secret-token', prefix: '/milky' });
@@ -57,7 +52,7 @@ const sseDataPromise = sseReader?.read();
 await new Promise((resolve) => setTimeout(resolve, 50));
 
 // Trigger an event from the mock client
-await client.receiveFriend({ userId: 789 }, [{ type: 'text', data: { text: 'Hello from mock!' } }]);
+await ctx.mock.receiveFriend({ userId: 789 }, [{ type: 'text', data: { text: 'Hello from mock!' } }]);
 
 const sseResult = await Promise.race([
   sseDataPromise,
@@ -81,7 +76,7 @@ const wsMessagePromise = new Promise<string>((resolve) => {
   ws.addEventListener('message', (e) => resolve(e.data as string), { once: true });
 });
 
-await client.receiveGroup({ groupId: 999, userId: 789 }, [{ type: 'text', data: { text: 'Group hello!' } }]);
+await ctx.mock.receiveGroup({ groupId: 999, userId: 789 }, [{ type: 'text', data: { text: 'Group hello!' } }]);
 
 const wsMessage = await Promise.race([
   wsMessagePromise,

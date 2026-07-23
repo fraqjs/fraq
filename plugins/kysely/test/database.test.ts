@@ -1,5 +1,5 @@
-import { Context, definePlugin } from '@fraqjs/fraq';
-import { createMockMilkyClient } from '@fraqjs/mock';
+import { definePlugin } from '@fraqjs/fraq';
+import { createMockContext } from '@fraqjs/plugin-mock';
 import type { Kysely } from 'kysely';
 
 import KyselyPlugin, { KyselyService } from '../src';
@@ -15,7 +15,7 @@ interface TestDatabase {
 }
 
 test('provides a working Kysely database service backed by node:sqlite', async () => {
-  const ctx = Context.fromClient(createMockMilkyClient());
+  const ctx = createMockContext();
 
   ctx.install(KyselyPlugin, { sqliteUrl: ':memory:' });
   await ctx.start();
@@ -40,7 +40,7 @@ test('provides a working Kysely database service backed by node:sqlite', async (
 });
 
 test('vacuums the database automatically after startup', async () => {
-  const ctx = Context.fromClient(createMockMilkyClient());
+  const ctx = createMockContext();
   let vacuumRuns = 0;
 
   ctx.install(KyselyPlugin, { sqliteUrl: ':memory:' });
@@ -66,7 +66,7 @@ test('vacuums the database automatically after startup', async () => {
 });
 
 test('allows automatic vacuum to be disabled', async () => {
-  const ctx = Context.fromClient(createMockMilkyClient());
+  const ctx = createMockContext();
   let vacuumRuns = 0;
 
   ctx.install(KyselyPlugin, {

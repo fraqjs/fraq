@@ -25,7 +25,7 @@
     "@fraqjs/fraq": "workspace:^"
   },
   "devDependencies": {
-    "@fraqjs/mock": "workspace:^"
+    "@fraqjs/plugin-mock": "workspace:^"
   },
   "fraq": {
     "category": "infrastructure"

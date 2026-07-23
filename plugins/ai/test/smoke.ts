@@ -1,5 +1,5 @@
 import { Context, definePlugin } from '@fraqjs/fraq';
-import { createSimpleLogHandler } from '@fraqjs/mock';
+import { createSimpleLogHandler } from '@fraqjs/plugin-mock';
 import { generateText, simulateReadableStream, streamText } from 'ai';
 import { MockLanguageModelV3 } from 'ai/test';
 

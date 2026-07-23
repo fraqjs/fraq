@@ -1,5 +1,4 @@
-import { Context } from '@fraqjs/fraq';
-import { createMockMilkyClient } from '@fraqjs/mock';
+import { createMockContext } from '@fraqjs/plugin-mock';
 import { asSchema, generateImage, generateText, jsonSchema, streamText, tool } from 'ai';
 
 import { AiService, milkyToolset } from '../src';
@@ -178,7 +177,7 @@ test('the exposed model supports tool calling with full type inference', async (
 });
 
 test('AiService creates tools from the selected Milky endpoint metadata', async () => {
-  const ctx = Context.fromClient(createMockMilkyClient());
+  const ctx = createMockContext();
 
   const tools = milkyToolset(ctx, ['get_login_info', 'set_nickname']);
 
@@ -211,12 +210,11 @@ test('AiService creates tools from the selected Milky endpoint metadata', async 
 });
 
 test('toolset tools execute the matching API through the context client', async () => {
-  const client = createMockMilkyClient();
-  client.stubApi('get_login_info', () => ({
-    uin: 10001,
-    nickname: 'Fraq',
-  }));
-  const ctx = Context.fromClient(client);
+  const ctx = createMockContext();
+  ctx.hookApi('get_login_info', async (_params, next) => {
+    await next();
+    return { uin: 10001, nickname: 'Fraq' };
+  });
   const service = new AiService({
     models: {
       'test/model': mockToolCallModel('get_login_info', {}),
@@ -236,7 +234,7 @@ test('toolset tools execute the matching API through the context client', async 
     uin: 10001,
     nickname: 'Fraq',
   });
-  assert.deepEqual(client.apiCalls, [
+  assert.deepEqual(ctx.mock.apiCalls, [
     {
       endpoint: 'get_login_info',
       params: {},
@@ -245,8 +243,7 @@ test('toolset tools execute the matching API through the context client', async 
 });
 
 test('toolset tools normalize empty API responses to an object', async () => {
-  const client = createMockMilkyClient();
-  const ctx = Context.fromClient(client);
+  const ctx = createMockContext();
   const service = new AiService({
     models: {
       'test/model': mockToolCallModel('set_nickname', { new_nickname: 'Fraq' }),
@@ -263,7 +260,7 @@ test('toolset tools normalize empty API responses to an object', async () => {
   });
 
   assert.deepEqual(result.toolResults[0]?.output, {});
-  assert.deepEqual(client.apiCalls, [
+  assert.deepEqual(ctx.mock.apiCalls, [
     {
       endpoint: 'set_nickname',
       params: { new_nickname: 'Fraq' },

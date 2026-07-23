@@ -1,5 +1,5 @@
 import { Context, definePlugin } from '@fraqjs/fraq';
-import { createSimpleLogHandler } from '@fraqjs/mock';
+import { createSimpleLogHandler } from '@fraqjs/plugin-mock';
 import type { Kysely } from 'kysely';
 
 import KyselyPlugin, { KyselyService } from '../src';

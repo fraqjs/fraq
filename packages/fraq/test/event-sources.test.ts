@@ -1,4 +1,4 @@
-import { createMockMilkyClient } from '@fraqjs/mock';
+import { createMockContext } from '@fraqjs/plugin-mock';
 
 import { Context, type LogMessage, type milky } from '../src';
 
@@ -11,8 +11,7 @@ function snapshotLog(message: LogMessage): Omit<LogMessage, 'time'> {
 }
 
 test('creates contexts from client instances and starts event streams on the root context', async () => {
-  const client = createMockMilkyClient();
-  const ctx = Context.fromClient(client);
+  const ctx = createMockContext();
   let receivedMessageEvents = 0;
 
   ctx.on('message_receive', () => {
@@ -20,17 +19,16 @@ test('creates contexts from client instances and starts event streams on the roo
   });
 
   await ctx.start();
-  await client.receiveFriend({ userId: 1 }, []);
+  await ctx.mock.receiveFriend({ userId: 1 }, []);
 
-  assert.equal(client.startEventCalls, 1);
+  assert.equal(ctx.mock.startEventCalls, 1);
   assert.equal(receivedMessageEvents, 1);
 });
 
 test('retries the event stream after startup failures', async () => {
-  const client = createMockMilkyClient();
   const logs: LogMessage[] = [];
   const startError = new Error('boom');
-  const ctx = Context.fromClient(client, {
+  const ctx = createMockContext({
     reconnect: {
       initialDelayMs: 0,
       maxDelayMs: 0,
@@ -39,43 +37,42 @@ test('retries the event stream after startup failures', async () => {
       logs.push(message);
     },
   });
-  client.failNextStart(startError);
+  ctx.mock.failNextStart(startError);
 
   await ctx.start();
   await new Promise((resolve) => setTimeout(resolve, 0));
 
-  assert.equal(client.startEventCalls, 2);
+  assert.equal(ctx.mock.startEventCalls, 2);
   assert.deepEqual(logs.map(snapshotLog), [
     {
       level: 'debug',
       module: 'context:root',
-      message: 'Connecting event source (attempt=1)',
+      message: 'Connecting mock (attempt=1)',
       error: undefined,
     },
     {
       level: 'error',
       module: 'context:root',
-      message: 'Error connecting event source; reconnecting in 0ms',
+      message: 'Error connecting mock; reconnecting in 0ms',
       error: startError,
     },
     {
       level: 'debug',
       module: 'context:root',
-      message: 'Connecting event source (attempt=2)',
+      message: 'Connecting mock (attempt=2)',
       error: undefined,
     },
     {
       level: 'info',
       module: 'context:root',
-      message: 'Event source connected',
+      message: 'mock connected',
       error: undefined,
     },
   ]);
 });
 
 test('installs event sources explicitly', async () => {
-  const client = createMockMilkyClient();
-  const ctx = Context.fromClient(client);
+  const ctx = createMockContext();
   const received: milky.Event[] = [];
   let resolveClosed!: () => void;
   let startCalls = 0;

@@ -1,6 +1,6 @@
-import { Context, type milky } from '@fraqjs/fraq';
-import { createMockMilkyClient, inmsg } from '@fraqjs/mock';
+import type { Context, milky } from '@fraqjs/fraq';
 import KyselyPlugin, { KyselyService } from '@fraqjs/plugin-kysely';
+import { createMockContext, inmsg } from '@fraqjs/plugin-mock';
 
 import MessageStorePlugin, { type MessageStorePluginOptions, MessageStoreService } from '../src';
 
@@ -20,14 +20,13 @@ function installMessageStore(ctx: Context, sqliteUrl = ':memory:', options?: Mes
 }
 
 test('returns stored messages without calling the remote get_message API', async () => {
-  const client = createMockMilkyClient();
-  const ctx = Context.fromClient(client);
+  const ctx = createMockContext();
   installMessageStore(ctx);
   await ctx.start();
 
-  const received = await client.receiveFriend({ userId: 10001 }, inmsg`stored`);
+  const received = await ctx.mock.receiveFriend({ userId: 10001 }, inmsg`stored`);
   await tick();
-  client.apiCalls.length = 0;
+  ctx.mock.apiCalls.length = 0;
 
   const result = await ctx.client.get_message({
     message_scene: 'friend',
@@ -36,17 +35,16 @@ test('returns stored messages without calling the remote get_message API', async
   });
 
   assert.deepEqual(result.message, received);
-  assert.deepEqual(client.apiCalls, []);
+  assert.deepEqual(ctx.mock.apiCalls, []);
   await ctx.stop();
 });
 
 test('falls back to the remote get_message API before a received message has been stored', async () => {
-  const client = createMockMilkyClient();
-  const ctx = Context.fromClient(client);
+  const ctx = createMockContext();
   installMessageStore(ctx);
   await ctx.start();
 
-  const received = client.inbox.friend({ userId: 10001 }, inmsg`remote`);
+  const received = ctx.mock.inbox.friend({ userId: 10001 }, inmsg`remote`);
   const result = await ctx.client.get_message({
     message_scene: 'friend',
     peer_id: received.peer_id,
@@ -54,7 +52,7 @@ test('falls back to the remote get_message API before a received message has bee
   });
 
   assert.deepEqual(result.message, received);
-  assert.deepEqual(client.apiCalls, [
+  assert.deepEqual(ctx.mock.apiCalls, [
     {
       endpoint: 'get_message',
       params: {
@@ -68,16 +66,15 @@ test('falls back to the remote get_message API before a received message has bee
 });
 
 test('returns a local history page in ascending sequence order', async () => {
-  const client = createMockMilkyClient();
-  const ctx = Context.fromClient(client);
+  const ctx = createMockContext();
   installMessageStore(ctx);
   await ctx.start();
 
-  const first = await client.receiveGroup({ groupId: 20001, userId: 10001 }, inmsg`one`);
-  const second = await client.receiveGroup({ groupId: 20001, userId: 10002 }, inmsg`two`);
-  const third = await client.receiveGroup({ groupId: 20001, userId: 10003 }, inmsg`three`);
+  const first = await ctx.mock.receiveGroup({ groupId: 20001, userId: 10001 }, inmsg`one`);
+  const second = await ctx.mock.receiveGroup({ groupId: 20001, userId: 10002 }, inmsg`two`);
+  const third = await ctx.mock.receiveGroup({ groupId: 20001, userId: 10003 }, inmsg`three`);
   await tick();
-  client.apiCalls.length = 0;
+  ctx.mock.apiCalls.length = 0;
 
   const history = await ctx.client.get_history_messages({
     message_scene: 'group',
@@ -89,17 +86,16 @@ test('returns a local history page in ascending sequence order', async () => {
     messages: [second, third],
     next_message_seq: first.message_seq,
   });
-  assert.deepEqual(client.apiCalls, []);
+  assert.deepEqual(ctx.mock.apiCalls, []);
   await ctx.stop();
 });
 
 test('falls back to the remote history API when no local messages match the query', async () => {
-  const client = createMockMilkyClient();
-  const ctx = Context.fromClient(client);
+  const ctx = createMockContext();
   installMessageStore(ctx);
   await ctx.start();
 
-  const received = client.inbox.group({ groupId: 20001, userId: 10001 }, inmsg`remote`);
+  const received = ctx.mock.inbox.group({ groupId: 20001, userId: 10001 }, inmsg`remote`);
   const history = await ctx.client.get_history_messages({
     message_scene: 'group',
     peer_id: received.peer_id,
@@ -110,7 +106,7 @@ test('falls back to the remote history API when no local messages match the quer
     messages: [received],
     next_message_seq: undefined,
   });
-  assert.deepEqual(client.apiCalls, [
+  assert.deepEqual(ctx.mock.apiCalls, [
     {
       endpoint: 'get_history_messages',
       params: {
@@ -124,14 +120,13 @@ test('falls back to the remote history API when no local messages match the quer
 });
 
 test('excludes recalled messages and falls back when the local result is empty', async () => {
-  const client = createMockMilkyClient();
-  const ctx = Context.fromClient(client);
+  const ctx = createMockContext();
   installMessageStore(ctx);
   await ctx.start();
 
-  const received = await client.receiveFriend({ userId: 10001 }, inmsg`recalled`);
+  const received = await ctx.mock.receiveFriend({ userId: 10001 }, inmsg`recalled`);
   await tick();
-  await client.emitEvent({
+  await ctx.mock.emitEvent({
     event_type: 'message_recall',
     time: received.time + 1,
     self_id: 1,
@@ -145,7 +140,7 @@ test('excludes recalled messages and falls back when the local result is empty',
     },
   });
   await tick();
-  client.apiCalls.length = 0;
+  ctx.mock.apiCalls.length = 0;
 
   const fromRemote = await ctx.client.get_message({
     message_scene: received.message_scene,
@@ -164,15 +159,14 @@ test('excludes recalled messages and falls back when the local result is empty',
     next_message_seq: undefined,
   });
   assert.deepEqual(
-    client.apiCalls.map((call) => call.endpoint),
+    ctx.mock.apiCalls.map((call) => call.endpoint),
     ['get_message', 'get_history_messages'],
   );
   await ctx.stop();
 });
 
 test('does not intercept mark_message_as_read', async () => {
-  const client = createMockMilkyClient();
-  const ctx = Context.fromClient(client);
+  const ctx = createMockContext();
   installMessageStore(ctx);
   await ctx.start();
 
@@ -182,7 +176,7 @@ test('does not intercept mark_message_as_read', async () => {
     message_seq: 1,
   });
 
-  assert.deepEqual(client.apiCalls, [
+  assert.deepEqual(ctx.mock.apiCalls, [
     {
       endpoint: 'mark_message_as_read',
       params: {
@@ -202,11 +196,10 @@ test('flushes expired records when the plugin starts', async (t) => {
   });
   const sqliteUrl = join(tempDir, 'messages.sqlite');
 
-  const firstClient = createMockMilkyClient();
-  const firstCtx = Context.fromClient(firstClient);
+  const firstCtx = createMockContext();
   installMessageStore(firstCtx, sqliteUrl, { autoFlush: { enabled: false } });
   await firstCtx.start();
-  const received = await firstClient.receiveFriend({ userId: 10001 }, inmsg`expired`);
+  const received = await firstCtx.mock.receiveFriend({ userId: 10001 }, inmsg`expired`);
   await tick();
   await firstCtx
     .resolve(KyselyService)
@@ -215,7 +208,7 @@ test('flushes expired records when the plugin starts', async (t) => {
     .execute();
   await firstCtx.stop();
 
-  const secondCtx = Context.fromClient(createMockMilkyClient());
+  const secondCtx = createMockContext();
   installMessageStore(secondCtx, sqliteUrl, {
     autoFlush: { maxAgeDays: 0, intervalMinutes: 1 },
   });
@@ -237,12 +230,11 @@ test('allows automatic expiration flushing to be disabled', async (t) => {
     await rm(tempDir, { recursive: true, force: true });
   });
   const sqliteUrl = join(tempDir, 'messages.sqlite');
-  const firstClient = createMockMilkyClient();
-  const firstCtx = Context.fromClient(firstClient);
+  const firstCtx = createMockContext();
   installMessageStore(firstCtx, sqliteUrl, { autoFlush: { enabled: false } });
   await firstCtx.start();
 
-  const received = await firstClient.receiveFriend({ userId: 10001 }, inmsg`retained`);
+  const received = await firstCtx.mock.receiveFriend({ userId: 10001 }, inmsg`retained`);
   await tick();
   await firstCtx
     .resolve(KyselyService)
@@ -251,7 +243,7 @@ test('allows automatic expiration flushing to be disabled', async (t) => {
     .execute();
   await firstCtx.stop();
 
-  const secondCtx = Context.fromClient(createMockMilkyClient());
+  const secondCtx = createMockContext();
   installMessageStore(secondCtx, sqliteUrl, { autoFlush: { enabled: false } });
   await secondCtx.start();
 
@@ -272,16 +264,14 @@ test('preserves stored messages across context restarts', async (t) => {
   });
   const sqliteUrl = join(tempDir, 'messages.sqlite');
 
-  const firstClient = createMockMilkyClient();
-  const firstCtx = Context.fromClient(firstClient);
+  const firstCtx = createMockContext();
   installMessageStore(firstCtx, sqliteUrl);
   await firstCtx.start();
-  const received = await firstClient.receiveTemp({ groupId: 20001, userId: 10001 }, inmsg`persistent`);
+  const received = await firstCtx.mock.receiveTemp({ groupId: 20001, userId: 10001 }, inmsg`persistent`);
   await tick();
   await firstCtx.stop();
 
-  const secondClient = createMockMilkyClient();
-  const secondCtx = Context.fromClient(secondClient);
+  const secondCtx = createMockContext();
   installMessageStore(secondCtx, sqliteUrl);
   await secondCtx.start();
 
@@ -299,6 +289,6 @@ test('preserves stored messages across context restarts', async (t) => {
 
   assert.deepEqual(result.message, received);
   assert.deepEqual(directResult, { message: received } satisfies milky.GetMessageOutput);
-  assert.deepEqual(secondClient.apiCalls, []);
+  assert.deepEqual(secondCtx.mock.apiCalls, []);
   await secondCtx.stop();
 });
