@@ -1,0 +1,33 @@
+{
+  "name": "@fraqjs/plugin-mock",
+  "type": "module",
+  "version": "0.1.0",
+  "description": "提供模拟 Milky 协议端的能力，帮助开发者编写插件测试",
+  "files": [
+    "dist"
+  ],
+  "main": "dist/index.mjs",
+  "typings": "dist/index.d.mts",
+  "scripts": {
+    "build": "tsdown",
+    "test": "tsx --test test/*.test.ts",
+    "prepack": "pnpm build"
+  },
+  "keywords": [],
+  "author": "fraqjs",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fraqjs/fraq.git"
+  },
+  "homepage": "https://fraq.dev/docs/plugins/mock",
+  "license": "MIT",
+  "peerDependencies": {
+    "@fraqjs/fraq": "workspace:^"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "fraq": {
+    "category": "infrastructure"
+  }
+}

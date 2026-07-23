@@ -309,6 +309,12 @@ importers:
         specifier: workspace:^
         version: link:../../packages/mock
 
+  plugins/mock:
+    dependencies:
+      '@fraqjs/fraq':
+        specifier: workspace:^
+        version: link:../../packages/fraq
+
   plugins/random:
     dependencies:
       '@fraqjs/fraq':
