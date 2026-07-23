@@ -7,7 +7,7 @@
     "docs:dev": "pnpm --filter fraq-docs dev"
   },
   "license": "MIT",
-  "packageManager": "pnpm@11.7.0",
+  "packageManager": "pnpm@11.15.1",
   "devDependencies": {
     "@biomejs/biome": "^2.5.3",
     "@types/node": "^24.12.4",
