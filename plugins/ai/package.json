@@ -30,7 +30,7 @@
     "@ai-sdk/deepseek": "^3.0.12",
     "@ai-sdk/google": "^4.0.18",
     "@ai-sdk/openai": "^4.0.16",
-    "@ai-sdk/openai-compatible": "^3.0.12",
+    "@ai-sdk/openai-compatible": "^3.0.14",
     "@ai-sdk/provider": "^4.0.3",
     "@fraqjs/plugin-mock": "workspace:^"
   },
