@@ -1,9 +1,9 @@
 {
   "pages": [
     "index",
-    "[插件市场](/plugins)",
     "---[Server]部署指南---",
     "...deployment",
+    "external:[插件市场](/plugins)",
     "---[SquareCode]开发指南---",
     "...development",
     "---[Puzzle]官方插件---",
