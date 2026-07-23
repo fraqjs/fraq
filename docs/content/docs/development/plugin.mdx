@@ -281,7 +281,7 @@ npx tsx smoke-test.ts
 
 ### Mock 测试 (Mock Test)
 
-使用 `node:test` 等测试框架并且结合 [`@fraqjs/mock`](./mocking.mdx) 来分单元、分场景测试插件中的单个功能是否按照预期工作。`@fraqjs/mock` 是一个用于模拟 Milky 客户端的库，并且包含了模拟消息发送、API Stub 等功能。
+在编写机器人时，我们不一定总是拥有 / 愿意运行一个完整的 Milky 协议端来测试我们的代码，在这种情况下，创建一个模拟（Mock）环境是非常有用的。[`@fraqjs/plugin-mock`](../plugins/mock.mdx) 提供了这样的功能：它以一个 `MockService` 拦截所有出站 API 调用并注入事件，让你可以在没有真实协议端的情况下驱动插件、检查其行为。
 
 对于单元测试，建议将测试文件命名为 `*.test.ts`，并且放在 `test` 目录下。你可以在 `package.json` 中添加一个 `test` script 来运行你的测试，例如：
 
