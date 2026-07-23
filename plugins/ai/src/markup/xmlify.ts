@@ -256,7 +256,11 @@ export async function xmlify(
   };
 }
 
-export async function xmlifyThread(ctx: Context, messages: milky.IncomingMessage[], options?: XmlifyOptions) {
+export async function xmlifyThread(
+  ctx: Context,
+  messages: milky.IncomingMessage[],
+  options?: XmlifyOptions,
+): Promise<XmlifyContext> {
   if (messages.length === 0) {
     throw new Error('No messages provided for xmlifyThread');
   }
@@ -267,11 +271,13 @@ export async function xmlifyThread(ctx: Context, messages: milky.IncomingMessage
   const resourceIndex: ResourceIndex = options?.resourceIndex ?? createResourceIndex();
   const resources: Record<string, { url: string }> = {};
   const files: Record<string, milky.IncomingFileSegment['data']> = {};
+  const forwards: Record<string, milky.IncomingForwardSegment['data']> = {};
   for (const message of messages) {
     const {
       node,
       resources: msgResources,
       files: msgFiles,
+      forwards: msgForwards,
     } = await xmlifyToElement(ctx, message, {
       ...options,
       resourceIndex, // reuse across all messages in the thread to ensure unique resource keys
@@ -279,6 +285,7 @@ export async function xmlifyThread(ctx: Context, messages: milky.IncomingMessage
     hp2.DomUtils.appendChild(threadNode, node);
     Object.assign(resources, msgResources);
     Object.assign(files, msgFiles);
+    Object.assign(forwards, msgForwards);
   }
   const serializeOptions = options?.serialize ?? {};
   const formatOptions = options?.format ?? {};
@@ -295,5 +302,6 @@ export async function xmlifyThread(ctx: Context, messages: milky.IncomingMessage
     }),
     resources,
     files,
+    forwards,
   };
 }
