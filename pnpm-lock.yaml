@@ -135,16 +135,6 @@ importers:
         specifier: workspace:^
         version: link:../../plugins/mock
 
-  packages/mock:
-    dependencies:
-      '@fraqjs/fraq':
-        specifier: workspace:^
-        version: link:../fraq
-    devDependencies:
-      '@fraqjs/plugin-random':
-        specifier: workspace:^
-        version: link:../../plugins/random
-
   packages/takumi-preview:
     dependencies:
       '@hono/node-server':
