@@ -17,12 +17,16 @@ plugins:
     providers:
       # 提供商的名称可以自定义，建议使用 SDK 包名中的关键词以示区分
       deepseek:
-        # 目前支持自动配置的 SDK 包包括：
-        # - `@ai-sdk/anthropic`
-        # - `@ai-sdk/deepseek`
-        # - `@ai-sdk/google`
-        # - `@ai-sdk/openai`
-        # - `@ai-sdk/openai-compatible`
+        # 目前支持自动配置的 SDK 包括：
+        # - `@ai-sdk/alibaba` (Qwen 系列)
+        # - `@ai-sdk/anthropic` (Claude 系列)
+        # - `@ai-sdk/bytedance` (Seedream 系列)
+        # - `@ai-sdk/deepseek` (DeepSeek 系列)
+        # - `@ai-sdk/google` (Gemini 系列)
+        # - `@ai-sdk/moonshotai` (Kimi 系列)
+        # - `@ai-sdk/openai` (GPT 系列)
+        # - `@ai-sdk/openai-compatible` (所有 /chat/completion 风格 API)
+        # - `@ai-sdk/xai` (Grok 系列)
         sdk: '@ai-sdk/deepseek'
         # 这里用于提供传入 SDK 的配置项
         # 基本的配置项有：
