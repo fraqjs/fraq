@@ -1,7 +1,7 @@
 {
   "name": "@fraqjs/plugin-ai",
   "type": "module",
-  "version": "0.5.3",
+  "version": "0.6.0",
   "description": "提供配置 AI 模型提供商和 API Key 的统一入口",
   "files": [
     "dist"
