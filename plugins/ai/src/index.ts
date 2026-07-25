@@ -79,6 +79,8 @@ export const AiPlugin = definePlugin({
   },
 });
 
+export * as ai from 'ai';
+
 export * from './markup/xmlify';
 export * from './protocol/toolset';
 export * from './provider';

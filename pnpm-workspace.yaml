@@ -12,6 +12,8 @@ minimumReleaseAgeExclude:
   - rolldown-plugin-dts
   - "@fumadocs/cli"
   - fumadocs-ui
+  - ai
+  - "@ai-sdk/*"
 
 allowBuilds:
   esbuild: true

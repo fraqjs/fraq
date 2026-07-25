@@ -1,7 +1,6 @@
 import { createMockContext } from '@fraqjs/plugin-mock';
-import { generateImage, generateText } from 'ai';
 
-import AiPlugin, { AiService } from '../src';
+import AiPlugin, { AiService, ai } from '../src';
 import { mockImageModel, mockLanguageModel } from './util/mock';
 
 import assert from 'node:assert/strict';
@@ -21,7 +20,7 @@ test('AiPlugin provides AiService through the context', async () => {
   });
   await ctx.start();
 
-  const result = await generateText({ model: ctx.resolve(AiService).model(), prompt: 'hi' });
+  const result = await ai.generateText({ model: ctx.resolve(AiService).model(), prompt: 'hi' });
 
   assert.equal(result.text, 'from plugin');
 
@@ -67,7 +66,7 @@ test('AiPlugin registers multiple provider aliases, default model, and all concr
   assert.equal(service.hasModel('default'), true);
   assert.equal(service.hasModel('anthropic/sonnet'), true);
 
-  const result = await generateText({ model: service.model('fast'), prompt: 'hi' });
+  const result = await ai.generateText({ model: service.model('fast'), prompt: 'hi' });
   assert.equal(result.text, 'from mini');
 
   await ctx.stop();
@@ -102,7 +101,7 @@ test('AiPlugin registers image models from direct provider instances', async () 
   assert.equal(service.image('art'), dalle);
   assert.equal(service.hasImage('art'), true);
 
-  const result = await generateImage({ model: service.image(), prompt: 'a cat' });
+  const result = await ai.generateImage({ model: service.image(), prompt: 'a cat' });
   assert.equal(result.image.base64, 'aGVsbG8=');
 
   await ctx.stop();

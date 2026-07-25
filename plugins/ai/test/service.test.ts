@@ -1,7 +1,6 @@
 import { createMockContext } from '@fraqjs/plugin-mock';
-import { asSchema, generateImage, generateText, jsonSchema, streamText, tool } from 'ai';
 
-import { AiService, milkyToolset } from '../src';
+import { AiService, ai, milkyToolset } from '../src';
 import { mockImageModel, mockLanguageModel, mockToolCallModel } from './util/mock';
 
 import assert from 'node:assert/strict';
@@ -119,7 +118,7 @@ test('the exposed model works with the raw generateText function', async () => {
     defaultModel: 'test/model',
   });
 
-  const result = await generateText({ model: service.model(), prompt: 'hi' });
+  const result = await ai.generateText({ model: service.model(), prompt: 'hi' });
 
   assert.equal(result.text, 'hello from the model');
 });
@@ -134,7 +133,7 @@ test('the exposed model works with the raw streamText function', async () => {
     defaultModel: 'test/model',
   });
 
-  const result = streamText({ model: service.model(), prompt: 'hi' });
+  const result = ai.streamText({ model: service.model(), prompt: 'hi' });
 
   let collected = '';
   for await (const part of result.textStream) {
@@ -154,13 +153,13 @@ test('the exposed model supports tool calling with full type inference', async (
     defaultModel: 'test/model',
   });
 
-  const result = await generateText({
+  const result = await ai.generateText({
     model: service.model(),
     prompt: 'What is the weather in Tokyo?',
     tools: {
-      weather: tool({
+      weather: ai.tool({
         description: 'Get the weather for a city',
-        inputSchema: jsonSchema<{ city: string }>({
+        inputSchema: ai.jsonSchema<{ city: string }>({
           type: 'object',
           properties: { city: { type: 'string' } },
           required: ['city'],
@@ -185,15 +184,15 @@ test('AiService creates tools from the selected Milky endpoint metadata', async 
   assert.equal(tools.get_login_info.description, '获取登录信息');
   assert.equal(tools.set_nickname.description, '设置 QQ 账号昵称');
 
-  const loginInput = await asSchema(tools.get_login_info.inputSchema).validate?.({});
+  const loginInput = await ai.asSchema(tools.get_login_info.inputSchema).validate?.({});
   assert.deepEqual(loginInput, { success: true, value: {} });
 
-  const nicknameInputSchema = asSchema(tools.set_nickname.inputSchema);
+  const nicknameInputSchema = ai.asSchema(tools.set_nickname.inputSchema);
   const validNicknameInput = await nicknameInputSchema.validate?.({ new_nickname: 'Fraq' });
   assert.deepEqual(validNicknameInput, { success: true, value: { new_nickname: 'Fraq' } });
   assert.equal((await nicknameInputSchema.validate?.({}))?.success, false);
 
-  const loginOutput = await asSchema(tools.get_login_info.outputSchema).validate?.({
+  const loginOutput = await ai.asSchema(tools.get_login_info.outputSchema).validate?.({
     uin: 10001,
     nickname: 'Fraq',
   });
@@ -205,7 +204,7 @@ test('AiService creates tools from the selected Milky endpoint metadata', async 
     },
   });
 
-  const nicknameOutput = await asSchema(tools.set_nickname.outputSchema).validate?.({});
+  const nicknameOutput = await ai.asSchema(tools.set_nickname.outputSchema).validate?.({});
   assert.deepEqual(nicknameOutput, { success: true, value: {} });
 });
 
@@ -224,7 +223,7 @@ test('toolset tools execute the matching API through the context client', async 
     defaultModel: 'test/model',
   });
 
-  const result = await generateText({
+  const result = await ai.generateText({
     model: service.model(),
     prompt: 'Who is logged in?',
     tools: milkyToolset(ctx, ['get_login_info']),
@@ -253,7 +252,7 @@ test('toolset tools normalize empty API responses to an object', async () => {
     defaultModel: 'test/model',
   });
 
-  const result = await generateText({
+  const result = await ai.generateText({
     model: service.model(),
     prompt: 'Change the nickname to Fraq.',
     tools: milkyToolset(ctx, ['set_nickname']),
@@ -373,7 +372,7 @@ test('the exposed image model works with the raw generateImage function', async 
     aliases: {},
   });
 
-  const result = await generateImage({ model: service.image(), prompt: 'a cat' });
+  const result = await ai.generateImage({ model: service.image(), prompt: 'a cat' });
 
   assert.equal(result.image.base64, 'aGVsbG8=');
 });

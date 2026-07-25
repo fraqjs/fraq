@@ -1,9 +1,8 @@
 import { Context, definePlugin } from '@fraqjs/fraq';
 import { createSimpleLogHandler } from '@fraqjs/plugin-mock';
-import { generateText, simulateReadableStream, streamText } from 'ai';
 import { MockLanguageModelV3 } from 'ai/test';
 
-import AiPlugin, { AiService } from '../src';
+import AiPlugin, { AiService, ai } from '../src';
 
 const ctx = Context.fromUrl('http://localhost:30001', {
   logHandler: createSimpleLogHandler(),
@@ -27,7 +26,7 @@ ctx.install(AiPlugin, {
           },
           async doStream() {
             return {
-              stream: simulateReadableStream({
+              stream: ai.simulateReadableStream({
                 chunks: [
                   { type: 'text-start', id: '1' },
                   { type: 'text-delta', id: '1', delta: 'Hello ' },
@@ -59,10 +58,10 @@ ctx.install(
     },
     apply() {},
     async start(ctx) {
-      const { text } = await generateText({ model: ctx.ai.model(), prompt: 'Say hello.' });
+      const { text } = await ai.generateText({ model: ctx.ai.model(), prompt: 'Say hello.' });
       console.log('generateText:', text);
 
-      const stream = streamText({ model: ctx.ai.model(), prompt: 'Stream hello.' });
+      const stream = ai.streamText({ model: ctx.ai.model(), prompt: 'Stream hello.' });
       let streamed = '';
       for await (const delta of stream.textStream) {
         streamed += delta;
