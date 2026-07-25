@@ -1,7 +1,7 @@
 {
   "name": "@fraqjs/plugin-ai",
   "type": "module",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "提供配置 AI 模型提供商和 API Key 的统一入口",
   "files": [
     "dist"
@@ -31,12 +31,16 @@
     "node": ">=22"
   },
   "dependencies": {
+    "@ai-sdk/alibaba": "^2.0.16",
     "@ai-sdk/anthropic": "^4.0.20",
+    "@ai-sdk/bytedance": "^2.0.14",
     "@ai-sdk/deepseek": "^3.0.13",
     "@ai-sdk/google": "^4.0.24",
+    "@ai-sdk/moonshotai": "^3.0.17",
     "@ai-sdk/openai": "^4.0.20",
     "@ai-sdk/openai-compatible": "^3.0.14",
     "@ai-sdk/provider": "^4.0.3",
+    "@ai-sdk/xai": "^4.0.18",
     "ai": "^7.0.37",
     "dom-serializer": "^3.1.1",
     "domhandler": "^6.0.1",

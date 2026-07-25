@@ -2,11 +2,15 @@ import type { ProviderV3, ProviderV4 } from '@ai-sdk/provider';
 import type { ImageModel, LanguageModel } from 'ai';
 
 export type SupportedSDK =
+  | '@ai-sdk/alibaba' // Qwen
   | '@ai-sdk/anthropic' // Claude
+  | '@ai-sdk/bytedance' // Doubao
   | '@ai-sdk/deepseek' // DeepSeek
   | '@ai-sdk/google' // Gemini
+  | '@ai-sdk/moonshotai' // Kimi
   | '@ai-sdk/openai' // GPT
-  | '@ai-sdk/openai-compatible'; // OpenAI Compatible
+  | '@ai-sdk/openai-compatible' // OpenAI Compatible
+  | '@ai-sdk/xai'; // Grok
 
 export interface ProviderConfig {
   sdk: SupportedSDK;
@@ -28,14 +32,23 @@ export async function resolveModels(name: string, config: ProviderConfig): Promi
   const { sdk, options, models, images } = config;
   let provider: ProviderV3 | ProviderV4;
   switch (sdk) {
+    case '@ai-sdk/alibaba':
+      provider = (await import('@ai-sdk/alibaba')).createAlibaba(options);
+      break;
     case '@ai-sdk/anthropic':
       provider = (await import('@ai-sdk/anthropic')).createAnthropic(options);
+      break;
+    case '@ai-sdk/bytedance':
+      provider = (await import('@ai-sdk/bytedance')).createByteDance(options);
       break;
     case '@ai-sdk/deepseek':
       provider = (await import('@ai-sdk/deepseek')).createDeepSeek(options);
       break;
     case '@ai-sdk/google':
       provider = (await import('@ai-sdk/google')).createGoogleGenerativeAI(options);
+      break;
+    case '@ai-sdk/moonshotai':
+      provider = (await import('@ai-sdk/moonshotai')).createMoonshotAI(options);
       break;
     case '@ai-sdk/openai':
       provider = (await import('@ai-sdk/openai')).createOpenAI(options);
@@ -49,6 +62,9 @@ export async function resolveModels(name: string, config: ProviderConfig): Promi
         baseURL: options.baseURL,
         name: name,
       });
+      break;
+    case '@ai-sdk/xai':
+      provider = (await import('@ai-sdk/xai')).createXai(options);
       break;
     default:
       throw new Error(`Unsupported AI SDK: ${sdk}`);
