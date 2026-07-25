@@ -4,7 +4,6 @@ import { DynamicCodeBlock } from 'fumadocs-ui/components/dynamic-codeblock';
 import type { LucideIcon } from 'lucide-react';
 import * as lucide from 'lucide-react';
 import Markdown, { RuleType } from 'markdown-to-jsx';
-import type { ComponentProps } from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useMDXComponents } from '@/components/mdx';
@@ -137,15 +136,6 @@ interface ReadmeState {
   error: boolean;
 }
 
-function ReadmeInlineCode({ className, ...props }: ComponentProps<'code'>) {
-  return (
-    <code
-      {...props}
-      className={['rounded bg-fd-muted px-1 py-0.5 font-mono text-xs', className].filter(Boolean).join(' ')}
-    />
-  );
-}
-
 function ReadmeDrawer({
   plugin,
   open,
@@ -195,7 +185,6 @@ function ReadmeDrawer({
     : plugin.repository;
   const docsUrl = official ? pluginHref(plugin) : null;
   const npmUrl = `https://www.npmjs.com/package/${npmId}`;
-  const contentLabel = official ? '官方文档' : 'README';
 
   return (
     <>
@@ -212,7 +201,7 @@ function ReadmeDrawer({
       <div
         role="dialog"
         aria-modal="true"
-        aria-label={`${plugin.name} ${contentLabel}`}
+        aria-label={`${plugin.name} README`}
         className={[
           'fixed z-50 flex flex-col bg-fd-background shadow-xl transition-transform duration-300',
           // Mobile: bottom sheet
@@ -268,7 +257,7 @@ function ReadmeDrawer({
               className="inline-flex items-center gap-1.5 rounded-md border border-fd-border bg-fd-muted/60 px-3 py-1.5 text-xs text-fd-foreground transition-colors hover:bg-fd-accent"
             >
               <lucide.GitBranchIcon className="size-3.5" />
-              {official ? '源码' : 'GitHub'}
+              GitHub
             </a>
           )}
           <span className="ml-auto font-mono text-xs text-fd-muted-foreground">v{plugin.version}</span>
@@ -279,12 +268,12 @@ function ReadmeDrawer({
           {readme.loading && (
             <div className="flex items-center gap-2 text-sm text-fd-muted-foreground">
               <lucide.LoaderCircleIcon className="size-4 animate-spin" />
-              正在加载 {contentLabel}…
+              正在加载 README…
             </div>
           )}
           {readme.error && (
             <p className="text-sm text-fd-muted-foreground">
-              {contentLabel} 加载失败，请前往 {official ? '官方文档或源码' : 'npm 或 GitHub'} 查看。
+              README 加载失败，请前往官方文档、npm 或 GitHub 查看。
             </p>
           )}
           {readme.text && official ? (
@@ -301,10 +290,14 @@ function ReadmeDrawer({
           ) : readme.text ? (
             <Markdown
               options={{
-                overrides: { ...mdxComponents, code: ReadmeInlineCode, img: () => null },
+                overrides: { ...mdxComponents, img: () => null },
                 renderRule(next, node, _renderChildren, state) {
                   if (node.type === RuleType.codeBlock) {
-                    return <DynamicCodeBlock key={state.key} lang={node.lang || 'text'} code={node.text} />;
+                    return (
+                      <div key={state.key} className="[&_code]:text-[0.7109375rem]">
+                        <DynamicCodeBlock lang={node.lang || 'text'} code={node.text} />
+                      </div>
+                    );
                   }
                   return next();
                 },
