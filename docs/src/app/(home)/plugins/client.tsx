@@ -1,8 +1,14 @@
 'use client';
 
+import { DynamicCodeBlock } from 'fumadocs-ui/components/dynamic-codeblock';
 import type { LucideIcon } from 'lucide-react';
 import * as lucide from 'lucide-react';
-import { useEffect, useState } from 'react';
+import Markdown, { RuleType } from 'markdown-to-jsx';
+import type { ComponentProps } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+
+import { useMDXComponents } from '@/components/mdx';
+import { docsContentRoute, gitConfig } from '@/lib/shared';
 
 const REGISTRY_URL = 'https://registry.fraq.dev/plugins.json';
 
@@ -35,10 +41,13 @@ function isOfficial(plugin: PluginEntry): boolean {
   return plugin.id.startsWith('fraqjs/');
 }
 
+function officialPluginSlug(plugin: PluginEntry): string {
+  return plugin.id.slice('fraqjs/'.length);
+}
+
 function pluginHref(plugin: PluginEntry): string {
   if (isOfficial(plugin)) {
-    const slug = plugin.id.slice('fraqjs/'.length);
-    return `/docs/plugins/${slug}`;
+    return `/docs/plugins/${officialPluginSlug(plugin)}`;
   }
   return plugin.repository;
 }
@@ -122,6 +131,195 @@ function useShuffledPlugins(plugins: PluginEntry[]): PluginEntry[] {
   return shuffledPlugins;
 }
 
+interface ReadmeState {
+  text: string | null;
+  loading: boolean;
+  error: boolean;
+}
+
+function ReadmeInlineCode({ className, ...props }: ComponentProps<'code'>) {
+  return (
+    <code
+      {...props}
+      className={['rounded bg-fd-muted px-1 py-0.5 font-mono text-xs', className].filter(Boolean).join(' ')}
+    />
+  );
+}
+
+function ReadmeDrawer({
+  plugin,
+  open,
+  readme,
+  onClose,
+}: {
+  plugin: PluginEntry | null;
+  open: boolean;
+  readme: ReadmeState;
+  onClose: () => void;
+}) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const mdxComponents = useMDXComponents();
+
+  useEffect(() => {
+    if (open) {
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = '';
+      };
+    }
+  }, [open]);
+
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', handleKey);
+    return () => document.removeEventListener('keydown', handleKey);
+  }, [onClose]);
+
+  // Reset scroll when a new plugin is opened
+  // biome-ignore lint/correctness/useExhaustiveDependencies: Resetting scroll on plugin change is intentional, and we don't want to reset when readme changes.
+  useEffect(() => {
+    if (open && scrollRef.current) {
+      scrollRef.current.scrollTop = 0;
+    }
+  }, [open, plugin?.id]);
+
+  if (!plugin) return null;
+
+  const official = isOfficial(plugin);
+  const slug = official ? officialPluginSlug(plugin) : null;
+  const npmId = plugin.name;
+  const githubUrl = official
+    ? `https://github.com/${gitConfig.user}/${gitConfig.repo}/tree/${gitConfig.branch}/plugins/${slug}`
+    : plugin.repository;
+  const docsUrl = official ? pluginHref(plugin) : null;
+  const npmUrl = `https://www.npmjs.com/package/${npmId}`;
+  const contentLabel = official ? '官方文档' : 'README';
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        onClick={onClose}
+        className={[
+          'fixed inset-0 z-40 bg-black/40 transition-opacity duration-300',
+          open ? 'opacity-100' : 'pointer-events-none opacity-0',
+        ].join(' ')}
+      />
+
+      {/* Drawer panel */}
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={`${plugin.name} ${contentLabel}`}
+        className={[
+          'fixed z-50 flex flex-col bg-fd-background shadow-xl transition-transform duration-300',
+          // Mobile: bottom sheet
+          'bottom-0 left-0 right-0 max-h-[85svh] rounded-t-xl border-t border-fd-border',
+          // Desktop: right panel
+          'md:bottom-0 md:left-auto md:right-0 md:top-0 md:max-h-none md:w-1/2 md:rounded-none md:border-l md:border-t-0',
+          // Animation
+          open ? 'translate-y-0 md:translate-x-0' : 'translate-y-full md:translate-y-0 md:translate-x-full',
+        ].join(' ')}
+      >
+        {/* Header */}
+        <div className="flex shrink-0 items-start justify-between gap-3 border-b border-fd-border px-5 py-4">
+          <div className="min-w-0 flex-1">
+            <p className="truncate font-mono text-xs text-fd-muted-foreground">{plugin.id}</p>
+            <p className="mt-0.5 text-sm text-fd-foreground">{plugin.description}</p>
+          </div>
+          <button
+            onClick={onClose}
+            aria-label="关闭"
+            className="shrink-0 rounded-md p-1.5 text-fd-muted-foreground transition-colors hover:bg-fd-accent hover:text-fd-foreground"
+          >
+            <lucide.XIcon className="size-4" />
+          </button>
+        </div>
+
+        {/* Action buttons */}
+        <div className="flex shrink-0 items-center gap-2 border-b border-fd-border px-5 py-3">
+          {docsUrl && (
+            <a
+              href={docsUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-md border border-fd-border bg-fd-muted/60 px-3 py-1.5 text-xs text-fd-foreground transition-colors hover:bg-fd-accent"
+            >
+              <lucide.BookOpenIcon className="size-3.5" />
+              文档
+            </a>
+          )}
+          <a
+            href={npmUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 rounded-md border border-fd-border bg-fd-muted/60 px-3 py-1.5 text-xs text-fd-foreground transition-colors hover:bg-fd-accent"
+          >
+            <lucide.PackageIcon className="size-3.5" />
+            npm
+          </a>
+          {githubUrl && (
+            <a
+              href={githubUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-md border border-fd-border bg-fd-muted/60 px-3 py-1.5 text-xs text-fd-foreground transition-colors hover:bg-fd-accent"
+            >
+              <lucide.GitBranchIcon className="size-3.5" />
+              {official ? '源码' : 'GitHub'}
+            </a>
+          )}
+          <span className="ml-auto font-mono text-xs text-fd-muted-foreground">v{plugin.version}</span>
+        </div>
+
+        {/* Documentation content */}
+        <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
+          {readme.loading && (
+            <div className="flex items-center gap-2 text-sm text-fd-muted-foreground">
+              <lucide.LoaderCircleIcon className="size-4 animate-spin" />
+              正在加载 {contentLabel}…
+            </div>
+          )}
+          {readme.error && (
+            <p className="text-sm text-fd-muted-foreground">
+              {contentLabel} 加载失败，请前往 {official ? '官方文档或源码' : 'npm 或 GitHub'} 查看。
+            </p>
+          )}
+          {readme.text && official ? (
+            <div className="flex flex-col gap-4">
+              <p className="text-sm text-fd-muted-foreground">
+                以下是官方文档的原始 Markdown 内容，请点击“文档”按钮查看完整内容。
+              </p>
+              {/* divider */}
+              <div className="h-px bg-fd-border" />
+              <pre className="whitespace-pre-wrap break-words font-mono text-xs leading-relaxed text-fd-foreground">
+                {readme.text}
+              </pre>
+            </div>
+          ) : readme.text ? (
+            <Markdown
+              options={{
+                overrides: { ...mdxComponents, code: ReadmeInlineCode, img: () => null },
+                renderRule(next, node, _renderChildren, state) {
+                  if (node.type === RuleType.codeBlock) {
+                    return <DynamicCodeBlock key={state.key} lang={node.lang || 'text'} code={node.text} />;
+                  }
+                  return next();
+                },
+              }}
+              className="prose prose-sm dark:prose-invert max-w-none text-fd-foreground [&_a]:text-fd-primary"
+            >
+              {readme.text}
+            </Markdown>
+          ) : null}
+        </div>
+      </div>
+    </>
+  );
+}
+
 export function PluginMarketplace() {
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
   const [plugins, setPlugins] = useState<PluginEntry[]>([]);
@@ -130,6 +328,47 @@ export function PluginMarketplace() {
   const [error, setError] = useState(false);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const shuffledPlugins = useShuffledPlugins(plugins);
+
+  const [drawerPlugin, setDrawerPlugin] = useState<PluginEntry | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [readme, setReadme] = useState<ReadmeState>({ text: null, loading: false, error: false });
+
+  const openDrawer = useCallback((plugin: PluginEntry) => {
+    setDrawerPlugin(plugin);
+    setDrawerOpen(false);
+    setReadme({ text: null, loading: true, error: false });
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => setDrawerOpen(true));
+    });
+  }, []);
+
+  const closeDrawer = useCallback(() => {
+    setDrawerOpen(false);
+    setTimeout(() => setDrawerPlugin(null), 300);
+  }, []);
+
+  useEffect(() => {
+    if (!drawerPlugin) return;
+
+    const controller = new AbortController();
+    const contentUrl = isOfficial(drawerPlugin)
+      ? `${docsContentRoute}/plugins/${officialPluginSlug(drawerPlugin)}/content.md`
+      : `https://cdn.jsdelivr.net/npm/${drawerPlugin.name}@${drawerPlugin.version}/README.md`;
+
+    fetch(contentUrl, { signal: controller.signal })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`Failed: ${res.status}`);
+        return res.text();
+      })
+      .then((text) => setReadme({ text, loading: false, error: false }))
+      .catch((reason: unknown) => {
+        if (reason instanceof DOMException && reason.name === 'AbortError') return;
+        setReadme({ text: null, loading: false, error: true });
+      });
+
+    return () => controller.abort();
+  }, [drawerPlugin]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -174,8 +413,6 @@ export function PluginMarketplace() {
   }, []);
 
   const updatedAtLocale = updatedAt ? new Date(updatedAt).toLocaleString() : null;
-
-  // Only show categories that have at least one listed plugin
   const usedCategories = categories.filter((cat) => plugins.some((p) => p.category === cat));
 
   const filtered =
@@ -187,6 +424,8 @@ export function PluginMarketplace() {
 
   return (
     <main className="w-full">
+      <ReadmeDrawer plugin={drawerPlugin} open={drawerOpen} readme={readme} onClose={closeDrawer} />
+
       <section className="mx-auto w-full max-w-5xl px-6 py-16 md:py-24">
         {/* Header */}
         <div className="mb-10 max-w-2xl">
@@ -241,7 +480,7 @@ export function PluginMarketplace() {
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {filtered.map((plugin) => (
-              <PluginCard key={plugin.id} plugin={plugin} />
+              <PluginCard key={plugin.id} plugin={plugin} onOpenReadme={openDrawer} />
             ))}
           </div>
         )}
@@ -259,9 +498,8 @@ function categoryPillClass(active: boolean): string {
   ].join(' ');
 }
 
-function PluginCard({ plugin }: { plugin: PluginEntry }) {
+function PluginCard({ plugin, onOpenReadme }: { plugin: PluginEntry; onOpenReadme: (plugin: PluginEntry) => void }) {
   const official = isOfficial(plugin);
-  const href = pluginHref(plugin);
 
   const cardClass =
     'group flex flex-col gap-3 rounded-lg border bg-fd-card p-4 text-fd-card-foreground transition-colors hover:border-fd-primary/50 hover:bg-fd-accent/30 border-fd-border';
@@ -274,7 +512,16 @@ function PluginCard({ plugin }: { plugin: PluginEntry }) {
           <p className="truncate font-mono text-xs text-fd-muted-foreground">{plugin.id}</p>
         </div>
         {!official && (
-          <lucide.ExternalLinkIcon className="size-3.5 shrink-0 text-fd-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+          <a
+            href={plugin.repository}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            aria-label="在新标签页中打开"
+            className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
+          >
+            <lucide.ExternalLinkIcon className="size-3.5 text-fd-muted-foreground" />
+          </a>
         )}
       </div>
 
@@ -294,8 +541,8 @@ function PluginCard({ plugin }: { plugin: PluginEntry }) {
   );
 
   return (
-    <a href={href} target="_blank" rel="noopener noreferrer" className={cardClass}>
+    <button type="button" onClick={() => onOpenReadme(plugin)} className={`${cardClass} w-full text-left`}>
       {inner}
-    </a>
+    </button>
   );
 }
