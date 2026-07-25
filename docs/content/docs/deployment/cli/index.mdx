@@ -149,24 +149,7 @@ plugins:
 
 ## 配置 `additionalDependencies`
 
-部分插件可能会要求安装额外的依赖包，版本声明方式遵循 [Semantic Versioning 规范](https://github.com/npm/node-semver#versions)。通常情况下，插件的 README 中会说明它们所依赖的额外依赖包及其版本要求。例如，在 `fraqjs/ai` 的配置中声明的 `sdk` 包也需要同时添加到 `additionalDependencies` 字段中。
-
-```yaml
-plugins:
-  fraqjs/ai:
-    providers:
-      ds:
-        sdk: '@ai-sdk/deepseek' # 这里声明了 DeepSeek SDK 的依赖
-        options:
-          apiKey: sk-your-api-key
-        models: [deepseek-v4-flash, deepseek-v4-pro]
-
-additionalDependencies:
-  '@ai-sdk/deepseek': ^3
-  ai: ^7
-```
-
-这部分的依赖会被直接注入到生成的 `package.json` 中，并且在安装依赖时会被自动安装。
+部分插件可能会要求安装额外的依赖包，版本声明方式遵循 [Semantic Versioning 规范](https://github.com/npm/node-semver#versions)。通常情况下，插件的 README 中会说明它们所依赖的额外依赖包及其版本要求。这部分的依赖会被直接注入到生成的 `package.json` 中，并且在安装依赖时会被自动安装。
 
 ## 配置日志等级
 
@@ -177,7 +160,7 @@ logging:
   minLevel: info # 设置日志最小等级为 info，低于 info 等级
 ```
 
-## 插值语法
+## 从环境中读取配置
 
 `fraq.yml` 支持使用 `${{ 类型:目标 }}` 引用环境变量、文本文件以及其他 YAML/JSON 文件。例如：
 
