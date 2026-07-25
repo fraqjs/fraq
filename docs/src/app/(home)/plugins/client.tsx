@@ -446,6 +446,7 @@ export function PluginMarketplace() {
         {/* Category filter */}
         <div className="mb-8 flex flex-wrap gap-2">
           <button onClick={() => setActiveCategory(null)} className={categoryPillClass(activeCategory === null)}>
+            <lucide.TagIcon className="size-3 shrink-0" />
             全部
           </button>
           <button
@@ -453,7 +454,7 @@ export function PluginMarketplace() {
             className={categoryPillClass(activeCategory === '__official__')}
           >
             <lucide.BadgeCheckIcon className="size-3 shrink-0" />
-            官方插件
+            官方插件 ({plugins.filter(isOfficial).length})
           </button>
           {usedCategories.map((cat) => {
             const CategoryIcon = CATEGORY_ICONS[cat] ?? lucide.TagIcon;
@@ -464,7 +465,7 @@ export function PluginMarketplace() {
                 className={categoryPillClass(activeCategory === cat)}
               >
                 <CategoryIcon className="size-3 shrink-0" />
-                {CATEGORY_LABELS[cat] ?? cat}
+                {CATEGORY_LABELS[cat] ?? cat} ({plugins.filter((p) => p.category === cat).length})
               </button>
             );
           })}
