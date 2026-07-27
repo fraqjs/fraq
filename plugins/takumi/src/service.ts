@@ -147,7 +147,7 @@ export class TakumiService implements Disposable {
       defaultImages: renderDefaults?.images,
       userImages: components.userOptions?.images,
     });
-    const fonts = this.mergeFonts(renderDefaults?.fonts, components.userOptions?.fonts);
+    const fonts = this.mergeFonts(await renderDefaults?.fonts, await components.userOptions?.fonts);
 
     return {
       ...this.options?.renderDefaults,
