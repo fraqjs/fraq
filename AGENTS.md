@@ -41,6 +41,18 @@ A single-call method may remain extracted when it represents a real boundary: a 
 
 Method names should express domain intent, not merely translate implementation into prose. If a useful name cannot say more than the body already says, keep the code at the call site.
 
+## Frontend Design
+
+Prefer a restrained, Stripe-like visual language: clear hierarchy, precise spacing, strong typography, subtle borders and shadows, and a small purposeful color palette. Interfaces should feel polished through proportion and alignment rather than through decoration.
+
+Remove copy and visual elements that do not help the user complete the current task. Avoid explanatory panels, feature callouts, ornamental backgrounds, oversized headings, redundant security text, and decorative footer content in focused application flows. Do not turn a simple form into a marketing page.
+
+For a single-purpose flow such as authentication, use a compact single-column layout and center the complete interaction area in the viewport. Keep the primary input and action visually dominant. The layout should remain centered and free of overflow on narrow screens and when validation or loading states appear.
+
+Use concise, direct labels and actions. Add helper text only when the user needs it to make a decision or recover from an error. Prefer visible field labels, clear inline validation, and familiar icons over instructional prose.
+
+When shadcn/ui is used, add components through the shadcn CLI with the project's selected preset instead of recreating them manually. Compose and restyle those primitives to fit the product, while preserving accessible labels, focus states, disabled states, and predictable form behavior.
+
 ## Testing
 
 Prefer narrow, direct commands that avoid triggering pnpm's package-script dependency checks.
