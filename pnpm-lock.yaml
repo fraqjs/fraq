@@ -108,9 +108,6 @@ importers:
       cmd-ts:
         specifier: ^0.15.0
         version: 0.15.0(supports-color@7.2.0)
-      cross-spawn:
-        specifier: ^7.0.6
-        version: 7.0.6
       yaml:
         specifier: ^2.9.0
         version: 2.9.0
@@ -118,9 +115,6 @@ importers:
         specifier: ^4.4.3
         version: 4.4.3
     devDependencies:
-      '@types/cross-spawn':
-        specifier: ^6.0.6
-        version: 6.0.6
       fdir:
         specifier: ^6.5.0
         version: 6.5.0(picomatch@4.0.5)
@@ -3093,9 +3087,6 @@ packages:
 
   '@types/babel__traverse@7.28.0':
     resolution: {integrity: sha512-8PvcXf70gTDZBgt9ptxJ8elBeBjcLOAcOtoO/mPJjtji1+CdGbHgm77om1GrsPxsiE+uXIpNSK64UYaIwQXd4Q==}
-
-  '@types/cross-spawn@6.0.6':
-    resolution: {integrity: sha512-fXRhhUkG4H3TQk5dBhQ7m/JDdSNHKwR2BBia62lhwEIq9xGiQKLxd6LymNhn47SjXhsUEPmxi+PKw2OkW4LLjA==}
 
   '@types/debug@4.1.13':
     resolution: {integrity: sha512-KSVgmQmzMwPlmtljOomayoR89W4FynCAi3E8PPs7vmDVPe84hT+vGPKkJfThkmXs0x0jAaa9U8uW8bbfyS2fWw==}
@@ -8332,10 +8323,6 @@ snapshots:
   '@types/babel__traverse@7.28.0':
     dependencies:
       '@babel/types': 7.29.7
-
-  '@types/cross-spawn@6.0.6':
-    dependencies:
-      '@types/node': 24.13.3
 
   '@types/debug@4.1.13':
     dependencies:
