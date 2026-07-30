@@ -15,6 +15,7 @@ interface RawPlugin {
   description: string;
   category: string | null;
   repository: string;
+  updatedAt: string | null;
   market: { unlisted: boolean };
 }
 
@@ -52,6 +53,7 @@ const CATEGORY_ICONS: Record<string, LucideIcon> = {
 };
 
 const SESSION_KEY = 'fraq-plugin-order';
+const SORT_KEY = 'fraq-plugin-sort';
 
 function shuffled<T extends { id: string }>(items: T[]): T[] {
   const arr = [...items];
@@ -111,6 +113,16 @@ export function PluginMarketplace() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const [sortByUpdated, setSortByUpdated] = useState(false);
+
+  // Hydrate sort preference from localStorage after mount
+  useEffect(() => {
+    try {
+      setSortByUpdated(localStorage.getItem(SORT_KEY) === 'updated');
+    } catch {
+      // localStorage unavailable (e.g. private browsing restrictions) — ignore
+    }
+  }, []);
   const shuffledPlugins = useShuffledPlugins(plugins);
 
   const [drawerPlugin, setDrawerPlugin] = useState<PluginEntry | null>(null);
@@ -175,6 +187,7 @@ export function PluginMarketplace() {
             description: plugin.description,
             category: plugin.category,
             repository: plugin.repository,
+            updatedAt: plugin.updatedAt ?? null,
           }));
 
         setUpdatedAt(data.updatedAt);
@@ -199,12 +212,21 @@ export function PluginMarketplace() {
   const updatedAtLocale = updatedAt ? new Date(updatedAt).toLocaleString() : null;
   const usedCategories = categories.filter((cat) => plugins.some((p) => p.category === cat));
 
+  const displayPlugins = sortByUpdated
+    ? [...shuffledPlugins].sort((a, b) => {
+        if (!a.updatedAt && !b.updatedAt) return 0;
+        if (!a.updatedAt) return 1;
+        if (!b.updatedAt) return -1;
+        return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+      })
+    : shuffledPlugins;
+
   const filtered =
     activeCategory === '__official__'
-      ? shuffledPlugins.filter(isOfficial)
+      ? displayPlugins.filter(isOfficial)
       : activeCategory
-        ? shuffledPlugins.filter((p) => p.category === activeCategory)
-        : shuffledPlugins;
+        ? displayPlugins.filter((p) => p.category === activeCategory)
+        : displayPlugins;
 
   return (
     <main className="w-full">
@@ -254,6 +276,34 @@ export function PluginMarketplace() {
             );
           })}
         </div>
+
+        {/* Sort control */}
+        {!loading && !error && (
+          <div className="-mt-4 mb-6 flex items-center justify-end">
+            <button
+              onClick={() => {
+                setSortByUpdated((v) => {
+                  const next = !v;
+                  try {
+                    next ? localStorage.setItem(SORT_KEY, 'updated') : localStorage.removeItem(SORT_KEY);
+                  } catch {
+                    // localStorage unavailable — ignore
+                  }
+                  return next;
+                });
+              }}
+              className={[
+                'inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs transition-colors',
+                sortByUpdated
+                  ? 'bg-fd-primary/10 text-fd-primary'
+                  : 'text-fd-muted-foreground hover:text-fd-foreground',
+              ].join(' ')}
+            >
+              <lucide.ArrowDownNarrowWideIcon className="size-3.5 shrink-0" />
+              {sortByUpdated ? '按更新时间排序' : '随机排序'}
+            </button>
+          </div>
+        )}
 
         {/* Plugin grid */}
         {loading ? (

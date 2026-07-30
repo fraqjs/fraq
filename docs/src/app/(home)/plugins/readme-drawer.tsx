@@ -15,6 +15,7 @@ export interface PluginEntry {
   description: string;
   category: string | null;
   repository: string;
+  updatedAt: string | null;
 }
 
 export interface ReadmeState {
