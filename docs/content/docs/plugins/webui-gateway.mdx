@@ -1,0 +1,79 @@
+---
+title: '@fraqjs/plugin-webui-gateway'
+---
+
+<NpmBadge packageName="@fraqjs/plugin-webui-gateway" />
+
+`@fraqjs/plugin-webui-gateway` 提供统一的 SPA（单页应用）挂载路径和登录入口。访问 `/webui/` 时，未登录的请求会进入统一登录页面。验证成功后，Gateway 会设置带签名的 `HttpOnly` 会话 Cookie。
+
+## 安装与配置
+
+在 `fraq.yml` 中安装 Hono 和 WebUI Gateway：
+
+```yaml
+plugins:
+  # 本插件依赖 fraqjs/hono，因此需要一并安装
+  fraqjs/hono:
+    # 在这里传入 HonoPlugin 的配置选项
+  fraqjs/webui-gateway:
+    # 登录页面使用的访问令牌，不能为空
+    accessToken: change-me
+    # 是否启用 Secure Cookie
+    # 在使用 HTTPS 的生产环境中应设置为 true
+    secureCookies: false
+```
+
+如果你是插件开发者，请将本插件添加到项目的 `peerDependencies` 中，并在自己的插件中声明依赖：
+
+```typescript
+import { definePlugin } from '@fraqjs/fraq';
+import { WebuiGatewayService } from '@fraqjs/plugin-webui-gateway';
+
+export const DashboardPlugin = definePlugin({
+  name: 'dashboard',
+  inject: {
+    webui: WebuiGatewayService,
+  },
+  apply(ctx) {
+    // 使用 ctx.webui 来访问 WebuiGatewayService
+  },
+});
+```
+
+## 挂载 SPA 与 API 路由
+
+假设你用 `tsdown` 构建你的插件，构建产物位于 `dist/index.mjs`；同时你的 WebUI 资源位于 `dist/webui` 下。那么你可以在 `apply` 中用如下的代码挂载 WebUI：
+
+```typescript
+ctx.webui.mount({
+  id: 'dashboard',
+  assets: new URL('../webui', import.meta.url),
+  routes(api) {
+    api.get('/status', (c, session) => {
+      return c.json({
+        status: 'ok',
+        authenticatedAt: session.authenticatedAt,
+      });
+    });
+  },
+});
+```
+
+以上配置会创建：
+
+- SPA：`/webui/dashboard/`
+- API：`/webui/dashboard/api/status`
+
+`assets` 必须指向一个本地目录，使用 `new URL(..., import.meta.url)` 可以让路径在开发环境和安装后的 npm 包中保持稳定。`routes` 只提供 `get`、`post`、`put`、`patch` 和 `delete`。所有 API 都位于当前 WebUI 的 `/api` 子路径下，并自动经过 Gateway 鉴权。
+
+## SPA 构建
+
+SPA 应以挂载路径作为 base path。例如，如果你使用 Vite 构建 SPA，请在 `vite.config.ts` 中设置：
+
+```typescript
+export default defineConfig({
+  base: '/webui/dashboard/',
+});
+```
+
+Gateway 会使用 `@hono/node-server` 的 `serveStatic` 返回静态文件。只有接受 HTML 的无扩展名 GET 请求会 fallback 到 `index.html`；缺失的 JavaScript、CSS 和 API 请求仍然返回 404。
