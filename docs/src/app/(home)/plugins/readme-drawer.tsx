@@ -39,6 +39,16 @@ function pluginHref(plugin: PluginEntry): string {
   return plugin.repository;
 }
 
+function repositorySlug(plugin: PluginEntry): string | null {
+  if (plugin.repository.startsWith('https://github.com/')) {
+    const parts = plugin.repository.replace('https://github.com/', '').split('/');
+    if (parts.length >= 2) {
+      return `${parts[0]}/${parts[1]}`;
+    }
+  }
+  return null;
+}
+
 export function ReadmeDrawer({
   plugin,
   open,
@@ -160,10 +170,13 @@ export function ReadmeDrawer({
               className="inline-flex items-center gap-1.5 rounded-md border border-fd-border bg-fd-muted/60 px-3 py-1.5 text-xs text-fd-foreground transition-colors hover:bg-fd-accent"
             >
               <lucide.GitBranchIcon className="size-3.5" />
-              GitHub
+              {repositorySlug(plugin) || 'GitHub'}
             </a>
           )}
-          <span className="ml-auto font-mono text-xs text-fd-muted-foreground">v{plugin.version}</span>
+          <span className="ml-auto font-mono text-xs text-fd-muted-foreground">
+            v{plugin.version}
+            {plugin.updatedAt && ` @ ${new Date(plugin.updatedAt).toLocaleDateString()}`}
+          </span>
         </div>
 
         {/* Documentation content */}
