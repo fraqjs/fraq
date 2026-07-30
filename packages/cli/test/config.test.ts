@@ -1,5 +1,6 @@
 import * as YAML from 'yaml';
 
+import { loadConfig } from '../src/config';
 import { parseConfigFile } from '../src/config/shared';
 import { ActivationConfigInputV1, ConfigV1 } from '../src/config/v1';
 
@@ -12,6 +13,10 @@ import test, { after } from 'node:test';
 const originalCwd = process.cwd();
 const originalFetch = globalThis.fetch;
 const testRoot = mkdtempSync(path.join(tmpdir(), 'fraq-cli-config-'));
+
+function parseResolvedConfigFile(filePath: string): unknown {
+  return parseConfigFile(filePath, true);
+}
 
 after(() => {
   process.chdir(originalCwd);
@@ -102,7 +107,7 @@ test('resolves environment and text references in configuration strings', () => 
   process.env[variableName] = 'localhost:3000';
   process.env[emptyVariableName] = '';
   try {
-    assert.deepEqual(parseConfigFile(configPath), {
+    assert.deepEqual(parseResolvedConfigFile(configPath), {
       endpoint: 'https://localhost:3000/api',
       empty: '',
       secret: 'first\nsecond\n',
@@ -162,7 +167,7 @@ test('injects native tree values and resolves nested paths from the containing f
 
   process.env[variableName] = 'resolved';
   try {
-    assert.deepEqual(parseConfigFile(configPath), {
+    assert.deepEqual(parseResolvedConfigFile(configPath), {
       plugins: {
         primary: {
           options: {
@@ -192,7 +197,7 @@ test('reports invalid references with their source location and reference chain'
   writeFileSync(configPath, YAML.stringify({ nested: { value: '${{ env:FRAQ_TEST_REFERENCE_MISSING }}' } }));
 
   assert.throws(
-    () => parseConfigFile(configPath),
+    () => parseResolvedConfigFile(configPath),
     (error: unknown) => {
       assert.ok(error instanceof Error);
       assert.match(error.message, /Environment variable "FRAQ_TEST_REFERENCE_MISSING" is not defined\./);
@@ -212,7 +217,7 @@ test('reports invalid references with their source location and reference chain'
   for (const [name, value, expectedError] of invalidReferences) {
     const invalidPath = path.join(fixturePath, `${name.replaceAll(' ', '-')}.yml`);
     writeFileSync(invalidPath, YAML.stringify({ value }));
-    assert.throws(() => parseConfigFile(invalidPath), expectedError);
+    assert.throws(() => parseResolvedConfigFile(invalidPath), expectedError);
   }
 });
 
@@ -222,21 +227,24 @@ test('rejects mixed, missing, malformed, and circular tree references', () => {
   writeFileSync(path.join(fixturePath, 'child.yml'), YAML.stringify({ enabled: true }));
   const mixedPath = path.join(fixturePath, 'mixed.yml');
   writeFileSync(mixedPath, YAML.stringify({ value: 'prefix-${{ tree:child.yml }}' }));
-  assert.throws(() => parseConfigFile(mixedPath), /Tree reference .* must occupy the entire configuration value/);
+  assert.throws(
+    () => parseResolvedConfigFile(mixedPath),
+    /Tree reference .* must occupy the entire configuration value/,
+  );
 
   const missingPath = path.join(fixturePath, 'missing.yml');
   writeFileSync(missingPath, YAML.stringify({ value: '${{ tree:not-found.yml }}' }));
-  assert.throws(() => parseConfigFile(missingPath), /Failed to resolve structured file .*not-found\.yml/);
+  assert.throws(() => parseResolvedConfigFile(missingPath), /Failed to resolve structured file .*not-found\.yml/);
 
   const missingTextPath = path.join(fixturePath, 'missing-text.yml');
   writeFileSync(missingTextPath, YAML.stringify({ value: '${{ text:not-found.txt }}' }));
-  assert.throws(() => parseConfigFile(missingTextPath), /Failed to read text reference .*not-found\.txt/);
+  assert.throws(() => parseResolvedConfigFile(missingTextPath), /Failed to read text reference .*not-found\.txt/);
 
   writeFileSync(path.join(fixturePath, 'invalid.json'), '{ invalid');
   const invalidPath = path.join(fixturePath, 'invalid.yml');
   writeFileSync(invalidPath, YAML.stringify({ value: '${{ tree:invalid.json }}' }));
   assert.throws(
-    () => parseConfigFile(invalidPath),
+    () => parseResolvedConfigFile(invalidPath),
     (error: unknown) => {
       assert.ok(error instanceof Error);
       assert.match(error.message, /Failed to parse structured file .*invalid\.json/);
@@ -248,14 +256,14 @@ test('rejects mixed, missing, malformed, and circular tree references', () => {
 
   const unsupportedPath = path.join(fixturePath, 'unsupported.yml');
   writeFileSync(unsupportedPath, YAML.stringify({ value: '${{ tree:child.txt }}' }));
-  assert.throws(() => parseConfigFile(unsupportedPath), /Unsupported structured file extension "\.txt"/);
+  assert.throws(() => parseResolvedConfigFile(unsupportedPath), /Unsupported structured file extension "\.txt"/);
 
   const circularPath = path.join(fixturePath, 'circular.yml');
   const nestedPath = path.join(fixturePath, 'nested.yml');
   writeFileSync(circularPath, YAML.stringify({ nested: '${{ tree:nested.yml }}' }));
   writeFileSync(nestedPath, YAML.stringify({ root: '${{ tree:circular.yml }}' }));
   assert.throws(
-    () => parseConfigFile(circularPath),
+    () => parseResolvedConfigFile(circularPath),
     (error: unknown) => {
       assert.ok(error instanceof Error);
       assert.match(error.message, /Circular tree reference detected/);
@@ -267,7 +275,7 @@ test('rejects mixed, missing, malformed, and circular tree references', () => {
 
   const aliasPath = path.join(fixturePath, 'alias.yml');
   writeFileSync(aliasPath, 'value: &value\n  self: *value\n');
-  assert.throws(() => parseConfigFile(aliasPath), /Circular YAML value detected at \$\.value\.self/);
+  assert.throws(() => parseResolvedConfigFile(aliasPath), /Circular YAML value detected at \$\.value\.self/);
 });
 
 test('validates the resolved reference value with the existing configuration schema', () => {
@@ -286,10 +294,56 @@ test('validates the resolved reference value with the existing configuration sch
 
   process.env[variableName] = '1';
   try {
-    const resolved = parseConfigFile(configPath);
+    const resolved = parseResolvedConfigFile(configPath);
     assert.equal((resolved as { configVersion: unknown }).configVersion, '1');
     assert.equal(ConfigV1.safeParse(resolved).success, false);
   } finally {
+    if (originalVariable === undefined) {
+      delete process.env[variableName];
+    } else {
+      process.env[variableName] = originalVariable;
+    }
+  }
+});
+
+test('only resolves all configuration references when requested', async () => {
+  const fixturePath = mkdtempSync(path.join(testRoot, 'resolution-mode-'));
+  const configPath = path.join(fixturePath, 'fraq.yml');
+  const variableName = 'FRAQ_TEST_RUNTIME_URL';
+  const originalVariable = process.env[variableName];
+
+  writeFileSync(
+    path.join(fixturePath, 'plugins.yml'),
+    YAML.stringify({ example: { endpoint: `\${{ env:${variableName} }}` } }),
+  );
+  writeFileSync(
+    configPath,
+    YAML.stringify({
+      configVersion: 1,
+      fraqVersion: '0.14.0',
+      milky: { url: `\${{ env:${variableName} }}` },
+      plugins: '${{ tree:plugins.yml }}',
+      versions: { example: '1.0.0' },
+    }),
+  );
+
+  delete process.env[variableName];
+  process.chdir(fixturePath);
+  try {
+    const dependencyConfig = await loadConfig();
+    assert.deepEqual(dependencyConfig.plugins, {
+      example: { endpoint: `\${{ env:${variableName} }}` },
+    });
+    assert.equal('milky' in dependencyConfig, false);
+
+    process.env[variableName] = 'http://localhost:3000';
+    const runtimeConfig = await loadConfig({ resolveAllReferences: true });
+    assert.equal(runtimeConfig.milky.url, 'http://localhost:3000');
+    assert.deepEqual(runtimeConfig.plugins, {
+      example: { endpoint: 'http://localhost:3000' },
+    });
+  } finally {
+    process.chdir(originalCwd);
     if (originalVariable === undefined) {
       delete process.env[variableName];
     } else {

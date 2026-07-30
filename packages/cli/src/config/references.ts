@@ -119,7 +119,16 @@ function readTextReference(reference: Reference, location: ValueLocation): strin
   }
 }
 
-function resolveStringReference(reference: Reference, location: ValueLocation): string {
+function resolveStringReference(reference: Reference, location: ValueLocation, resolveAllReferences: boolean): string {
+  if (reference.type === 'tree') {
+    throw referenceError(
+      `Tree reference ${JSON.stringify(reference.expression)} must occupy the entire configuration value.`,
+      location,
+    );
+  }
+  if (!resolveAllReferences) {
+    return reference.expression;
+  }
   if (reference.type === 'env') {
     const value = process.env[reference.target];
     if (value === undefined) {
@@ -127,30 +136,31 @@ function resolveStringReference(reference: Reference, location: ValueLocation): 
     }
     return value;
   }
-  if (reference.type === 'text') {
-    return readTextReference(reference, location);
-  }
-  throw referenceError(
-    `Tree reference ${JSON.stringify(reference.expression)} must occupy the entire configuration value.`,
-    location,
-  );
+  return readTextReference(reference, location);
 }
 
-function resolveString(value: string, location: ValueLocation): unknown {
+function resolveString(value: string, location: ValueLocation, resolveAllReferences: boolean): unknown {
   const parts = splitString(value, location);
   if (parts.length === 1 && parts[0]?.type === 'reference' && parts[0].reference.type === 'tree') {
     const referencedPath = resolveReferencePath(parts[0].reference.target, location.filePath);
-    return parseStructuredFile(referencedPath, location.stack, location);
+    return parseStructuredFile(referencedPath, location.stack, resolveAllReferences, location);
   }
 
   return parts
-    .map((part) => (part.type === 'text' ? part.value : resolveStringReference(part.reference, location)))
+    .map((part) =>
+      part.type === 'text' ? part.value : resolveStringReference(part.reference, location, resolveAllReferences),
+    )
     .join('');
 }
 
-function resolveValue(value: unknown, location: ValueLocation, ancestors = new WeakSet<object>()): unknown {
+function resolveValue(
+  value: unknown,
+  location: ValueLocation,
+  resolveAllReferences: boolean,
+  ancestors = new WeakSet<object>(),
+): unknown {
   if (typeof value === 'string') {
-    return resolveString(value, location);
+    return resolveString(value, location, resolveAllReferences);
   }
   if (Array.isArray(value)) {
     if (ancestors.has(value)) {
@@ -159,7 +169,12 @@ function resolveValue(value: unknown, location: ValueLocation, ancestors = new W
     ancestors.add(value);
     try {
       return value.map((item, index) =>
-        resolveValue(item, { ...location, configPath: `${location.configPath}[${index}]` }, ancestors),
+        resolveValue(
+          item,
+          { ...location, configPath: `${location.configPath}[${index}]` },
+          resolveAllReferences,
+          ancestors,
+        ),
       );
     } finally {
       ancestors.delete(value);
@@ -174,7 +189,12 @@ function resolveValue(value: unknown, location: ValueLocation, ancestors = new W
       return Object.fromEntries(
         Object.entries(value).map(([key, item]) => [
           key,
-          resolveValue(item, { ...location, configPath: propertyPath(location.configPath, key) }, ancestors),
+          resolveValue(
+            item,
+            { ...location, configPath: propertyPath(location.configPath, key) },
+            resolveAllReferences,
+            ancestors,
+          ),
         ]),
       );
     } finally {
@@ -184,7 +204,12 @@ function resolveValue(value: unknown, location: ValueLocation, ancestors = new W
   return value;
 }
 
-function parseStructuredFile(filePath: string, parentStack: FileFrame[], source?: ValueLocation): unknown {
+function parseStructuredFile(
+  filePath: string,
+  parentStack: FileFrame[],
+  resolveAllReferences: boolean,
+  source?: ValueLocation,
+): unknown {
   const resolvedPath = path.resolve(filePath);
   const sourceLocation = source ?? { filePath: resolvedPath, configPath: '$', stack: parentStack };
   const extension = path.extname(resolvedPath).toLowerCase();
@@ -238,9 +263,9 @@ function parseStructuredFile(filePath: string, parentStack: FileFrame[], source?
     );
   }
 
-  return resolveValue(parsed, { filePath: resolvedPath, configPath: '$', stack });
+  return resolveValue(parsed, { filePath: resolvedPath, configPath: '$', stack }, resolveAllReferences);
 }
 
-export function parseConfigReferences(filePath: string): unknown {
-  return parseStructuredFile(filePath, []);
+export function parseConfigReferences(filePath: string, resolveAllReferences = false): unknown {
+  return parseStructuredFile(filePath, [], resolveAllReferences);
 }

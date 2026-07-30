@@ -8,7 +8,7 @@ import type z from 'zod';
 
 import pkg from '../package.json';
 import { startApp, startInstall } from './app';
-import type { Config } from './config';
+import type { Config, DependencyConfig } from './config';
 import { loadConfig } from './config';
 import type { ConfigV1 } from './config/v1';
 import { getVersionsPath } from './paths';
@@ -31,8 +31,12 @@ function printBanner() {
   console.log();
 }
 
-async function ensureConfigWithVersions(): Promise<Config> {
-  const config = await loadConfig();
+async function ensureConfigWithVersions(options: { resolveAllReferences: true }): Promise<Config>;
+async function ensureConfigWithVersions(options?: { resolveAllReferences?: false }): Promise<DependencyConfig>;
+async function ensureConfigWithVersions(
+  options: { resolveAllReferences?: boolean } = {},
+): Promise<Config | DependencyConfig> {
+  const config = options.resolveAllReferences ? await loadConfig({ resolveAllReferences: true }) : await loadConfig();
   const lockfileVersions = readVersions();
   config.versions = { ...lockfileVersions, ...config.versions };
 
@@ -67,7 +71,9 @@ async function ensureConfigWithVersions(): Promise<Config> {
   return config;
 }
 
-async function ensurePackageManager(config: Config): Promise<PackageManagerInfo & { commandPath: string }> {
+async function ensurePackageManager(
+  config: Pick<DependencyConfig, 'packageManager'>,
+): Promise<PackageManagerInfo & { commandPath: string }> {
   let packageManager: PackageManagerInfo | undefined;
   if (config.packageManager) {
     const result = await detectPackageManager(config.packageManager);
@@ -98,7 +104,7 @@ async function ensurePackageManager(config: Config): Promise<PackageManagerInfo 
 }
 
 async function start(runInstall: boolean = true): Promise<void> {
-  const config = await ensureConfigWithVersions();
+  const config = await ensureConfigWithVersions({ resolveAllReferences: true });
   const diagnostic = await getPluginDependencyDiagnostic(config);
   if (diagnostic.status === 'missing') {
     console.error(chalk.red('There are issues with the plugin dependencies:'));

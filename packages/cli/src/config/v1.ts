@@ -34,6 +34,14 @@ export const ContextConfigV1 = z.object({
 });
 export type ContextConfigV1 = z.infer<typeof ContextConfigV1>;
 
+export const DependencyContextConfigV1 = z.object({
+  plugins: z.record(z.string(), z.unknown()).optional(),
+  get forks() {
+    return z.record(z.string(), DependencyContextConfigV1).optional();
+  },
+});
+export type DependencyContextConfigV1 = z.infer<typeof DependencyContextConfigV1>;
+
 export const RouteActivationInputV1: z.ZodType<RouteActivation> = z
   .union([z.enum(['direct', 'mention']), RouteActivation])
   .transform((value) => {
@@ -98,11 +106,23 @@ export const ConfigV1 = ContextConfigV1.extend({
 });
 export type ConfigV1 = z.infer<typeof ConfigV1>;
 
-export function loadConfigV1(): ConfigV1 {
-  const configPath = findConfigPath();
-  const rawConfig = parseConfigFile(configPath);
+export const DependencyConfigV1 = DependencyContextConfigV1.extend({
+  configVersion: z.literal(1),
+  packageManager: z.enum(['npm', 'pnpm', 'yarn']).optional(),
+  fraqVersion: z.string(),
+  versions: z.record(z.string(), z.string()).default({}),
+  additionalDependencies: z.record(z.string(), z.string()).optional(),
+});
+export type DependencyConfigV1 = z.infer<typeof DependencyConfigV1>;
 
-  const configParseResult = ConfigV1.safeParse(rawConfig);
+export function loadConfigV1(options: { resolveAllReferences: true }): ConfigV1;
+export function loadConfigV1(options?: { resolveAllReferences?: false }): DependencyConfigV1;
+export function loadConfigV1(options: { resolveAllReferences?: boolean } = {}): ConfigV1 | DependencyConfigV1 {
+  const configPath = findConfigPath();
+  const resolveAllReferences = options.resolveAllReferences ?? false;
+  const rawConfig = parseConfigFile(configPath, resolveAllReferences);
+
+  const configParseResult = (resolveAllReferences ? ConfigV1 : DependencyConfigV1).safeParse(rawConfig);
   if (configParseResult.error) {
     console.log(chalk.red('There are issues with your configuration file:'));
     console.log(chalk.red(z.prettifyError(configParseResult.error)));
