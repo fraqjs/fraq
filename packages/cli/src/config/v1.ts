@@ -1,7 +1,8 @@
 import chalk from 'chalk';
 import z from 'zod';
 
-import { findConfigPath, parseConfigFile, RouteActivation, zSingleOrArray } from './shared';
+import { parseConfigReferences } from './references';
+import { findConfigPath, RouteActivation, zSingleOrArray } from './shared';
 
 export const FilterConfigV1 = z.union([
   z.enum(['allPass', 'allFriends', 'allGroups', 'admin']),
@@ -120,7 +121,7 @@ export function loadConfigV1(options?: { resolveAllReferences?: false }): Depend
 export function loadConfigV1(options: { resolveAllReferences?: boolean } = {}): ConfigV1 | DependencyConfigV1 {
   const configPath = findConfigPath();
   const resolveAllReferences = options.resolveAllReferences ?? false;
-  const rawConfig = parseConfigFile(configPath, resolveAllReferences);
+  const rawConfig = parseConfigReferences(configPath, resolveAllReferences);
 
   const configParseResult = (resolveAllReferences ? ConfigV1 : DependencyConfigV1).safeParse(rawConfig);
   if (configParseResult.error) {

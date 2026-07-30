@@ -1,4 +1,4 @@
-import { applyVersionUpdates, checkOutdatedVersions } from '../src/util/versions';
+import { applyVersionUpdates, checkOutdatedVersions } from '../src/versions';
 
 import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';

@@ -11,10 +11,10 @@ import { startApp, startInstall } from './app';
 import type { Config, DependencyConfig } from './config';
 import { loadConfig } from './config';
 import type { ConfigV1 } from './config/v1';
+import { getPluginDependencyDiagnostic } from './dependency';
+import { getLatestPackageJson } from './package-jsons';
+import { detectPackageManager, type PackageManagerInfo } from './package-manager';
 import { getVersionsPath } from './paths';
-import { getPluginDependencyDiagnostic } from './util/dependency';
-import { getLatestPackageJson } from './util/package-jsons';
-import { detectPackageManager, type PackageManagerInfo } from './util/package-manager';
 import {
   applyVersionUpdates,
   checkOutdatedVersions,
@@ -22,7 +22,7 @@ import {
   checkVersionsConsistency,
   completeAndSyncVersions,
   readVersions,
-} from './util/versions';
+} from './versions';
 
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -302,15 +302,6 @@ const cli = c.subcommands({
         await installOnly();
       },
     }),
-    version: c.command({
-      name: 'version',
-      aliases: ['v'],
-      description: 'Show the version of Fraq CLI',
-      args: {},
-      handler: () => {
-        console.log(pkg.version);
-      },
-    }),
     outdated: c.command({
       name: 'outdated',
       description: 'Check for outdated Fraq and plugin versions',
@@ -337,6 +328,15 @@ const cli = c.subcommands({
       handler: async () => {
         printBanner();
         await wizard();
+      },
+    }),
+    version: c.command({
+      name: 'version',
+      aliases: ['v'],
+      description: 'Show the version of Fraq CLI',
+      args: {},
+      handler: () => {
+        console.log(pkg.version);
       },
     }),
   },

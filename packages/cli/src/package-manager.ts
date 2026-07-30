@@ -53,7 +53,7 @@ function findExecutablesOnPath(command: string): string[] {
         continue;
       }
 
-      // Windows 文件路径不区分大小写。
+      // Windows file paths are case-insensitive.
       const deduplicationKey = process.platform === 'win32' ? candidate.toLowerCase() : candidate;
 
       if (!seen.has(deduplicationKey)) {
@@ -80,20 +80,20 @@ async function readVersion(commandPath: string): Promise<{
 
   if (result.failed) {
     if (result.timedOut) {
-      return { error: `版本检查在 ${versionCheckTimeout}ms 后超时` };
+      return { error: `Version check timed out after ${versionCheckTimeout}ms` };
     }
     return {
       error:
         result.exitCode === undefined
-          ? `无法执行版本检查${typeof result.code === 'string' ? ` (${result.code})` : ''}`
-          : `版本检查退出码为 ${result.exitCode}`,
+          ? `Cannot run version check${typeof result.code === 'string' ? ` (${result.code})` : ''}`
+          : `Version check exited with code ${result.exitCode}`,
     };
   }
 
   const version = [...result.stdout, ...result.stderr].map((line) => line.trim()).find(Boolean);
 
   if (!version) {
-    return { error: '命令执行成功，但没有输出版本号' };
+    return { error: 'Command succeeded but produced no version output' };
   }
 
   return { version };
@@ -106,7 +106,7 @@ export async function detectPackageManager(name: PackageManagerName): Promise<Pa
   for (const commandPath of allCommandPaths) {
     const versionResult = await readVersion(commandPath);
     if (!versionResult.version) {
-      errors.push(`${commandPath}: ${versionResult.error ?? '版本检查失败'}`);
+      errors.push(`${commandPath}: ${versionResult.error ?? 'Version check failed'}`);
       continue;
     }
 
@@ -114,7 +114,7 @@ export async function detectPackageManager(name: PackageManagerName): Promise<Pa
     try {
       realPath = realpathSync.native(commandPath);
     } catch {
-      // 某些虚拟文件系统或 Windows shim 可能无法解析，保留原路径。
+      // Some virtual filesystems or Windows shims may not be resolvable; keep the original path.
     }
 
     return {

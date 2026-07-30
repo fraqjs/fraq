@@ -1,5 +1,5 @@
 import type { Config, ContextConfig, FilterConfig } from '../config';
-import { normalizePluginName } from '../util/dependency';
+import { normalizePluginName } from '../dependency';
 import { compileActivationResolver } from './activation';
 
 function buildFilterExpression(config: FilterConfig): string {

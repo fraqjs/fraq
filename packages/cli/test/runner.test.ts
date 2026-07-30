@@ -1,4 +1,4 @@
-import { installAppDependencies, startAppProcess } from '../src/app/process';
+import { installAppDependencies, startAppProcess } from '../src/app/runner';
 
 import assert from 'node:assert/strict';
 import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';

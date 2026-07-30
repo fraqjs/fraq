@@ -1,5 +1,5 @@
 import type { Config } from '../config';
-import { normalizePluginName } from '../util/dependency';
+import { normalizePluginName } from '../dependency';
 
 interface PackageJson {
   name: string;

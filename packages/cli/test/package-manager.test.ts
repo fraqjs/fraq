@@ -1,4 +1,4 @@
-import { detectPackageManager, type PackageManagerName } from '../src/util/package-manager';
+import { detectPackageManager, type PackageManagerName } from '../src/package-manager';
 
 import assert from 'node:assert/strict';
 import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';

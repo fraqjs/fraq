@@ -1,7 +1,7 @@
 import * as YAML from 'yaml';
 
 import { loadConfig } from '../src/config';
-import { parseConfigFile } from '../src/config/shared';
+import { parseConfigReferences } from '../src/config/references';
 import { ActivationConfigInputV1, ConfigV1 } from '../src/config/v1';
 
 import assert from 'node:assert/strict';
@@ -15,7 +15,7 @@ const originalFetch = globalThis.fetch;
 const testRoot = mkdtempSync(path.join(tmpdir(), 'fraq-cli-config-'));
 
 function parseResolvedConfigFile(filePath: string): unknown {
-  return parseConfigFile(filePath, true);
+  return parseConfigReferences(filePath, true);
 }
 
 after(() => {

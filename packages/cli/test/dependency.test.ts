@@ -1,5 +1,5 @@
 import type { Config } from '../src/config';
-import { getPluginDependencyDiagnostic, normalizePluginName } from '../src/util/dependency';
+import { getPluginDependencyDiagnostic, normalizePluginName } from '../src/dependency';
 
 import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';

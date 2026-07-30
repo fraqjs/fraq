@@ -1,7 +1,7 @@
 import { execa, execaNode, type ResultPromise } from 'execa';
 
+import type { PackageManagerInfo } from '../package-manager';
 import { getAppPath } from '../paths';
-import type { PackageManagerInfo } from '../util/package-manager';
 
 import { constants as osConstants } from 'node:os';
 

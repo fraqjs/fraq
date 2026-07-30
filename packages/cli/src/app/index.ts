@@ -1,17 +1,14 @@
 import chalk from 'chalk';
 
 import type { Config } from '../config';
+import type { PackageManagerInfo } from '../package-manager';
 import { ensureAppPaths, getAppPath } from '../paths';
-import type { PackageManagerInfo } from '../util/package-manager';
 import { generateAppPackageJson } from './package-json';
-import { installAppDependencies, startAppProcess } from './process';
+import { installAppDependencies, startAppProcess } from './runner';
 import { buildStartScript } from './start-script';
 
 import { writeFileSync } from 'node:fs';
 import path from 'node:path';
-
-export { generateAppPackageJson } from './package-json';
-export { buildStartScript } from './start-script';
 
 export interface StartAppParams {
   config: Config;

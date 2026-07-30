@@ -1,7 +1,5 @@
 import z from 'zod';
 
-import { parseConfigReferences } from './references';
-
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 
@@ -14,10 +12,6 @@ export type RouteActivation = z.infer<typeof RouteActivation>;
 
 export function zSingleOrArray<T>(schema: z.ZodType<T>): z.ZodType<T[]> {
   return z.union([schema, z.array(schema)]).transform((value) => (Array.isArray(value) ? value : [value]));
-}
-
-export function parseConfigFile(filePath: string, resolveAllReferences = false): unknown {
-  return parseConfigReferences(filePath, resolveAllReferences);
 }
 
 export function findConfigPath(): string {

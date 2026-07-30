@@ -1,10 +1,11 @@
 import YAML, { type Document } from 'yaml';
 
-import type { ContextConfig } from '../config';
-import { findConfigPath } from '../config/shared';
-import { getVersionsPath } from '../paths';
+import type { ContextConfig } from './config';
+import { collectPluginNames } from './config/context';
+import { findConfigPath } from './config/shared';
 import { normalizePluginName } from './dependency';
 import { getLatestPackageJson, getPackageJson } from './package-jsons';
+import { getVersionsPath } from './paths';
 
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 
@@ -22,15 +23,6 @@ function setVersionInDocument(document: Document, path: string[], version: strin
     currentVersion.value = version;
   } else {
     document.setIn(path, version);
-  }
-}
-
-function collectPluginNamesFromConfig(context: ContextConfig, pluginNames: Set<string>): void {
-  for (const pluginName of Object.keys(context.plugins ?? {})) {
-    pluginNames.add(pluginName);
-  }
-  for (const fork of Object.values(context.forks ?? {})) {
-    collectPluginNamesFromConfig(fork, pluginNames);
   }
 }
 
@@ -56,8 +48,7 @@ export function checkVersionsCompleteness(
   config: ContextConfig,
   versions: Record<string, string>,
 ): VersionsCompleteness {
-  const pluginNames = new Set<string>();
-  collectPluginNamesFromConfig(config, pluginNames);
+  const pluginNames = collectPluginNames(config);
   const missingPlugins = Array.from(pluginNames).filter((pluginName) => !versions[pluginName]);
   if (missingPlugins.length > 0) {
     return { status: 'missing', missingPlugins: missingPlugins.sort((a, b) => a.localeCompare(b)) };
@@ -197,8 +188,7 @@ export async function completeAndSyncVersions(
   config: ContextConfig,
   lockfileVersions: Record<string, string>,
 ): Promise<Record<string, string>> {
-  const pluginNames = new Set<string>();
-  collectPluginNamesFromConfig(config, pluginNames);
+  const pluginNames = collectPluginNames(config);
   const completedVersions: Record<string, string> = {};
 
   for (const pluginName of pluginNames) {
