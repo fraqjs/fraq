@@ -114,6 +114,13 @@ export namespace filter {
     };
   }
 
+  export function sender(...uinList: number[]): Filter {
+    const uinSet = new Set(uinList);
+    return {
+      message_receive: ({ data }) => uinSet.has(data.sender_id),
+    };
+  }
+
   export function admin(): Filter {
     return {
       message_receive: ({ data }) => data.message_scene === 'group' && data.group_member.role !== 'member',
