@@ -1,12 +1,70 @@
 'use client';
 
+import collections from 'collections/browser';
 import { DynamicCodeBlock } from 'fumadocs-ui/components/dynamic-codeblock';
 import * as lucide from 'lucide-react';
 import Markdown, { RuleType } from 'markdown-to-jsx';
-import { useEffect, useRef } from 'react';
+import {
+  Component,
+  type ComponentProps,
+  type ComponentType,
+  type PropsWithChildren,
+  Suspense,
+  useEffect,
+  useRef,
+} from 'react';
 
-import { useMDXComponents } from '@/components/mdx';
+import { getMDXComponents, useMDXComponents } from '@/components/mdx';
 import { gitConfig } from '@/lib/shared';
+
+const officialPluginDocs = collections.docs.createClientLoader<{ slug: string }>({
+  component(doc, { slug }) {
+    const MDX = doc.default;
+    const components = getMDXComponents();
+    const Link = components.a as ComponentType<ComponentProps<'a'>>;
+
+    return (
+      <MDX
+        components={getMDXComponents({
+          a: ({ href, ...props }) => {
+            if (!href || href.startsWith('#') || href.startsWith('/')) {
+              return <Link href={href} {...props} />;
+            }
+
+            const base = new URL(`https://fraq.dev/docs/plugins/${slug}.mdx`);
+            const resolved = new URL(href, base);
+            if (resolved.origin !== base.origin) {
+              return <Link href={href} {...props} />;
+            }
+
+            resolved.pathname = resolved.pathname.replace(/\.mdx?$/, '');
+            return <Link href={`${resolved.pathname}${resolved.search}${resolved.hash}`} {...props} />;
+          },
+        })}
+      />
+    );
+  },
+});
+
+function OfficialPluginDoc({ path, slug }: { path: string; slug: string }) {
+  const MDX = officialPluginDocs.getComponent(path);
+  return <MDX slug={slug} />;
+}
+
+class OfficialPluginDocErrorBoundary extends Component<PropsWithChildren, { failed: boolean }> {
+  state = { failed: false };
+
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+
+  render() {
+    if (this.state.failed) {
+      return <p className="text-sm text-fd-muted-foreground">官方文档加载失败，请前往文档页面查看。</p>;
+    }
+    return this.props.children;
+  }
+}
 
 export interface PluginEntry {
   id: string;
@@ -30,13 +88,6 @@ export function isOfficial(plugin: PluginEntry): boolean {
 
 export function officialPluginSlug(plugin: PluginEntry): string {
   return plugin.id.slice('fraqjs/'.length);
-}
-
-function pluginHref(plugin: PluginEntry): string {
-  if (isOfficial(plugin)) {
-    return `/docs/plugins/${officialPluginSlug(plugin)}`;
-  }
-  return plugin.repository;
 }
 
 function repositorySlug(plugin: PluginEntry): string | null {
@@ -96,8 +147,8 @@ export function ReadmeDrawer({
   const githubUrl = official
     ? `https://github.com/${gitConfig.user}/${gitConfig.repo}/tree/${gitConfig.branch}/plugins/${slug}`
     : plugin.repository;
-  const docsUrl = official ? pluginHref(plugin) : null;
   const npmUrl = `https://www.npmjs.com/package/${npmId}`;
+  const officialDocPath = slug ? `plugins/${slug}.mdx` : null;
 
   return (
     <>
@@ -142,17 +193,6 @@ export function ReadmeDrawer({
 
         {/* Action buttons */}
         <div className="flex shrink-0 items-center gap-2 border-b border-fd-border px-5 py-3">
-          {docsUrl && (
-            <a
-              href={docsUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-md border border-fd-border bg-fd-muted/60 px-3 py-1.5 text-xs text-fd-foreground transition-colors hover:bg-fd-accent"
-            >
-              <lucide.BookOpenIcon className="size-3.5" />
-              文档
-            </a>
-          )}
           <a
             href={npmUrl}
             target="_blank"
@@ -181,46 +221,59 @@ export function ReadmeDrawer({
 
         {/* Documentation content */}
         <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
-          {readme.loading && (
-            <div className="flex items-center gap-2 text-sm text-fd-muted-foreground">
-              <lucide.LoaderCircleIcon className="size-4 animate-spin" />
-              正在加载 README…
-            </div>
-          )}
-          {readme.error && (
-            <p className="text-sm text-fd-muted-foreground">README 加载失败，请前往官方文档、npm 或 GitHub 查看。</p>
-          )}
-          {readme.text && official ? (
-            <div className="flex flex-col gap-4">
-              <p className="text-sm text-fd-muted-foreground">
-                以下是官方文档的原始 Markdown 内容，请点击“文档”按钮查看完整内容。
-              </p>
-              {/* divider */}
-              <div className="h-px bg-fd-border" />
-              <pre className="whitespace-pre-wrap break-words font-mono text-xs leading-relaxed text-fd-foreground">
-                {readme.text}
-              </pre>
-            </div>
-          ) : readme.text ? (
-            <Markdown
-              options={{
-                overrides: { ...mdxComponents, img: () => null },
-                renderRule(next, node, _renderChildren, state) {
-                  if (node.type === RuleType.codeBlock) {
-                    return (
-                      <div key={state.key} className="[&_code]:text-[0.7109375rem]">
-                        <DynamicCodeBlock lang={node.lang || 'text'} code={node.text} />
-                      </div>
-                    );
+          {official && slug && officialDocPath ? (
+            Object.hasOwn(collections.docs.raw, officialDocPath) ? (
+              <OfficialPluginDocErrorBoundary key={officialDocPath}>
+                <Suspense
+                  fallback={
+                    <div className="flex items-center gap-2 text-sm text-fd-muted-foreground">
+                      <lucide.LoaderCircleIcon className="size-4 animate-spin" />
+                      正在加载官方文档…
+                    </div>
                   }
-                  return next();
-                },
-              }}
-              className="prose prose-sm dark:prose-invert max-w-none text-fd-foreground [&_a]:text-fd-primary"
-            >
-              {readme.text}
-            </Markdown>
-          ) : null}
+                >
+                  <div className="prose prose-sm dark:prose-invert max-w-none text-fd-foreground [&_a]:text-fd-primary">
+                    <Markdown options={{ overrides: mdxComponents }}>{`# ${plugin.name}`}</Markdown>
+                    <OfficialPluginDoc path={officialDocPath} slug={slug} />
+                  </div>
+                </Suspense>
+              </OfficialPluginDocErrorBoundary>
+            ) : (
+              <p className="text-sm text-fd-muted-foreground">该官方插件暂时没有可用的文档。</p>
+            )
+          ) : (
+            <>
+              {readme.loading && (
+                <div className="flex items-center gap-2 text-sm text-fd-muted-foreground">
+                  <lucide.LoaderCircleIcon className="size-4 animate-spin" />
+                  正在加载 README…
+                </div>
+              )}
+              {readme.error && (
+                <p className="text-sm text-fd-muted-foreground">README 加载失败，请前往 npm 或 GitHub 查看。</p>
+              )}
+              {readme.text && (
+                <Markdown
+                  options={{
+                    overrides: { ...mdxComponents, img: () => null },
+                    renderRule(next, node, _renderChildren, state) {
+                      if (node.type === RuleType.codeBlock) {
+                        return (
+                          <div key={state.key} className="[&_code]:text-[0.7109375rem]">
+                            <DynamicCodeBlock lang={node.lang || 'text'} code={node.text} />
+                          </div>
+                        );
+                      }
+                      return next();
+                    },
+                  }}
+                  className="prose prose-sm dark:prose-invert max-w-none text-fd-foreground [&_a]:text-fd-primary"
+                >
+                  {readme.text}
+                </Markdown>
+              )}
+            </>
+          )}
         </div>
       </div>
     </>

@@ -4,8 +4,7 @@ import type { LucideIcon } from 'lucide-react';
 import * as lucide from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 
-import { docsContentRoute } from '@/lib/shared';
-import { isOfficial, officialPluginSlug, type PluginEntry, ReadmeDrawer, type ReadmeState } from './readme-drawer';
+import { isOfficial, type PluginEntry, ReadmeDrawer, type ReadmeState } from './readme-drawer';
 
 const REGISTRY_URL = 'https://registry.fraq.dev/plugins.json';
 
@@ -132,7 +131,7 @@ export function PluginMarketplace() {
   const openDrawer = useCallback((plugin: PluginEntry) => {
     setDrawerPlugin(plugin);
     setDrawerOpen(false);
-    setReadme({ text: null, loading: true, error: false });
+    setReadme({ text: null, loading: !isOfficial(plugin), error: false });
 
     requestAnimationFrame(() => {
       requestAnimationFrame(() => setDrawerOpen(true));
@@ -145,12 +144,10 @@ export function PluginMarketplace() {
   }, []);
 
   useEffect(() => {
-    if (!drawerPlugin) return;
+    if (!drawerPlugin || isOfficial(drawerPlugin)) return;
 
     const controller = new AbortController();
-    const contentUrl = isOfficial(drawerPlugin)
-      ? `${docsContentRoute}/plugins/${officialPluginSlug(drawerPlugin)}/content.md`
-      : `https://cdn.jsdelivr.net/npm/${drawerPlugin.name}@${drawerPlugin.version}/README.md`;
+    const contentUrl = `https://cdn.jsdelivr.net/npm/${drawerPlugin.name}@${drawerPlugin.version}/README.md`;
 
     fetch(contentUrl, { signal: controller.signal })
       .then(async (res) => {
