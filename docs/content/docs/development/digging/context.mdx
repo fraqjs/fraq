@@ -234,6 +234,9 @@ const filter5 = filter.and(
   filter.not(filter.group(123456)),
 );
 // 监听来自群聊但不包括群聊 123456 的事件。
+
+const filter6 = filter.and(filter.allGroups(), filter.sender(10001, 10002));
+// 监听来自群聊的事件，但只包括发送者为 10001 或 10002 的消息事件。
 ```
 
 随后，就可以将这些过滤器传入 `ctx.fork` 来创建新的 `Context`，例如：
