@@ -87,14 +87,24 @@ export interface OutdatedVersionsCheckResult {
   errors: Array<{ name: string; error: unknown }>;
 }
 
-export async function checkOutdatedVersions(versions: Record<string, string>): Promise<OutdatedVersionsCheckResult> {
+export async function checkOutdatedVersions(
+  fraqVersion: string,
+  pluginVersions: Record<string, string>,
+): Promise<OutdatedVersionsCheckResult> {
   const outdated: Array<{ name: string; current: string; latest: string }> = [];
   const errors: Array<{ name: string; error: unknown }> = [];
 
   await Promise.all(
-    Object.entries(versions).map(async ([name, currentVersion]) => {
+    [
+      { name: 'Fraq', packageName: '@fraqjs/fraq', currentVersion: fraqVersion },
+      ...Object.entries(pluginVersions).map(([name, currentVersion]) => ({
+        name,
+        packageName: normalizePluginName(name),
+        currentVersion,
+      })),
+    ].map(async ({ name, packageName, currentVersion }) => {
       try {
-        const latestPackageJson = await getLatestPackageJson(normalizePluginName(name));
+        const latestPackageJson = await getLatestPackageJson(packageName);
         const latestVersion = latestPackageJson.version;
         if (latestVersion && latestVersion !== currentVersion) {
           outdated.push({ name, current: currentVersion, latest: latestVersion });

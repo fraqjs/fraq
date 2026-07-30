@@ -136,19 +136,19 @@ async function installOnly() {
 
 async function outdated() {
   const config = await ensureConfigWithVersions();
-  const outdated = await checkOutdatedVersions(config.versions);
+  const outdated = await checkOutdatedVersions(config.fraqVersion, config.versions);
   if (outdated.outdated.length === 0 && outdated.errors.length === 0) {
-    console.log(chalk.green('All plugin versions are up to date.'));
+    console.log(chalk.green('All versions are up to date.'));
     return;
   }
   if (outdated.outdated.length > 0) {
-    console.log(chalk.yellow('The following plugins have newer versions available:'));
+    console.log(chalk.yellow('The following versions have newer releases available:'));
     for (const { name, current, latest } of outdated.outdated) {
       console.log(`- ${name}: current ${chalk.red(current)} -> latest ${chalk.green(latest)}`);
     }
   }
   if (outdated.errors.length > 0) {
-    console.log(chalk.red('Failed to check for updates for the following plugins:'));
+    console.log(chalk.red('Failed to check the following versions:'));
     for (const { name, error } of outdated.errors) {
       console.log(`- ${name}:`, error);
     }
@@ -261,7 +261,7 @@ const cli = c.subcommands({
     }),
     outdated: c.command({
       name: 'outdated',
-      description: 'Check for outdated plugin versions',
+      description: 'Check for outdated Fraq and plugin versions',
       args: {},
       handler: async () => {
         printBanner();
