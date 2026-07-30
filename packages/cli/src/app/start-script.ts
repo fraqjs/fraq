@@ -12,6 +12,9 @@ function buildFilterExpression(config: FilterConfig): string {
   if ('groups' in config) {
     return `filter.group(${config.groups.map((id) => JSON.stringify(id)).join(', ')})`;
   }
+  if ('senders' in config) {
+    return `filter.sender(${config.senders.map((id) => JSON.stringify(id)).join(', ')})`;
+  }
   if ('or' in config) {
     return `filter.or(${config.or.map(buildFilterExpression).join(', ')})`;
   }

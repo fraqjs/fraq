@@ -7,6 +7,7 @@ export const FilterConfigV1 = z.union([
   z.enum(['allPass', 'allFriends', 'allGroups', 'admin']),
   z.object({ friends: z.array(z.number()) }),
   z.object({ groups: z.array(z.number()) }),
+  z.object({ senders: z.array(z.number()) }),
   z.object({
     get or() {
       return z.array(FilterConfigV1);
