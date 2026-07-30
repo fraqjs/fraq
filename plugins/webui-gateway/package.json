@@ -1,0 +1,56 @@
+{
+  "name": "@fraqjs/plugin-webui-gateway",
+  "type": "module",
+  "version": "0.1.0",
+  "description": "提供统一的 WebUI 挂载和鉴权入口",
+  "files": [
+    "dist"
+  ],
+  "main": "dist/index.mjs",
+  "typings": "dist/index.d.mts",
+  "scripts": {
+    "build": "pnpm build:server && pnpm build:webui",
+    "build:server": "tsdown",
+    "build:webui": "vite build",
+    "dev:webui": "vite",
+    "test": "tsx --test test/*.test.ts",
+    "prepack": "pnpm build"
+  },
+  "keywords": [],
+  "author": "fraqjs",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fraqjs/fraq.git"
+  },
+  "homepage": "https://fraq.dev/docs/plugins/webui-gateway",
+  "license": "MIT",
+  "peerDependencies": {
+    "@fraqjs/fraq": "workspace:^",
+    "@fraqjs/plugin-hono": "workspace:^",
+    "hono": "^4.12.31"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.0.10"
+  },
+  "devDependencies": {
+    "@fontsource-variable/inter": "^5.3.0",
+    "@tailwindcss/vite": "^4.1.18",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.4",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.27.0",
+    "radix-ui": "^1.6.7",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "shadcn": "^4.16.0",
+    "tailwind-merge": "^3.6.0",
+    "tailwindcss": "^4.1.18",
+    "tw-animate-css": "^1.4.0",
+    "vite": "^7.3.1"
+  },
+  "fraq": {
+    "category": "infrastructure"
+  }
+}

@@ -1,5 +1,5 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.5.0/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.5.4/schema.json",
   "vcs": {
     "enabled": true,
     "clientKind": "git",
@@ -96,6 +96,14 @@
       "includes": ["docs/**/meta.json"],
       "formatter": {
         "expand": "always"
+      }
+    },
+    {
+      "includes": ["plugins/webui-gateway/webui/**/*.css"],
+      "css": {
+        "parser": {
+          "tailwindDirectives": true
+        }
       }
     }
   ]
