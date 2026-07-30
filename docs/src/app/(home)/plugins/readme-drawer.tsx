@@ -179,8 +179,8 @@ export function ReadmeDrawer({
         {/* Header */}
         <div className="flex shrink-0 items-start justify-between gap-3 border-b border-fd-border px-5 py-4">
           <div className="min-w-0 flex-1">
-            <p className="truncate font-mono text-xs text-fd-muted-foreground">{plugin.id}</p>
-            <p className="mt-0.5 text-sm text-fd-foreground">{plugin.description}</p>
+            <p className="truncate font-mono text-sm text-fd-foreground">{plugin.id}</p>
+            <p className="mt-0.5 text-xs text-fd-muted-foreground">{plugin.description}</p>
           </div>
           <button
             onClick={onClose}
@@ -197,17 +197,17 @@ export function ReadmeDrawer({
             href={npmUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-md border border-fd-border bg-fd-muted/60 px-3 py-1.5 text-xs text-fd-foreground transition-colors hover:bg-fd-accent"
+            className="inline-flex items-center gap-1.5 rounded-md border border-fd-border bg-fd-muted/60 px-3 py-1.5 font-mono text-xs text-fd-foreground transition-colors hover:bg-fd-accent"
           >
             <lucide.PackageIcon className="size-3.5" />
-            npm
+            {plugin.name}
           </a>
           {githubUrl && (
             <a
               href={githubUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-md border border-fd-border bg-fd-muted/60 px-3 py-1.5 text-xs text-fd-foreground transition-colors hover:bg-fd-accent"
+              className="inline-flex items-center gap-1.5 rounded-md border border-fd-border bg-fd-muted/60 px-3 py-1.5 font-mono text-xs text-fd-foreground transition-colors hover:bg-fd-accent"
             >
               <lucide.GitBranchIcon className="size-3.5" />
               {repositorySlug(plugin) || 'GitHub'}
