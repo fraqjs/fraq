@@ -4,7 +4,7 @@ import type { Config } from '../config';
 import { ensureAppPaths, getAppPath } from '../paths';
 import type { PackageManagerInfo } from '../util/package-manager';
 import { generateAppPackageJson } from './package-json';
-import { exitCodeFromChildResult, installAppDependencies, startAppProcess, waitForChild } from './process';
+import { installAppDependencies, startAppProcess } from './process';
 import { buildStartScript } from './start-script';
 
 import { writeFileSync } from 'node:fs';
@@ -36,12 +36,10 @@ export async function startApp({ config, pmInfo, runInstall }: StartAppParams): 
   }
 
   console.log(chalk.cyan('Starting the Fraq application...'));
-  const appResult = await waitForChild(startAppProcess());
-  return exitCodeFromChildResult(appResult);
+  return startAppProcess();
 }
 
 export async function startInstall(pmInfo: PackageManagerInfo & { commandPath: string }): Promise<number> {
   ensureAppPaths();
-  const installResult = await waitForChild(installAppDependencies(pmInfo));
-  return exitCodeFromChildResult(installResult);
+  return installAppDependencies(pmInfo);
 }

@@ -1,31 +1,14 @@
+import { execa, execaNode, type ResultPromise } from 'execa';
+
 import { getAppPath } from '../paths';
 import type { PackageManagerInfo } from '../util/package-manager';
 
-import { type ChildProcess, spawn } from 'node:child_process';
 import { constants as osConstants } from 'node:os';
-
-interface ChildResult {
-  code: number | null;
-  signal: NodeJS.Signals | null;
-  forwardedSignal?: NodeJS.Signals;
-}
 
 const terminationSignals: readonly NodeJS.Signals[] =
   process.platform === 'win32' ? ['SIGINT', 'SIGTERM', 'SIGBREAK'] : ['SIGINT', 'SIGTERM', 'SIGHUP', 'SIGQUIT'];
 
-function killChildProcessGroup(child: ChildProcess, signal: NodeJS.Signals): void {
-  if (process.platform !== 'win32' && child.pid !== undefined) {
-    try {
-      process.kill(-child.pid, signal);
-      return;
-    } catch {
-      // The process may have exited between the signal and this handler.
-    }
-  }
-  child.kill(signal);
-}
-
-export function waitForChild(child: ChildProcess): Promise<ChildResult> {
+async function waitForProcessExit(child: ResultPromise): Promise<number> {
   let forwardedSignal: NodeJS.Signals | undefined;
   const signalHandlers = new Map<NodeJS.Signals, () => void>();
 
@@ -33,35 +16,32 @@ export function waitForChild(child: ChildProcess): Promise<ChildResult> {
     const handler = () => {
       const signalToForward = forwardedSignal === undefined ? signal : 'SIGKILL';
       forwardedSignal ??= signal;
-      killChildProcessGroup(child, signalToForward);
+      child.kill(signalToForward);
     };
     signalHandlers.set(signal, handler);
     process.on(signal, handler);
   }
 
-  return new Promise((resolve, reject) => {
-    const removeSignalHandlers = () => {
-      for (const [signal, handler] of signalHandlers) {
-        process.off(signal, handler);
-      }
-    };
-
-    child.once('error', (error) => {
-      removeSignalHandlers();
-      reject(error);
-    });
-    child.once('close', (code, signal) => {
-      removeSignalHandlers();
-      resolve({ code, signal, forwardedSignal });
-    });
-  });
+  try {
+    const result = await child;
+    if (forwardedSignal) {
+      return 128 + (osConstants.signals[forwardedSignal] ?? 1);
+    }
+    if (result.signal) {
+      return 128 + (osConstants.signals[result.signal] ?? 1);
+    }
+    return result.exitCode ?? 1;
+  } finally {
+    for (const [signal, handler] of signalHandlers) {
+      process.off(signal, handler);
+    }
+  }
 }
 
-export function installAppDependencies(packageManager: PackageManagerInfo & { commandPath: string }): ChildProcess {
+export function installAppDependencies(packageManager: PackageManagerInfo & { commandPath: string }): Promise<number> {
   const appPath = getAppPath();
   const options = {
     cwd: appPath,
-    detached: process.platform !== 'win32',
     env:
       packageManager.name === 'yarn'
         ? {
@@ -80,31 +60,24 @@ export function installAppDependencies(packageManager: PackageManagerInfo & { co
     additionalArgs.push('--legacy-peer-deps');
   }
 
-  if (process.platform === 'win32') {
-    return spawn(
-      process.env.ComSpec ?? 'cmd.exe',
-      ['/d', '/s', '/c', `"${packageManager.commandPath}" install`, ...additionalArgs],
-      options,
-    );
-  }
-  return spawn(packageManager.commandPath, ['install', ...additionalArgs], options);
+  return waitForProcessExit(
+    execa(packageManager.commandPath, ['install', ...additionalArgs], {
+      ...options,
+      killDescendants: true,
+      reject: false,
+    }),
+  );
 }
 
-export function startAppProcess(): ChildProcess {
-  return spawn(process.execPath, ['index.js'], {
-    cwd: getAppPath(),
-    detached: process.platform !== 'win32',
-    env: process.env,
-    stdio: 'inherit',
-  });
-}
-
-export function exitCodeFromChildResult(result: ChildResult): number {
-  if (result.forwardedSignal) {
-    return 128 + (osConstants.signals[result.forwardedSignal] ?? 1);
-  }
-  if (result.signal) {
-    return 128 + (osConstants.signals[result.signal] ?? 1);
-  }
-  return result.code ?? 1;
+export function startAppProcess(): Promise<number> {
+  return waitForProcessExit(
+    execaNode('index.js', {
+      cwd: getAppPath(),
+      env: process.env,
+      killDescendants: true,
+      nodeOptions: [],
+      reject: false,
+      stdio: 'inherit',
+    }),
+  );
 }

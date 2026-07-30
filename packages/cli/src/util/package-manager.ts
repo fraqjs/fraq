@@ -1,13 +1,16 @@
-import { spawnSync } from 'node:child_process';
+import { execa } from 'execa';
+
 import { accessSync, constants, realpathSync, statSync } from 'node:fs';
 import * as path from 'node:path';
+
+const versionCheckTimeout = 5_000;
 
 export type PackageManagerName = 'npm' | 'yarn' | 'pnpm';
 
 export interface PackageManagerInfo {
   name: PackageManagerName;
   installed: boolean;
-  /** The entry with the highest priority in PATH, which is currently effective */
+  /** The first entry in PATH that passed version validation */
   commandPath?: string;
   /** The path after resolving symbolic links, such as the actual file in Corepack, Volta, or nvm */
   realPath?: string;
@@ -63,78 +66,71 @@ function findExecutablesOnPath(command: string): string[] {
   return results;
 }
 
-function readVersion(commandPath: string): {
+async function readVersion(commandPath: string): Promise<{
   version?: string;
   error?: string;
-} {
-  /*
-   * Windows 无法像普通 .exe 一样直接执行 npm.cmd/yarn.cmd/pnpm.cmd，
-   * 因此需要通过 cmd.exe 执行。
-   */
-  const result =
-    process.platform === 'win32'
-      ? spawnSync(process.env.ComSpec ?? 'cmd.exe', ['/d', '/s', '/c', `"${commandPath}" --version`], {
-          encoding: 'utf8',
-          windowsHide: true,
-        })
-      : spawnSync(commandPath, ['--version'], {
-          encoding: 'utf8',
-        });
+}> {
+  const result = await execa(commandPath, ['--version'], {
+    forceKillAfterDelay: 1_000,
+    killDescendants: true,
+    lines: true,
+    reject: false,
+    timeout: versionCheckTimeout,
+  });
 
-  if (result.error) {
-    return { error: result.error.message };
-  }
-
-  const stdout = result.stdout?.trim();
-  const stderr = result.stderr?.trim();
-
-  if (result.status !== 0) {
+  if (result.failed) {
+    if (result.timedOut) {
+      return { error: `版本检查在 ${versionCheckTimeout}ms 后超时` };
+    }
     return {
-      error: stderr || stdout || `命令退出码为 ${result.status ?? 'unknown'}`,
+      error:
+        result.exitCode === undefined
+          ? `无法执行版本检查${typeof result.code === 'string' ? ` (${result.code})` : ''}`
+          : `版本检查退出码为 ${result.exitCode}`,
     };
   }
 
-  const version = stdout || stderr;
+  const version = [...result.stdout, ...result.stderr].map((line) => line.trim()).find(Boolean);
 
   if (!version) {
     return { error: '命令执行成功，但没有输出版本号' };
   }
 
-  return {
-    // 正常情况下只有一行；取第一行避免额外提示信息干扰。
-    version: version.split(/\r?\n/, 1)[0].trim(),
-  };
+  return { version };
 }
 
-export function detectPackageManager(name: PackageManagerName): PackageManagerInfo {
+export async function detectPackageManager(name: PackageManagerName): Promise<PackageManagerInfo> {
   const allCommandPaths = findExecutablesOnPath(name);
-  const commandPath = allCommandPaths[0];
 
-  if (!commandPath) {
+  const errors: string[] = [];
+  for (const commandPath of allCommandPaths) {
+    const versionResult = await readVersion(commandPath);
+    if (!versionResult.version) {
+      errors.push(`${commandPath}: ${versionResult.error ?? '版本检查失败'}`);
+      continue;
+    }
+
+    let realPath = commandPath;
+    try {
+      realPath = realpathSync.native(commandPath);
+    } catch {
+      // 某些虚拟文件系统或 Windows shim 可能无法解析，保留原路径。
+    }
+
     return {
       name,
-      installed: false,
+      installed: true,
+      commandPath,
+      realPath,
+      version: versionResult.version,
       allCommandPaths,
     };
   }
 
-  let realPath = commandPath;
-
-  try {
-    realPath = realpathSync.native(commandPath);
-  } catch {
-    // 某些虚拟文件系统或 Windows shim 可能无法解析，保留原路径。
-  }
-
-  const versionResult = readVersion(commandPath);
-
   return {
     name,
-    installed: versionResult.version !== undefined,
-    commandPath,
-    realPath,
-    version: versionResult.version,
+    installed: false,
     allCommandPaths,
-    error: versionResult.error,
+    error: errors.length > 0 ? errors.join('\n') : undefined,
   };
 }

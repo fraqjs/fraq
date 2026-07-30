@@ -67,11 +67,11 @@ async function ensureConfigWithVersions(): Promise<Config> {
   return config;
 }
 
-function ensurePackageManager(config: Config): PackageManagerInfo & { commandPath: string } {
+async function ensurePackageManager(config: Config): Promise<PackageManagerInfo & { commandPath: string }> {
   let packageManager: PackageManagerInfo | undefined;
   if (config.packageManager) {
-    const result = detectPackageManager(config.packageManager);
-    if (!result?.installed || !result?.commandPath) {
+    const result = await detectPackageManager(config.packageManager);
+    if (!result.installed || !result.commandPath) {
       console.error(chalk.red(`Specified package manager '${config.packageManager}' is not found in the system PATH.`));
       process.exit(1);
     }
@@ -79,8 +79,8 @@ function ensurePackageManager(config: Config): PackageManagerInfo & { commandPat
   } else {
     // Try along pnpm -> yarn -> npm
     for (const name of ['pnpm', 'yarn', 'npm'] as const) {
-      const result = detectPackageManager(name);
-      if (result?.installed && result?.commandPath) {
+      const result = await detectPackageManager(name);
+      if (result.installed && result.commandPath) {
         packageManager = result;
         break;
       }
@@ -111,7 +111,7 @@ async function start(runInstall: boolean = true): Promise<void> {
 
   const exitCode = await startApp({
     config: config,
-    pmInfo: ensurePackageManager(config),
+    pmInfo: await ensurePackageManager(config),
     runInstall: runInstall,
   });
   process.exit(exitCode);
@@ -129,7 +129,7 @@ async function lock() {
 
 async function installOnly() {
   const config = await ensureConfigWithVersions();
-  const pmInfo = ensurePackageManager(config);
+  const pmInfo = await ensurePackageManager(config);
   const exitCode = await startInstall(pmInfo);
   process.exit(exitCode);
 }
