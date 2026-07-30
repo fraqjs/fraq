@@ -1,11 +1,29 @@
-import YAML from 'yaml';
+import YAML, { type Document } from 'yaml';
 
 import type { ContextConfig } from '../config';
+import { findConfigPath } from '../config/shared';
 import { getVersionsPath } from '../paths';
 import { normalizePluginName } from './dependency';
 import { getLatestPackageJson, getPackageJson } from './package-jsons';
 
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+
+function readVersionDocument(filePath: string): Document {
+  const document = YAML.parseDocument(existsSync(filePath) ? readFileSync(filePath, 'utf-8') : '{}\n');
+  if (document.errors.length > 0) {
+    throw new Error(`Failed to parse ${filePath}: ${document.errors[0]?.message}`);
+  }
+  return document;
+}
+
+function setVersionInDocument(document: Document, path: string[], version: string): void {
+  const currentVersion = document.getIn(path, true);
+  if (YAML.isScalar(currentVersion)) {
+    currentVersion.value = version;
+  } else {
+    document.setIn(path, version);
+  }
+}
 
 function collectPluginNamesFromConfig(context: ContextConfig, pluginNames: Set<string>): void {
   for (const pluginName of Object.keys(context.plugins ?? {})) {
@@ -83,34 +101,35 @@ export function checkVersionsConsistency(
 }
 
 export interface OutdatedVersionsCheckResult {
-  outdated: Array<{ name: string; current: string; latest: string }>;
-  errors: Array<{ name: string; error: unknown }>;
+  outdated: Array<{ type: 'fraq' | 'plugin'; name: string; current: string; latest: string }>;
+  errors: Array<{ type: 'fraq' | 'plugin'; name: string; error: unknown }>;
 }
 
 export async function checkOutdatedVersions(
   fraqVersion: string,
   pluginVersions: Record<string, string>,
 ): Promise<OutdatedVersionsCheckResult> {
-  const outdated: Array<{ name: string; current: string; latest: string }> = [];
-  const errors: Array<{ name: string; error: unknown }> = [];
+  const outdated: OutdatedVersionsCheckResult['outdated'] = [];
+  const errors: OutdatedVersionsCheckResult['errors'] = [];
 
   await Promise.all(
     [
-      { name: 'Fraq', packageName: '@fraqjs/fraq', currentVersion: fraqVersion },
+      { type: 'fraq' as const, name: 'Fraq', packageName: '@fraqjs/fraq', currentVersion: fraqVersion },
       ...Object.entries(pluginVersions).map(([name, currentVersion]) => ({
+        type: 'plugin' as const,
         name,
         packageName: normalizePluginName(name),
         currentVersion,
       })),
-    ].map(async ({ name, packageName, currentVersion }) => {
+    ].map(async ({ type, name, packageName, currentVersion }) => {
       try {
         const latestPackageJson = await getLatestPackageJson(packageName);
         const latestVersion = latestPackageJson.version;
         if (latestVersion && latestVersion !== currentVersion) {
-          outdated.push({ name, current: currentVersion, latest: latestVersion });
+          outdated.push({ type, name, current: currentVersion, latest: latestVersion });
         }
       } catch (error) {
-        errors.push({ name, error });
+        errors.push({ type, name, error });
       }
     }),
   );
@@ -119,6 +138,59 @@ export async function checkOutdatedVersions(
     outdated: outdated.sort((a, b) => a.name.localeCompare(b.name)),
     errors: errors.sort((a, b) => a.name.localeCompare(b.name)),
   };
+}
+
+export function applyVersionUpdates(updates: {
+  fraqVersion?: string;
+  pluginVersions?: Record<string, string>;
+}): string[] {
+  const configPath = findConfigPath();
+  const configDocument = readVersionDocument(configPath);
+  const pluginVersions = Object.entries(updates.pluginVersions ?? {});
+  const configVersions = configDocument.get('versions', true);
+  if (pluginVersions.length > 0 && YAML.isScalar(configVersions)) {
+    throw new Error(
+      `Cannot update plugin versions because "versions" in ${configPath} is declared through a reference.`,
+    );
+  }
+
+  const versionsPath = getVersionsPath();
+  const versionsDocument = readVersionDocument(versionsPath);
+  let configChanged = false;
+  let versionsChanged = false;
+
+  if (updates.fraqVersion !== undefined) {
+    setVersionInDocument(configDocument, ['fraqVersion'], updates.fraqVersion);
+    configChanged = true;
+  }
+
+  for (const [name, version] of pluginVersions) {
+    const configVersionPath = ['versions', name];
+    const declaredInConfig = configDocument.hasIn(configVersionPath);
+    const declaredInLockfile = versionsDocument.has(name);
+    if (!declaredInConfig && !declaredInLockfile) {
+      throw new Error(`Cannot find a version declaration for plugin "${name}".`);
+    }
+    if (declaredInConfig) {
+      setVersionInDocument(configDocument, configVersionPath, version);
+      configChanged = true;
+    }
+    if (declaredInLockfile) {
+      setVersionInDocument(versionsDocument, [name], version);
+      versionsChanged = true;
+    }
+  }
+
+  const changedFiles: string[] = [];
+  if (configChanged) {
+    writeFileSync(configPath, configDocument.toString(), 'utf-8');
+    changedFiles.push(configPath);
+  }
+  if (versionsChanged) {
+    writeFileSync(versionsPath, versionsDocument.toString(), 'utf-8');
+    changedFiles.push(versionsPath);
+  }
+  return changedFiles;
 }
 
 export async function completeAndSyncVersions(

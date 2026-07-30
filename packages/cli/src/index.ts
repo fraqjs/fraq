@@ -16,6 +16,7 @@ import { getPluginDependencyDiagnostic } from './util/dependency';
 import { getLatestPackageJson } from './util/package-jsons';
 import { detectPackageManager, type PackageManagerInfo } from './util/package-manager';
 import {
+  applyVersionUpdates,
   checkOutdatedVersions,
   checkVersionsCompleteness,
   checkVersionsConsistency,
@@ -161,6 +162,51 @@ async function outdated() {
   }
 }
 
+async function update() {
+  const config = await ensureConfigWithVersions();
+  const result = await checkOutdatedVersions(config.fraqVersion, config.versions);
+  if (result.errors.length > 0) {
+    console.log(chalk.red('Failed to check the following versions:'));
+    for (const { name, error } of result.errors) {
+      console.log(`- ${name}:`, error);
+    }
+  }
+  if (result.outdated.length === 0) {
+    if (result.errors.length === 0) {
+      console.log(chalk.green('All Fraq and plugin versions are up to date.'));
+    }
+    return;
+  }
+
+  const selectedIndexes = await inq.checkbox<number>({
+    message: 'Select versions to update:',
+    choices: result.outdated.map(({ name, current, latest }, index) => ({
+      name: `${name}: ${current} -> ${latest}`,
+      value: index,
+    })),
+    required: true,
+  });
+  const selectedVersions = selectedIndexes
+    .map((index) => result.outdated[index])
+    .filter((version) => version !== undefined);
+
+  const pluginVersions: Record<string, string> = Object.create(null);
+  let fraqVersion: string | undefined;
+  for (const version of selectedVersions) {
+    if (version.type === 'fraq') {
+      fraqVersion = version.latest;
+    } else {
+      pluginVersions[version.name] = version.latest;
+    }
+  }
+  applyVersionUpdates({ fraqVersion, pluginVersions });
+
+  console.log(chalk.green('Successfully updated the following versions:'));
+  for (const { name, current, latest } of selectedVersions) {
+    console.log(`- ${name}: ${current} -> ${latest}`);
+  }
+}
+
 async function wizard() {
   const latestFraqVersion: string = (await getLatestPackageJson('@fraqjs/fraq')).version;
   const projectName = await inq.input({
@@ -272,6 +318,15 @@ const cli = c.subcommands({
       handler: async () => {
         printBanner();
         await outdated();
+      },
+    }),
+    update: c.command({
+      name: 'update',
+      description: 'Update Fraq and plugin versions interactively',
+      args: {},
+      handler: async () => {
+        printBanner();
+        await update();
       },
     }),
     wizard: c.command({
