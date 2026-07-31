@@ -25,6 +25,7 @@ plugins:
 如果你是插件开发者，请将本插件添加到项目的 `peerDependencies` 中，并在自己的插件中声明依赖：
 
 ```typescript
+import { definePlugin } from '@fraqjs/fraq';
 import { ConversationService } from '@fraqjs/plugin-conversation';
 
 definePlugin({

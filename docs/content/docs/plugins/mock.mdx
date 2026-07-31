@@ -21,6 +21,7 @@ pnpm add -D @fraqjs/plugin-mock
 如果你是插件开发者，为了在自己插件的测试中使用它，同样将它添加到项目的 `devDependencies` 中即可。本插件的核心是 `MockService`，你既可以让下面介绍的 `createMockContext` 帮你装配好一切，也可以手动安装 `MockPlugin`，并在其他插件中通过 `inject` 声明对它的依赖：
 
 ```typescript
+import { definePlugin } from '@fraqjs/fraq';
 import { MockService } from '@fraqjs/plugin-mock';
 
 definePlugin({
