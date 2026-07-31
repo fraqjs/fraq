@@ -211,6 +211,62 @@ const PluginC = definePlugin({
 });
 ```
 
+### 将服务绑定到作用域
+
+除了直接使用 `provide(class, instance)` 来提供服务的单个实例之外，`Context` 还提供了 `provide(class, factory)` 方法来将服务绑定到作用域，这样每个插件实例都会有一个独立的服务实例。例如：
+
+```typescript
+class AlphaService {
+  constructor(readonly suffix: string) {
+    this.suffix = suffix;
+  }
+
+  alpha() {
+    return `alpha@${this.suffix}`;
+  }
+}
+
+const PluginA = definePlugin({
+  name: 'plugin-a',
+  provides: [AlphaService],
+  apply(ctx) {
+    ctx.provide(AlphaService, (scope) => new AlphaService(scope.plugin));
+  },
+});
+```
+
+这里的 `scope` 是一个 `ServiceScope`，它包含如下属性：
+
+- `context`：依赖该服务的插件所属的 `Context` 实例。
+- `contextPath`：依赖该服务的插件所属的 `Context` 的路径。
+- `plugin`：依赖该服务的插件的名称。
+
+假设有下面两个插件都依赖了 `AlphaService`：
+
+```typescript
+const PluginB = definePlugin({
+  name: 'plugin-b',
+  inject: {
+    alpha: AlphaService,
+  },
+  apply(ctx) {
+    console.log(ctx.alpha.alpha()); // prints 'alpha@plugin-b'
+  },
+});
+
+const PluginC = definePlugin({
+  name: 'plugin-c',
+  inject: {
+    alpha: AlphaService,
+  },
+  apply(ctx) {
+    console.log(ctx.alpha.alpha()); // prints 'alpha@plugin-c'
+  },
+});
+```
+
+Fraq 会为 `PluginB` 和 `PluginC` 分别创建一个独立的 `AlphaService` 实例，因此 `ctx.alpha.alpha()` 的输出会根据插件的名称而不同。
+
 ### `Service` 的生命周期
 
 Fraq 提供了一个 `Disposable` 接口，如果一个服务实现了这个接口，那么当插件被卸载时，Fraq 会自动调用它的 `dispose` 方法来进行清理工作。例如：
