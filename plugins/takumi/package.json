@@ -7,8 +7,11 @@
     "dist",
     "fonts"
   ],
-  "main": "dist/index.mjs",
-  "typings": "dist/index.d.mts",
+  "main": "src/index.ts",
+  "publishConfig": {
+    "main": "dist/index.mjs",
+    "typings": "dist/index.d.mts"
+  },
   "scripts": {
     "build": "tsdown",
     "test": "tsx --test test/*.test.ts",
