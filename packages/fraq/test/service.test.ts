@@ -1,6 +1,6 @@
 import { createMockContext } from '@fraqjs/plugin-mock';
 
-import { type Context, definePlugin } from '../src';
+import { definePlugin, type ServiceScope } from '../src';
 
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -15,12 +15,12 @@ class BetaService {
 
 class GammaService {}
 
-function createTestContext(): Context {
-  return createMockContext();
+class ScopedService {
+  constructor(readonly scope: ServiceScope) {}
 }
 
 test('provides and resolves service instances by class', () => {
-  const ctx = createTestContext();
+  const ctx = createMockContext();
   const alpha = new AlphaService();
 
   ctx.provide(AlphaService, alpha);
@@ -30,7 +30,7 @@ test('provides and resolves service instances by class', () => {
 });
 
 test('reports missing services through resolve, tryResolve, and has', () => {
-  const ctx = createTestContext();
+  const ctx = createMockContext();
 
   assert.throws(() => ctx.resolve(AlphaService), /AlphaService/);
   assert.equal(ctx.tryResolve(AlphaService), undefined);
@@ -38,7 +38,7 @@ test('reports missing services through resolve, tryResolve, and has', () => {
 });
 
 test('rejects duplicate service providers in the same context', () => {
-  const ctx = createTestContext();
+  const ctx = createMockContext();
 
   ctx.provide(AlphaService, new AlphaService());
 
@@ -46,7 +46,7 @@ test('rejects duplicate service providers in the same context', () => {
 });
 
 test('sub contexts inherit parent services', () => {
-  const parent = createTestContext();
+  const parent = createMockContext();
   const child = parent.fork('child');
   const alpha = new AlphaService();
 
@@ -56,7 +56,7 @@ test('sub contexts inherit parent services', () => {
 });
 
 test('sub contexts can override parent services without affecting parent', () => {
-  const parent = createTestContext();
+  const parent = createMockContext();
   const child = parent.fork('child');
   const parentAlpha = new AlphaService();
   const childAlpha = new AlphaService();
@@ -69,7 +69,7 @@ test('sub contexts can override parent services without affecting parent', () =>
 });
 
 test('sorts plugins by service dependencies', async () => {
-  const ctx = createTestContext();
+  const ctx = createMockContext();
   const calls: string[] = [];
 
   const BetaPlugin = definePlugin({
@@ -100,7 +100,7 @@ test('sorts plugins by service dependencies', async () => {
 });
 
 test('injects existing services onto plugin context proxies', async () => {
-  const ctx = createTestContext();
+  const ctx = createMockContext();
   const alpha = new AlphaService();
   let injectedAlpha: AlphaService | undefined;
 
@@ -123,7 +123,7 @@ test('injects existing services onto plugin context proxies', async () => {
 });
 
 test('uses injected services to order and apply plugin dependencies', async () => {
-  const ctx = createTestContext();
+  const ctx = createMockContext();
   const calls: string[] = [];
   let injectedAlpha: AlphaService | undefined;
 
@@ -160,7 +160,7 @@ test('uses injected services to order and apply plugin dependencies', async () =
 });
 
 test('orders plugins by optional service dependencies when providers are installed', async () => {
-  const ctx = createTestContext();
+  const ctx = createMockContext();
   const calls: string[] = [];
 
   ctx.install(
@@ -189,7 +189,7 @@ test('orders plugins by optional service dependencies when providers are install
 });
 
 test('does not require optional service dependencies without installed providers', async () => {
-  const ctx = createTestContext();
+  const ctx = createMockContext();
   const calls: string[] = [];
 
   ctx.install(
@@ -209,7 +209,7 @@ test('does not require optional service dependencies without installed providers
 });
 
 test('uses optional injections to order plugins when providers are installed', async () => {
-  const ctx = createTestContext();
+  const ctx = createMockContext();
   const calls: string[] = [];
   let injectedAlpha: AlphaService | undefined;
 
@@ -243,7 +243,7 @@ test('uses optional injections to order plugins when providers are installed', a
 });
 
 test('injects undefined for optional services without installed providers', async () => {
-  const ctx = createTestContext();
+  const ctx = createMockContext();
   let injectedAlpha: AlphaService | undefined = new AlphaService();
 
   ctx.install(
@@ -264,7 +264,7 @@ test('injects undefined for optional services without installed providers', asyn
 });
 
 test('breaks cycles between optional service dependencies', async () => {
-  const ctx = createTestContext();
+  const ctx = createMockContext();
   const calls: string[] = [];
 
   ctx.install(
@@ -296,7 +296,7 @@ test('breaks cycles between optional service dependencies', async () => {
 });
 
 test('preserves install order when plugins do not depend on each other', async () => {
-  const ctx = createTestContext();
+  const ctx = createMockContext();
   const calls: string[] = [];
 
   ctx.install(
@@ -322,7 +322,7 @@ test('preserves install order when plugins do not depend on each other', async (
 });
 
 test('rejects startup when a required service is missing', async () => {
-  const ctx = createTestContext();
+  const ctx = createMockContext();
 
   ctx.install(
     definePlugin({
@@ -336,7 +336,7 @@ test('rejects startup when a required service is missing', async () => {
 });
 
 test('rejects startup when multiple plugins declare the same provided service', async () => {
-  const ctx = createTestContext();
+  const ctx = createMockContext();
 
   ctx.install(
     definePlugin({
@@ -361,7 +361,7 @@ test('rejects startup when multiple plugins declare the same provided service', 
 });
 
 test('rejects startup when plugin service dependencies form a cycle', async () => {
-  const ctx = createTestContext();
+  const ctx = createMockContext();
 
   ctx.install(
     definePlugin({
@@ -388,7 +388,7 @@ test('rejects startup when plugin service dependencies form a cycle', async () =
 });
 
 test('rejects startup when a plugin declares but does not provide a service', async () => {
-  const ctx = createTestContext();
+  const ctx = createMockContext();
 
   ctx.install(
     definePlugin({
@@ -402,7 +402,7 @@ test('rejects startup when a plugin declares but does not provide a service', as
 });
 
 test('does not count inherited services as provided by a child plugin', async () => {
-  const parent = createTestContext();
+  const parent = createMockContext();
   const child = parent.fork('child');
 
   parent.provide(AlphaService, new AlphaService());
@@ -418,7 +418,7 @@ test('does not count inherited services as provided by a child plugin', async ()
 });
 
 test('rejects startup when a plugin throws and skips later plugins', async () => {
-  const ctx = createTestContext();
+  const ctx = createMockContext();
   const calls: string[] = [];
 
   ctx.install(
@@ -444,7 +444,7 @@ test('rejects startup when a plugin throws and skips later plugins', async () =>
 });
 
 test('uses services from parent contexts to satisfy plugin dependencies', async () => {
-  const parent = createTestContext();
+  const parent = createMockContext();
   const child = parent.fork('child');
   const alpha = new AlphaService();
 
@@ -466,7 +466,7 @@ test('uses services from parent contexts to satisfy plugin dependencies', async 
 });
 
 test('allows a sub context plugin to override a parent service', async () => {
-  const parent = createTestContext();
+  const parent = createMockContext();
   const child = parent.fork('child');
   const parentAlpha = new AlphaService();
 
@@ -487,8 +487,132 @@ test('allows a sub context plugin to override a parent service', async () => {
   assert.equal(parent.resolve(AlphaService), parentAlpha);
 });
 
+test('creates one scoped service instance for each consuming plugin', async () => {
+  const ctx = createMockContext();
+  const scopes: ServiceScope[] = [];
+  const instances: ScopedService[] = [];
+
+  ctx.install(
+    definePlugin({
+      name: 'scoped-provider',
+      provides: [ScopedService],
+      apply(ctx) {
+        ctx.provide(ScopedService, (scope) => {
+          scopes.push(scope);
+          return new ScopedService(scope);
+        });
+      },
+    }),
+  );
+  for (const name of ['first-consumer', 'second-consumer']) {
+    ctx.install(
+      definePlugin({
+        name,
+        inject: {
+          scoped: ScopedService,
+        },
+        apply(ctx) {
+          assert.equal(ctx.scoped, ctx.resolve(ScopedService));
+          assert.equal(ctx.scoped.scope.context, ctx);
+          assert.equal(ctx.isProvided(ScopedService), true);
+          instances.push(ctx.scoped);
+        },
+        start(ctx) {
+          assert.equal(ctx.scoped, instances.at(name === 'first-consumer' ? 0 : 1));
+        },
+      }),
+    );
+  }
+
+  await ctx.start();
+
+  assert.equal(scopes.length, 2);
+  assert.notEqual(instances[0], instances[1]);
+  assert.deepEqual(
+    scopes.map(({ contextPath, plugin }) => ({ contextPath, plugin })),
+    [
+      { contextPath: ['root'], plugin: 'first-consumer' },
+      { contextPath: ['root'], plugin: 'second-consumer' },
+    ],
+  );
+});
+
+test('resolves scoped services inherited from parent contexts for the child consumer scope', async () => {
+  const parent = createMockContext();
+  const child = parent.fork('child');
+  let parentInstance: ScopedService | undefined;
+  let childInstance: ScopedService | undefined;
+
+  parent.install(
+    definePlugin({
+      name: 'scoped-provider',
+      provides: [ScopedService],
+      apply(ctx) {
+        ctx.provide(ScopedService, (scope) => new ScopedService(scope));
+      },
+    }),
+  );
+  parent.install(
+    definePlugin({
+      name: 'parent-consumer',
+      inject: { scoped: ScopedService },
+      apply(ctx) {
+        parentInstance = ctx.scoped;
+      },
+    }),
+  );
+  child.install(
+    definePlugin({
+      name: 'child-consumer',
+      inject: { scoped: ScopedService },
+      apply(ctx) {
+        childInstance = ctx.scoped;
+      },
+    }),
+  );
+
+  await parent.start();
+
+  assert.ok(parentInstance);
+  assert.ok(childInstance);
+  assert.notEqual(parentInstance, childInstance);
+  assert.deepEqual(parentInstance.scope.contextPath, ['root']);
+  assert.equal(parentInstance.scope.plugin, 'parent-consumer');
+  assert.deepEqual(childInstance.scope.contextPath, ['root', 'child']);
+  assert.equal(childInstance.scope.plugin, 'child-consumer');
+});
+
+test('resolves a stable context scope outside plugins', async () => {
+  const ctx = createMockContext();
+  let factoryCalls = 0;
+
+  ctx.install(
+    definePlugin({
+      name: 'scoped-provider',
+      provides: [ScopedService],
+      apply(ctx) {
+        ctx.provide(ScopedService, (scope) => {
+          factoryCalls += 1;
+          return new ScopedService(scope);
+        });
+      },
+    }),
+  );
+
+  await ctx.start();
+
+  assert.equal(ctx.isProvided(ScopedService), true);
+  assert.equal(factoryCalls, 0);
+  const instance = ctx.resolve(ScopedService);
+  assert.equal(ctx.tryResolve(ScopedService), instance);
+  assert.equal(factoryCalls, 1);
+  assert.equal(instance.scope.context, ctx);
+  assert.deepEqual(instance.scope.contextPath, ['root']);
+  assert.equal(instance.scope.plugin, undefined);
+});
+
 test('resolves dependencies against services provided before startup', async () => {
-  const ctx = createTestContext();
+  const ctx = createMockContext();
   const alpha = new AlphaService();
 
   ctx.provide(AlphaService, alpha);

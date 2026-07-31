@@ -37,6 +37,17 @@ class ChildDisposableService implements Disposable {
   }
 }
 
+class ScopedDisposableService implements Disposable {
+  constructor(
+    private readonly name: string,
+    private readonly calls: string[],
+  ) {}
+
+  dispose(): void {
+    this.calls.push(this.name);
+  }
+}
+
 function snapshotLog(message: LogMessage): Omit<LogMessage, 'time'> {
   const { time: _time, ...rest } = message;
   return rest;
@@ -118,6 +129,49 @@ test('stops child contexts before parent services and disposes services in rever
   await parent.stop();
 
   assert.deepEqual(calls, ['child', 'second', 'first', 'parent']);
+});
+
+test('disposes scoped services with their consuming contexts', async () => {
+  const calls: string[] = [];
+  const parent = createMockContext();
+  const child = parent.fork('child');
+
+  parent.provide(ParentDisposableService, new ParentDisposableService(calls));
+  parent.install(
+    definePlugin({
+      name: 'scoped-provider',
+      provides: [ScopedDisposableService],
+      apply(ctx) {
+        ctx.provide(
+          ScopedDisposableService,
+          (scope) => new ScopedDisposableService(scope.plugin ?? scope.context.name, calls),
+        );
+      },
+    }),
+  );
+  parent.install(
+    definePlugin({
+      name: 'parent-consumer',
+      inject: { scoped: ScopedDisposableService },
+      apply(ctx) {
+        assert.ok(ctx.scoped);
+      },
+    }),
+  );
+  child.install(
+    definePlugin({
+      name: 'child-consumer',
+      inject: { scoped: ScopedDisposableService },
+      apply(ctx) {
+        assert.ok(ctx.scoped);
+      },
+    }),
+  );
+
+  await parent.start();
+  await parent.stop();
+
+  assert.deepEqual(calls, ['child-consumer', 'parent-consumer', 'parent']);
 });
 
 test('clears context timers when the context stops', async () => {

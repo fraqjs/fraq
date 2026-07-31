@@ -10,7 +10,7 @@ import { defaultRouteActivationResolver, type RouteActivationResolver, Router } 
 import type { Filter } from '../filter';
 import { Logger, type LogHandler } from '../logging';
 import type { Injection, ParameterList, Plugin } from '../plugin';
-import type { ServiceClass } from '../service';
+import type { ScopedServiceFactory, ServiceClass } from '../service';
 import { ApiHookRegistry } from './api-hooks';
 import { EventSourceRegistry } from './event-sources';
 import { LifecycleManager } from './lifecycle';
@@ -155,8 +155,10 @@ export class Context {
     return this.apiHooks.register(endpointOrHook, hook);
   }
 
-  provide<T extends object>(service: ServiceClass<T>, instance: T): void {
-    this.plugins.provide(service, instance);
+  provide<T extends object>(service: ServiceClass<T>, instance: T): void;
+  provide<T extends object>(service: ServiceClass<T>, factory: ScopedServiceFactory<T>): void;
+  provide<T extends object>(service: ServiceClass<T>, instanceOrFactory: T | ScopedServiceFactory<T>): void {
+    this.plugins.provide(service, instanceOrFactory);
   }
 
   resolve<T extends object>(service: ServiceClass<T>): T {
