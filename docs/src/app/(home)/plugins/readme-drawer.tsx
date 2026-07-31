@@ -4,90 +4,17 @@ import collections from 'collections/browser';
 import { DynamicCodeBlock } from 'fumadocs-ui/components/dynamic-codeblock';
 import * as lucide from 'lucide-react';
 import Markdown, { RuleType } from 'markdown-to-jsx';
-import {
-  Component,
-  type ComponentProps,
-  type ComponentType,
-  type PropsWithChildren,
-  Suspense,
-  useEffect,
-  useRef,
-} from 'react';
+import { Suspense, useEffect, useRef } from 'react';
 
-import { getMDXComponents, useMDXComponents } from '@/components/mdx';
+import { OfficialPluginDoc, OfficialPluginDocErrorBoundary } from '@/app/(home)/plugins/official-plugin-doc';
+import { isOfficial, officialPluginSlug, type PluginEntry } from '@/app/(home)/plugins/shared';
+import { useMDXComponents } from '@/components/mdx';
 import { gitConfig } from '@/lib/shared';
-
-const officialPluginDocs = collections.docs.createClientLoader<{ slug: string }>({
-  component(doc, { slug }) {
-    const MDX = doc.default;
-    const components = getMDXComponents();
-    const Link = components.a as ComponentType<ComponentProps<'a'>>;
-
-    return (
-      <MDX
-        components={getMDXComponents({
-          a: ({ href, ...props }) => {
-            if (!href || href.startsWith('#') || href.startsWith('/')) {
-              return <Link href={href} {...props} />;
-            }
-
-            const base = new URL(`https://fraq.dev/docs/plugins/${slug}.mdx`);
-            const resolved = new URL(href, base);
-            if (resolved.origin !== base.origin) {
-              return <Link href={href} {...props} />;
-            }
-
-            resolved.pathname = resolved.pathname.replace(/\.mdx?$/, '');
-            return <Link href={`${resolved.pathname}${resolved.search}${resolved.hash}`} {...props} />;
-          },
-        })}
-      />
-    );
-  },
-});
-
-function OfficialPluginDoc({ path, slug }: { path: string; slug: string }) {
-  const MDX = officialPluginDocs.getComponent(path);
-  return <MDX slug={slug} />;
-}
-
-class OfficialPluginDocErrorBoundary extends Component<PropsWithChildren, { failed: boolean }> {
-  state = { failed: false };
-
-  static getDerivedStateFromError() {
-    return { failed: true };
-  }
-
-  render() {
-    if (this.state.failed) {
-      return <p className="text-sm text-fd-muted-foreground">官方文档加载失败，请前往文档页面查看。</p>;
-    }
-    return this.props.children;
-  }
-}
-
-export interface PluginEntry {
-  id: string;
-  name: string;
-  version: string;
-  description: string;
-  category: string | null;
-  repository: string;
-  updatedAt: string | null;
-}
 
 export interface ReadmeState {
   text: string | null;
   loading: boolean;
   error: boolean;
-}
-
-export function isOfficial(plugin: PluginEntry): boolean {
-  return plugin.id.startsWith('fraqjs/');
-}
-
-export function officialPluginSlug(plugin: PluginEntry): string {
-  return plugin.id.slice('fraqjs/'.length);
 }
 
 function repositorySlug(plugin: PluginEntry): string | null {
@@ -214,8 +141,7 @@ export function ReadmeDrawer({
             </a>
           )}
           <span className="ml-auto font-mono text-xs text-fd-muted-foreground">
-            v{plugin.version}
-            {plugin.updatedAt && ` @ ${new Date(plugin.updatedAt).toLocaleDateString()}`}
+            v{plugin.version} @ {new Date(plugin.updatedAt).toLocaleDateString()}
           </span>
         </div>
 

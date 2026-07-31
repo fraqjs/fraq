@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 
-import { PluginMarketplace } from './client';
+import { PluginMarketplace } from './plugin-marketplace';
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://fraq.dev'),

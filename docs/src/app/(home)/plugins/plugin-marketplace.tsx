@@ -4,39 +4,17 @@ import type { LucideIcon } from 'lucide-react';
 import * as lucide from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 
-import { isOfficial, type PluginEntry, ReadmeDrawer, type ReadmeState } from './readme-drawer';
+import { PluginCard } from '@/app/(home)/plugins/plugin-card';
+import {
+  CATEGORY_LABELS,
+  isOfficial,
+  type PluginEntry,
+  type PluginRegistry,
+  toPluginEntry,
+} from '@/app/(home)/plugins/shared';
+import { ReadmeDrawer, type ReadmeState } from './readme-drawer';
 
 const REGISTRY_URL = 'https://registry.fraq.dev/plugins.json';
-
-interface RawPlugin {
-  name: string;
-  version: string;
-  description: string;
-  category: string | null;
-  repository: string;
-  updatedAt: string | null;
-  market: { unlisted: boolean };
-}
-
-interface PluginRegistry {
-  version: number;
-  updatedAt: string;
-  categories: string[];
-  plugins: Record<string, RawPlugin>;
-}
-
-const CATEGORY_LABELS: Record<string, string> = {
-  infrastructure: '基础服务',
-  development: '开发与运维',
-  management: '管理工具',
-  information: '资讯与生活',
-  media: '媒体与创作',
-  ai: '人工智能',
-  social: '社交与互动',
-  entertainment: '娱乐与游戏',
-  'game-tools': '游戏辅助',
-  utilities: '工具与效率',
-};
 
 const CATEGORY_ICONS: Record<string, LucideIcon> = {
   infrastructure: lucide.ServerIcon,
@@ -177,15 +155,7 @@ export function PluginMarketplace() {
 
         const listedPlugins: PluginEntry[] = Object.entries(data.plugins)
           .filter(([, plugin]) => !plugin.market.unlisted)
-          .map(([id, plugin]) => ({
-            id,
-            name: plugin.name,
-            version: plugin.version,
-            description: plugin.description,
-            category: plugin.category,
-            repository: plugin.repository,
-            updatedAt: plugin.updatedAt ?? null,
-          }));
+          .map(([id, plugin]) => toPluginEntry(id, plugin));
 
         setUpdatedAt(data.updatedAt);
         setPlugins(listedPlugins);
@@ -210,12 +180,7 @@ export function PluginMarketplace() {
   const usedCategories = categories.filter((cat) => plugins.some((p) => p.category === cat));
 
   const displayPlugins = sortByUpdated
-    ? [...shuffledPlugins].sort((a, b) => {
-        if (!a.updatedAt && !b.updatedAt) return 0;
-        if (!a.updatedAt) return 1;
-        if (!b.updatedAt) return -1;
-        return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
-      })
+    ? [...shuffledPlugins].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
     : shuffledPlugins;
 
   const filtered =
@@ -328,53 +293,4 @@ function categoryPillClass(active: boolean): string {
       ? 'border-fd-primary bg-fd-primary text-fd-primary-foreground'
       : 'border-fd-border bg-fd-background text-fd-muted-foreground hover:bg-fd-muted hover:text-fd-foreground',
   ].join(' ');
-}
-
-function PluginCard({ plugin, onOpenReadme }: { plugin: PluginEntry; onOpenReadme: (plugin: PluginEntry) => void }) {
-  const official = isOfficial(plugin);
-
-  const cardClass =
-    'group flex flex-col gap-3 rounded-lg border bg-fd-card p-4 text-fd-card-foreground transition-colors hover:border-fd-primary/50 hover:bg-fd-accent/30 border-fd-border';
-
-  const inner = (
-    <>
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex min-w-0 flex-1 items-center gap-1.5">
-          {official && <lucide.BadgeCheckIcon className="size-3.5 shrink-0 text-fd-primary" />}
-          <p className="truncate font-mono text-xs text-fd-muted-foreground">{plugin.id}</p>
-        </div>
-        {!official && (
-          <a
-            href={plugin.repository}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            aria-label="在新标签页中打开"
-            className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
-          >
-            <lucide.ExternalLinkIcon className="size-3.5 text-fd-muted-foreground" />
-          </a>
-        )}
-      </div>
-
-      <p className="text-sm leading-relaxed text-fd-foreground">{plugin.description}</p>
-
-      <div className="mt-auto flex items-center justify-between gap-2">
-        {plugin.category ? (
-          <span className="rounded-full border border-fd-border bg-fd-muted/60 px-2 py-0.5 text-xs text-fd-muted-foreground">
-            {CATEGORY_LABELS[plugin.category] ?? plugin.category}
-          </span>
-        ) : (
-          <span />
-        )}
-        <span className="font-mono text-xs text-fd-muted-foreground">v{plugin.version}</span>
-      </div>
-    </>
-  );
-
-  return (
-    <button type="button" onClick={() => onOpenReadme(plugin)} className={`${cardClass} w-full text-left`}>
-      {inner}
-    </button>
-  );
 }
