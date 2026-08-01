@@ -33,7 +33,7 @@
     "hono": "^4.12.31"
   },
   "dependencies": {
-    "@hono/node-server": "^2.0.10"
+    "@hono/node-server": "^2.0.12"
   },
   "devDependencies": {
     "@fraqjs/plugin-mock": "workspace:^",

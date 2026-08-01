@@ -144,8 +144,8 @@ importers:
   packages/takumi-preview:
     dependencies:
       '@hono/node-server':
-        specifier: ^2.0.10
-        version: 2.0.10(hono@4.12.31)
+        specifier: ^2.0.12
+        version: 2.0.12(hono@4.12.31)
       chokidar:
         specifier: ^5.0.0
         version: 5.0.0
@@ -246,8 +246,8 @@ importers:
         specifier: workspace:^
         version: link:../../packages/fraq
       '@hono/node-server':
-        specifier: ^2.0.10
-        version: 2.0.10(hono@4.12.31)
+        specifier: ^2.0.12
+        version: 2.0.12(hono@4.12.31)
       hono:
         specifier: ^4.12.31
         version: 4.12.31
@@ -363,8 +363,8 @@ importers:
         specifier: workspace:^
         version: link:../hono
       '@hono/node-server':
-        specifier: ^2.0.10
-        version: 2.0.10(hono@4.12.31)
+        specifier: ^2.0.12
+        version: 2.0.12(hono@4.12.31)
       hono:
         specifier: ^4.12.31
         version: 4.12.31
@@ -927,8 +927,8 @@ packages:
       tailwindcss:
         optional: true
 
-  '@hono/node-server@2.0.10':
-    resolution: {integrity: sha512-ZcnNVhKTmyDJeg0UlnZjvM73JBsTAuhrH/J4fjwGOw59PwOW51r4J+p6CsKZWXdKSme4MFqU62CZMOsdDrU4CA==}
+  '@hono/node-server@2.0.12':
+    resolution: {integrity: sha512-eWpQYr67tqJLeaSUl0Q+TquuYfUdTibpOJlUMV2FfUP7+KqCC5TufnwnlXL6mobZBJbGAYRd7ZvEBDCbLInjhg==}
     engines: {node: '>=20'}
     peerDependencies:
       hono: ^4
@@ -6423,7 +6423,7 @@ snapshots:
     optionalDependencies:
       tailwindcss: 4.3.3
 
-  '@hono/node-server@2.0.10(hono@4.12.31)':
+  '@hono/node-server@2.0.12(hono@4.12.31)':
     dependencies:
       hono: 4.12.31
 
@@ -6694,7 +6694,7 @@ snapshots:
 
   '@modelcontextprotocol/sdk@1.30.0(supports-color@7.2.0)(zod@3.25.76)':
     dependencies:
-      '@hono/node-server': 2.0.10(hono@4.12.31)
+      '@hono/node-server': 2.0.12(hono@4.12.31)
       ajv: 8.18.0
       ajv-formats: 3.0.1(ajv@8.18.0)
       content-type: 1.0.5
