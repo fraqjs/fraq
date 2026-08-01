@@ -3,22 +3,30 @@ import {
   isDisposable,
   type ScopedServiceFactory,
   type ServiceClass,
+  type ServiceIdentifier,
   type ServiceScope,
+  type ServiceToken,
 } from '../service';
 
 type ServiceProvider =
   | {
       type: 'instance';
+      service: ServiceClass;
       instance: object;
     }
   | {
       type: 'factory';
+      service: ServiceClass;
       create: ScopedServiceFactory<object>;
     };
 
 export interface ServiceResolutionScope {
   readonly key: object;
   readonly value: ServiceScope;
+}
+
+function getServiceToken<T extends object>(identifier: ServiceIdentifier<T>): ServiceToken<T> {
+  return typeof identifier === 'function' ? identifier.token : identifier;
 }
 
 function checkServiceInstance(service: ServiceClass, instance: unknown): asserts instance is object {
@@ -40,7 +48,7 @@ and implement the dispose method to clean up resources when the context stops.
 }
 
 export class ServiceRegistry {
-  private readonly providers = new Map<ServiceClass, ServiceProvider>();
+  private readonly providers = new Map<string, ServiceProvider>();
   private readonly scopedInstances = new Map<object, Map<ServiceProvider, object>>();
   private readonly resolvingScopedProviders = new Map<object, Set<ServiceProvider>>();
   private readonly instances: object[] = [];
@@ -48,33 +56,36 @@ export class ServiceRegistry {
   constructor(private readonly parent?: ServiceRegistry) {}
 
   provide<T extends object>(service: ServiceClass<T>, instanceOrFactory: T | ScopedServiceFactory<T>): void {
-    if (this.providers.has(service)) {
-      throw new Error(`Service ${service.name} has already been provided in this context.`);
+    if (this.providers.has(service.token.key)) {
+      throw new Error(`Service ${service.token.key} has already been provided in this context.`);
     }
 
     if (typeof instanceOrFactory === 'function') {
-      this.providers.set(service, {
+      this.providers.set(service.token.key, {
         type: 'factory',
+        service,
         create: instanceOrFactory,
       });
       return;
     }
 
     checkServiceInstance(service, instanceOrFactory);
-    this.providers.set(service, { type: 'instance', instance: instanceOrFactory });
+    this.providers.set(service.token.key, { type: 'instance', service, instance: instanceOrFactory });
     this.instances.push(instanceOrFactory);
   }
 
-  resolve<T extends object>(service: ServiceClass<T>, scope: ServiceResolutionScope): T {
-    const instance = this.tryResolve(service, scope);
+  resolve<T extends object>(identifier: ServiceIdentifier<T>, scope: ServiceResolutionScope): T {
+    const token = getServiceToken(identifier);
+    const instance = this.tryResolve(token, scope);
     if (instance === undefined) {
-      throw new Error(`Service ${service.name} has not been provided.`);
+      throw new Error(`Service ${token.key} has not been provided.`);
     }
     return instance;
   }
 
-  tryResolve<T extends object>(service: ServiceClass<T>, scope: ServiceResolutionScope): T | undefined {
-    const provider = this.providers.get(service) ?? this.parent?.findProvider(service);
+  tryResolve<T extends object>(identifier: ServiceIdentifier<T>, scope: ServiceResolutionScope): T | undefined {
+    const token = getServiceToken(identifier);
+    const provider = this.findProvider(token);
     if (!provider) {
       return undefined;
     }
@@ -89,7 +100,7 @@ export class ServiceRegistry {
 
     let resolvingProviders = this.resolvingScopedProviders.get(scope.key);
     if (resolvingProviders?.has(provider)) {
-      throw new Error(`Circular scoped service resolution involving ${service.name}.`);
+      throw new Error(`Circular scoped service resolution involving ${token.key}.`);
     }
     resolvingProviders ??= new Set();
     resolvingProviders.add(provider);
@@ -98,7 +109,7 @@ export class ServiceRegistry {
     let instance: object;
     try {
       instance = provider.create(scope.value);
-      checkServiceInstance(service, instance);
+      checkServiceInstance(provider.service, instance);
     } finally {
       resolvingProviders.delete(provider);
       if (resolvingProviders.size === 0) {
@@ -113,22 +124,22 @@ export class ServiceRegistry {
     return instance as T;
   }
 
-  isProvided<T extends object>(service: ServiceClass<T>): boolean {
-    return this.findProvider(service) !== undefined;
+  isProvided<T extends object>(identifier: ServiceIdentifier<T>): boolean {
+    return this.findProvider(getServiceToken(identifier)) !== undefined;
   }
 
-  ownServiceClasses(): ServiceClass[] {
-    return [...this.providers.keys()];
+  ownServiceTokens(): ServiceToken[] {
+    return [...this.providers.values()].map(({ service }) => service.token);
   }
 
-  hasOwn(service: ServiceClass): boolean {
-    return this.providers.has(service);
+  hasOwn(token: ServiceToken): boolean {
+    return this.providers.has(token.key);
   }
 
-  collectAvailableServiceClasses(): ServiceClass[] {
-    const services = this.ownServiceClasses();
+  collectAvailableServiceTokens(): ServiceToken[] {
+    const services = this.ownServiceTokens();
     if (this.parent) {
-      services.push(...this.parent.collectAvailableServiceClasses());
+      services.push(...this.parent.collectAvailableServiceTokens());
     }
     return services;
   }
@@ -148,7 +159,7 @@ export class ServiceRegistry {
     return errors;
   }
 
-  private findProvider(service: ServiceClass): ServiceProvider | undefined {
-    return this.providers.get(service) ?? this.parent?.findProvider(service);
+  private findProvider(token: ServiceToken): ServiceProvider | undefined {
+    return this.providers.get(token.key) ?? this.parent?.findProvider(token);
   }
 }

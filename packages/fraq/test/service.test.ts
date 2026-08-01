@@ -11,6 +11,12 @@ class AlphaService {
   readonly value = 'alpha';
 }
 
+class AlternateAlphaService {
+  static readonly token = serviceToken<AlternateAlphaService>('fraqjs/test/service/AlphaService');
+
+  readonly value = 'alternate-alpha';
+}
+
 class BetaService {
   static readonly token = serviceToken<BetaService>('fraqjs/test/service/BetaService');
 
@@ -39,6 +45,18 @@ test('provides and resolves service instances by class', () => {
   assert.equal(resolved, alpha);
 });
 
+test('resolves services with an independently created token', () => {
+  const ctx = createMockContext();
+  const alpha = new AlphaService();
+  const token = serviceToken<AlphaService>('fraqjs/test/service/AlphaService');
+
+  ctx.provide(AlphaService, alpha);
+
+  assert.equal(ctx.resolve(token), alpha);
+  assert.equal(ctx.tryResolve(token), alpha);
+  assert.equal(ctx.isProvided(token), true);
+});
+
 test('reports missing services through resolve, tryResolve, and has', () => {
   const ctx = createMockContext();
 
@@ -47,12 +65,13 @@ test('reports missing services through resolve, tryResolve, and has', () => {
   assert.equal(ctx.isProvided(AlphaService), false);
 });
 
-test('rejects duplicate service providers in the same context', () => {
+test('rejects duplicate service tokens in the same context', () => {
   const ctx = createMockContext();
 
   ctx.provide(AlphaService, new AlphaService());
 
   assert.throws(() => ctx.provide(AlphaService, new AlphaService()), /already been provided/);
+  assert.throws(() => ctx.provide(AlternateAlphaService, new AlternateAlphaService()), /already been provided/);
 });
 
 test('sub contexts inherit parent services', () => {
@@ -176,7 +195,7 @@ test('orders plugins by optional injections when providers are installed', async
   ctx.install(
     definePlugin({
       name: 'alpha-consumer',
-      optionalInject: { alpha: AlphaService },
+      optionalInject: { alpha: AlphaService.token },
       apply(ctx) {
         calls.push('consumer');
         assert.ok(ctx.alpha);
@@ -206,7 +225,7 @@ test('does not require optional injections without installed providers', async (
   ctx.install(
     definePlugin({
       name: 'alpha-consumer',
-      optionalInject: { alpha: AlphaService },
+      optionalInject: { alpha: AlphaService.token },
       apply(ctx) {
         calls.push('consumer');
         assert.equal(ctx.alpha, undefined);
@@ -228,7 +247,7 @@ test('uses optional injections to order plugins when providers are installed', a
     definePlugin({
       name: 'alpha-consumer',
       optionalInject: {
-        alpha: AlphaService,
+        alpha: serviceToken<AlphaService>('fraqjs/test/service/AlphaService'),
       },
       apply(ctx) {
         calls.push('consumer');
@@ -261,7 +280,7 @@ test('injects undefined for optional services without installed providers', asyn
     definePlugin({
       name: 'alpha-consumer',
       optionalInject: {
-        alpha: AlphaService,
+        alpha: AlphaService.token,
       },
       apply(ctx) {
         injectedAlpha = ctx.alpha;
@@ -281,7 +300,7 @@ test('breaks cycles between optional service dependencies', async () => {
   ctx.install(
     definePlugin({
       name: 'alpha-provider',
-      optionalInject: { beta: BetaService },
+      optionalInject: { beta: BetaService.token },
       provides: [AlphaService],
       apply(ctx) {
         calls.push('alpha');
@@ -292,7 +311,7 @@ test('breaks cycles between optional service dependencies', async () => {
   ctx.install(
     definePlugin({
       name: 'beta-provider',
-      optionalInject: { alpha: AlphaService },
+      optionalInject: { alpha: AlphaService.token },
       provides: [BetaService],
       apply(ctx) {
         calls.push('beta');

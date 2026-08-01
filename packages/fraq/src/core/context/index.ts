@@ -9,8 +9,8 @@ import type { Session } from '../../routing/command';
 import { defaultRouteActivationResolver, type RouteActivationResolver, Router } from '../../routing/router';
 import type { Filter } from '../filter';
 import { Logger, type LogHandler } from '../logging';
-import type { Injection, ParameterList, Plugin } from '../plugin';
-import type { ScopedServiceFactory, ServiceClass } from '../service';
+import type { Injection, OptionalInjection, ParameterList, Plugin } from '../plugin';
+import type { ScopedServiceFactory, ServiceClass, ServiceIdentifier, ServiceToken } from '../service';
 import { ApiHookRegistry } from './api-hooks';
 import { EventSourceRegistry } from './event-sources';
 import { LifecycleManager } from './lifecycle';
@@ -146,7 +146,7 @@ export class Context {
     };
   }
 
-  install<T extends ParameterList, I extends Injection | undefined, OI extends Injection | undefined>(
+  install<T extends ParameterList, I extends Injection | undefined, OI extends OptionalInjection | undefined>(
     plugin: Plugin<T, I, OI>,
     ...args: T
   ): void {
@@ -169,16 +169,22 @@ export class Context {
     this.services.provide(service, instanceOrFactory);
   }
 
-  resolve<T extends object>(service: ServiceClass<T>): T {
-    return this.services.resolve(service, this.serviceScope);
+  resolve<T extends object>(service: ServiceClass<T>): T;
+  resolve<T extends object>(token: ServiceToken<T>): T;
+  resolve<T extends object>(identifier: ServiceIdentifier<T>): T {
+    return this.services.resolve(identifier, this.serviceScope);
   }
 
-  tryResolve<T extends object>(service: ServiceClass<T>): T | undefined {
-    return this.services.tryResolve(service, this.serviceScope);
+  tryResolve<T extends object>(service: ServiceClass<T>): T | undefined;
+  tryResolve<T extends object>(token: ServiceToken<T>): T | undefined;
+  tryResolve<T extends object>(identifier: ServiceIdentifier<T>): T | undefined {
+    return this.services.tryResolve(identifier, this.serviceScope);
   }
 
-  isProvided<T extends object>(service: ServiceClass<T>): boolean {
-    return this.services.isProvided(service);
+  isProvided<T extends object>(service: ServiceClass<T>): boolean;
+  isProvided<T extends object>(token: ServiceToken<T>): boolean;
+  isProvided<T extends object>(identifier: ServiceIdentifier<T>): boolean {
+    return this.services.isProvided(identifier);
   }
 
   fork(name: string, filter?: Filter): Context {

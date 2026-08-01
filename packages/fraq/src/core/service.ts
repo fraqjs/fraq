@@ -7,9 +7,14 @@ export type ServiceClass<T extends object = object> = (abstract new (
   token: ServiceToken<T>;
 };
 
-export interface ServiceToken<_T extends object = object> {
-  key: string;
+declare const serviceTokenType: unique symbol;
+
+export interface ServiceToken<T extends object = object> {
+  readonly key: string;
+  readonly [serviceTokenType]?: T;
 }
+
+export type ServiceIdentifier<T extends object = object> = ServiceClass<T> | ServiceToken<T>;
 
 export interface ServiceScope {
   readonly context: Context;
