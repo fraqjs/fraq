@@ -15,6 +15,7 @@ import { ApiHookRegistry } from './api-hooks';
 import { EventSourceRegistry } from './event-sources';
 import { LifecycleManager } from './lifecycle';
 import { PluginRegistry } from './plugins';
+import { ServiceRegistry, type ServiceResolutionScope } from './services';
 import { TimerRegistry } from './timers';
 
 export interface ContextOptions {
@@ -48,6 +49,9 @@ export class Context {
   private readonly parentEventForwarder?: WildcardHandler<EventMap>;
   private readonly logHandler?: LogHandler;
 
+  private readonly services: ServiceRegistry;
+  private readonly contextPath: readonly string[];
+  private readonly serviceScope: ServiceResolutionScope;
   private readonly plugins: PluginRegistry;
   private readonly apiHooks: ApiHookRegistry;
   private readonly eventSources: EventSourceRegistry;
@@ -85,7 +89,10 @@ export class Context {
     }
 
     const getState = () => this.lifecycle.state;
-    this.plugins = new PluginRegistry(this, parent?.plugins, this.logHandler);
+    this.services = new ServiceRegistry(parent?.services);
+    this.contextPath = [...(parent?.contextPath ?? []), this.name];
+    this.serviceScope = { key: this, value: { context: this, contextPath: this.contextPath } };
+    this.plugins = new PluginRegistry(this, this.services, this.contextPath, this.logHandler);
     this.apiHooks = new ApiHookRegistry(baseClient, parent?.apiHooks, this.name, getState);
     this.client = this.apiHooks.client;
     this.timers = new TimerRegistry(this.name, this.logger, getState);
@@ -95,6 +102,7 @@ export class Context {
     this.lifecycle = new LifecycleManager(
       this.name,
       this.plugins,
+      this.services,
       this.timers,
       this.eventSources,
       this.apiHooks,
@@ -158,19 +166,19 @@ export class Context {
   provide<T extends object>(service: ServiceClass<T>, instance: T): void;
   provide<T extends object>(service: ServiceClass<T>, factory: ScopedServiceFactory<T>): void;
   provide<T extends object>(service: ServiceClass<T>, instanceOrFactory: T | ScopedServiceFactory<T>): void {
-    this.plugins.provide(service, instanceOrFactory);
+    this.services.provide(service, instanceOrFactory);
   }
 
   resolve<T extends object>(service: ServiceClass<T>): T {
-    return this.plugins.resolve(service);
+    return this.services.resolve(service, this.serviceScope);
   }
 
   tryResolve<T extends object>(service: ServiceClass<T>): T | undefined {
-    return this.plugins.tryResolve(service);
+    return this.services.tryResolve(service, this.serviceScope);
   }
 
   isProvided<T extends object>(service: ServiceClass<T>): boolean {
-    return this.plugins.isProvided(service);
+    return this.services.isProvided(service);
   }
 
   fork(name: string, filter?: Filter): Context {

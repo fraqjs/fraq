@@ -1,6 +1,7 @@
 import type { ApiHookRegistry } from './api-hooks';
 import type { EventSourceRegistry } from './event-sources';
 import type { InstalledPlugin, PluginRegistry } from './plugins';
+import type { ServiceRegistry } from './services';
 import type { TimerRegistry } from './timers';
 
 export type ContextState = 'idle' | 'starting' | 'started' | 'stopping' | 'stopped';
@@ -19,6 +20,7 @@ export class LifecycleManager {
   constructor(
     private readonly contextName: string,
     private readonly plugins: PluginRegistry,
+    private readonly services: ServiceRegistry,
     private readonly timers: TimerRegistry,
     private readonly eventSources: EventSourceRegistry,
     private readonly apiHooks: ApiHookRegistry,
@@ -122,7 +124,7 @@ export class LifecycleManager {
 
     errors.push(...(await this.eventSources.stop()));
     this.detachParentEvents();
-    errors.push(...(await this.plugins.disposeServices()));
+    errors.push(...(await this.services.dispose()));
     this.apiHooks.clear();
 
     if (errors.length === 1) {

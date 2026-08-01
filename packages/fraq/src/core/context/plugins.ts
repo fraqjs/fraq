@@ -1,8 +1,8 @@
 import { Logger, type LogHandler } from '../logging';
 import type { Injection, ParameterList, Plugin } from '../plugin';
-import type { ScopedServiceFactory, ServiceClass } from '../service';
+import type { ServiceClass } from '../service';
 import type { Context } from './index';
-import { ServiceRegistry, type ServiceResolutionScope } from './services';
+import type { ServiceRegistry, ServiceResolutionScope } from './services';
 
 type AnyPlugin = Plugin<ParameterList, Injection | undefined, Injection | undefined>;
 
@@ -61,22 +61,13 @@ function createUnresolvablePluginError(pending: InstalledPlugin[], available: Se
 
 export class PluginRegistry {
   private readonly plugins: InstalledPlugin[] = [];
-  private readonly services: ServiceRegistry;
-  private readonly contextPath: readonly string[];
-  private readonly contextScope: ServiceResolutionScope;
 
   constructor(
     private readonly context: Context,
-    parent: PluginRegistry | undefined,
+    private readonly services: ServiceRegistry,
+    private readonly contextPath: readonly string[],
     private readonly logHandler: LogHandler | undefined,
-  ) {
-    this.services = new ServiceRegistry(parent?.services);
-    this.contextPath = Object.freeze([...(parent?.contextPath ?? []), context.name]);
-    this.contextScope = {
-      key: context,
-      value: Object.freeze({ context, contextPath: this.contextPath }),
-    };
-  }
+  ) {}
 
   install<T extends ParameterList, I extends Injection | undefined, OI extends Injection | undefined>(
     plugin: Plugin<T, I, OI>,
@@ -85,22 +76,15 @@ export class PluginRegistry {
     this.plugins.push({ plugin: plugin as AnyPlugin, args });
   }
 
-  provide<T extends object>(service: ServiceClass<T>, instanceOrFactory: T | ScopedServiceFactory<T>): void {
-    this.services.provide(service, instanceOrFactory);
+  private resolve<T extends object>(service: ServiceClass<T>, installedPlugin: InstalledPlugin): T {
+    return this.services.resolve(service, this.getPluginScope(installedPlugin));
   }
 
-  resolve<T extends object>(service: ServiceClass<T>, installedPlugin?: InstalledPlugin): T {
-    return this.services.resolve(service, installedPlugin ? this.getPluginScope(installedPlugin) : this.contextScope);
+  private tryResolve<T extends object>(service: ServiceClass<T>, installedPlugin: InstalledPlugin): T | undefined {
+    return this.services.tryResolve(service, this.getPluginScope(installedPlugin));
   }
 
-  tryResolve<T extends object>(service: ServiceClass<T>, installedPlugin?: InstalledPlugin): T | undefined {
-    return this.services.tryResolve(
-      service,
-      installedPlugin ? this.getPluginScope(installedPlugin) : this.contextScope,
-    );
-  }
-
-  isProvided<T extends object>(service: ServiceClass<T>): boolean {
+  private isProvided<T extends object>(service: ServiceClass<T>): boolean {
     return this.services.isProvided(service);
   }
 
@@ -153,10 +137,6 @@ export class PluginRegistry {
       this.context.logger.debug(`Plugin ${plugin.name} is starting...`);
       await plugin.start(this.getPluginContext(installedPlugin));
     }
-  }
-
-  async disposeServices(): Promise<unknown[]> {
-    return this.services.dispose();
   }
 
   private sortPlugins(): InstalledPlugin[] {
@@ -213,11 +193,11 @@ export class PluginRegistry {
   private getPluginScope(installedPlugin: InstalledPlugin): ServiceResolutionScope {
     installedPlugin.scope ??= {
       key: installedPlugin,
-      value: Object.freeze({
+      value: {
         context: this.getPluginContext(installedPlugin),
         contextPath: this.contextPath,
         plugin: installedPlugin.plugin.name,
-      }),
+      },
     };
     return installedPlugin.scope;
   }
