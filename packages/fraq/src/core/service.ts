@@ -1,7 +1,15 @@
 /** biome-ignore-all lint/suspicious/noExplicitAny: Service constructors may accept any arguments. */
 import type { Context } from './context';
 
-export type ServiceClass<T extends object = object> = abstract new (...args: any[]) => T;
+export type ServiceClass<T extends object = object> = (abstract new (
+  ...args: any[]
+) => T) & {
+  token: ServiceToken<T>;
+};
+
+export interface ServiceToken<_T extends object = object> {
+  key: string;
+}
 
 export interface ServiceScope {
   readonly context: Context;
@@ -13,6 +21,10 @@ export type ScopedServiceFactory<T extends object> = (scope: ServiceScope) => T;
 
 export interface Disposable {
   dispose(): void | Promise<void>;
+}
+
+export function serviceToken<T extends object>(key: string): ServiceToken<T> {
+  return Object.freeze({ key });
 }
 
 export function isDisposable(service: object): service is Disposable {

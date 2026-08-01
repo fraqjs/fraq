@@ -1,4 +1,10 @@
-import type { AnyApiCall, MilkyEventSource, MilkyEventSubscription, milky } from '@fraqjs/fraq';
+import {
+  type AnyApiCall,
+  type MilkyEventSource,
+  type MilkyEventSubscription,
+  type milky,
+  serviceToken,
+} from '@fraqjs/fraq';
 
 import {
   type MockFriendMessageOptions,
@@ -18,6 +24,8 @@ export interface MockServiceOptions extends MockInboxOptions {
 }
 
 export class MockService implements MilkyEventSource {
+  static readonly token = serviceToken<MockService>('fraqjs/mock/MockService');
+
   readonly name = 'mock';
   readonly inbox: MockInbox;
 

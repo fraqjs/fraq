@@ -8,6 +8,7 @@ import {
   type RouteMatchResult,
   Router,
   type Session,
+  serviceToken,
 } from '@fraqjs/fraq';
 
 import { ConversationAbortionError, ConversationRejectionError } from './error';
@@ -123,6 +124,8 @@ function isSameBranch(a: RouteBranch, b: RouteBranch): boolean {
 }
 
 export class ConversationService {
+  static readonly token = serviceToken<ConversationService>('fraqjs/conversation/ConversationService');
+
   readonly defaultTimeout: number;
   readonly onCollision: 'reject-incoming' | 'abort-existing';
 

@@ -1,4 +1,4 @@
-import type { milky } from '@fraqjs/fraq';
+import { type milky, serviceToken } from '@fraqjs/fraq';
 import type { KyselyService } from '@fraqjs/plugin-kysely';
 
 const MESSAGE_STORE_TABLE = 'message_store_messages';
@@ -31,6 +31,8 @@ export interface MessageStoreServiceOptions {
 }
 
 export class MessageStoreService {
+  static readonly token = serviceToken<MessageStoreService>('fraqjs/message-store/MessageStoreService');
+
   constructor(
     private readonly kysely: KyselyService,
     readonly options?: MessageStoreServiceOptions,

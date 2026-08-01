@@ -1,3 +1,4 @@
+import { serviceToken } from '@fraqjs/fraq';
 import type { ImageModel, LanguageModel } from 'ai';
 
 export interface AiServiceOptions {
@@ -9,6 +10,8 @@ export interface AiServiceOptions {
 }
 
 export class AiService {
+  static readonly token = serviceToken<AiService>('fraqjs/ai/AiService');
+
   private readonly languageModels: Record<string, LanguageModel>;
   private readonly imageModels: Record<string, ImageModel>;
   private readonly aliases: Record<string, string>;

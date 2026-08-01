@@ -1,3 +1,4 @@
+import { serviceToken } from '@fraqjs/fraq';
 import type { Context } from 'hono';
 
 import type { WebuiSession } from './authentication';
@@ -36,6 +37,8 @@ export interface WebuiGatewayServiceOptions {
 export const WEBUI_BASE_PATH = '/webui';
 
 export class WebuiGatewayService {
+  static readonly token = serviceToken<WebuiGatewayService>('fraqjs/webui-gateway/WebuiGatewayService');
+
   constructor(private readonly mountWebui: (options: WebuiMountOptions) => void) {}
 
   mount(options: WebuiMountOptions): void {

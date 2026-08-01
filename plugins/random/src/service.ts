@@ -1,3 +1,5 @@
+import { serviceToken } from '@fraqjs/fraq';
+
 import { PCG32, type PCG32State } from './pcg32';
 
 const DEFAULT_SEQUENCE = 1;
@@ -40,6 +42,8 @@ function assertWeight(value: number, name: string): void {
 }
 
 export class RandomService {
+  static readonly token = serviceToken<RandomService>('fraqjs/random/RandomService');
+
   private generator: PCG32;
   private sequence: number;
 

@@ -1,4 +1,4 @@
-import type { Disposable } from '@fraqjs/fraq';
+import { type Disposable, serviceToken } from '@fraqjs/fraq';
 import { type HttpBindings, type ServerType, serve, upgradeWebSocket } from '@hono/node-server';
 import { Hono } from 'hono';
 import { WebSocketServer } from 'ws';
@@ -15,6 +15,8 @@ export interface HonoServiceOptions {
 }
 
 export class HonoService implements Disposable {
+  static readonly token = serviceToken<HonoService>('fraqjs/hono/HonoService');
+
   readonly app = new Hono<{ Bindings: HttpBindings }>();
   readonly upgradeWebSocket = upgradeWebSocket;
   readonly host: string;

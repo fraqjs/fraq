@@ -1,4 +1,4 @@
-import type { Context, Disposable } from '@fraqjs/fraq';
+import { type Context, type Disposable, serviceToken } from '@fraqjs/fraq';
 import { type FontLoader, type ImageLoader, type ImagesInput, Renderer, type RenderOptions } from '@takumi-rs/core';
 import { fontFromUrl, type Node, prepareImages, type ReactElementLike } from '@takumi-rs/helpers';
 import { type EmojiType, extractEmojis } from '@takumi-rs/helpers/emoji';
@@ -53,6 +53,8 @@ export interface PathBasedFontDetails {
 }
 
 export class TakumiService implements Disposable {
+  static readonly token = serviceToken<TakumiService>('fraqjs/takumi/TakumiService');
+
   readonly renderer: Renderer;
 
   private readonly abortController = new AbortController();

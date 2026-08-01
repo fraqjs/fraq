@@ -1,4 +1,4 @@
-import type { Disposable } from '@fraqjs/fraq';
+import { type Disposable, serviceToken } from '@fraqjs/fraq';
 import { type Kysely, sql } from 'kysely';
 
 import { SchemaRegistry } from './schema';
@@ -10,6 +10,8 @@ export interface KyselyAutoVacuumOptions {
 }
 
 export class KyselyService implements Disposable {
+  static readonly token = serviceToken<KyselyService>('fraqjs/kysely/KyselyService');
+
   readonly schemas: SchemaRegistry;
 
   constructor(

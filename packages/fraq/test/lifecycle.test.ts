@@ -1,11 +1,13 @@
 import { createMockContext, type MockService } from '@fraqjs/plugin-mock';
 
-import { type Context, type Disposable, definePlugin, type LogMessage } from '../src';
+import { type Context, type Disposable, definePlugin, type LogMessage, serviceToken } from '../src';
 
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
 class ParentDisposableService implements Disposable {
+  static readonly token = serviceToken<ParentDisposableService>('fraqjs/test/lifecycle/ParentDisposableService');
+
   constructor(private readonly calls: string[]) {}
 
   dispose(): void {
@@ -14,6 +16,8 @@ class ParentDisposableService implements Disposable {
 }
 
 class FirstDisposableService implements Disposable {
+  static readonly token = serviceToken<FirstDisposableService>('fraqjs/test/lifecycle/FirstDisposableService');
+
   constructor(private readonly calls: string[]) {}
 
   dispose(): void {
@@ -22,6 +26,8 @@ class FirstDisposableService implements Disposable {
 }
 
 class SecondDisposableService implements Disposable {
+  static readonly token = serviceToken<SecondDisposableService>('fraqjs/test/lifecycle/SecondDisposableService');
+
   constructor(private readonly calls: string[]) {}
 
   dispose(): void {
@@ -30,6 +36,8 @@ class SecondDisposableService implements Disposable {
 }
 
 class ChildDisposableService implements Disposable {
+  static readonly token = serviceToken<ChildDisposableService>('fraqjs/test/lifecycle/ChildDisposableService');
+
   constructor(private readonly calls: string[]) {}
 
   dispose(): void {
@@ -38,6 +46,8 @@ class ChildDisposableService implements Disposable {
 }
 
 class ScopedDisposableService implements Disposable {
+  static readonly token = serviceToken<ScopedDisposableService>('fraqjs/test/lifecycle/ScopedDisposableService');
+
   constructor(
     private readonly name: string,
     private readonly calls: string[],

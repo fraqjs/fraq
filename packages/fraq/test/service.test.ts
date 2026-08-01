@@ -1,21 +1,31 @@
 import { createMockContext } from '@fraqjs/plugin-mock';
 
-import { definePlugin, type ServiceScope } from '../src';
+import { definePlugin, type ServiceScope, serviceToken } from '../src';
 
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
 class AlphaService {
+  static readonly token = serviceToken<AlphaService>('fraqjs/test/service/AlphaService');
+
   readonly value = 'alpha';
 }
 
 class BetaService {
+  static readonly token = serviceToken<BetaService>('fraqjs/test/service/BetaService');
+
   constructor(readonly alpha: AlphaService) {}
 }
 
-class GammaService {}
+class GammaService {
+  static readonly token = serviceToken<GammaService>('fraqjs/test/service/GammaService');
+
+  readonly value = 'gamma';
+}
 
 class ScopedService {
+  static readonly token = serviceToken<ScopedService>('fraqjs/test/service/ScopedService');
+
   constructor(readonly scope: ServiceScope) {}
 }
 
