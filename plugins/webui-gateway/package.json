@@ -1,7 +1,7 @@
 {
   "name": "@fraqjs/plugin-webui-gateway",
   "type": "module",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "提供统一的 WebUI 挂载和鉴权入口",
   "files": [
     "dist"
@@ -36,6 +36,7 @@
     "@hono/node-server": "^2.0.10"
   },
   "devDependencies": {
+    "@fraqjs/plugin-mock": "workspace:^",
     "@fontsource-variable/inter": "^5.3.0",
     "@tailwindcss/vite": "^4.1.18",
     "@types/react": "^19.2.17",
