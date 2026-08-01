@@ -163,9 +163,12 @@ export class MessageStoreService {
     }
 
     const pageRows = rows.slice(0, limit);
+    const oldestMessageSeq = rows.at(-1)?.message_seq;
     return {
       messages: pageRows.toReversed().flatMap((row) => (row.payload_json ? [JSON.parse(row.payload_json)] : [])),
-      next_message_seq: rows[limit]?.message_seq,
+      next_message_seq:
+        rows[limit]?.message_seq ??
+        (oldestMessageSeq != null && oldestMessageSeq > 0 ? oldestMessageSeq - 1 : undefined),
     };
   }
 

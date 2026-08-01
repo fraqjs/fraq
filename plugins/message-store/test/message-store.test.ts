@@ -90,6 +90,30 @@ test('returns a local history page in ascending sequence order', async () => {
   await ctx.stop();
 });
 
+test('returns a remote continuation cursor when local history does not fill the page', async () => {
+  const ctx = createMockContext();
+  installMessageStore(ctx);
+  await ctx.start();
+
+  const first = await ctx.mock.receiveGroup({ groupId: 20001, userId: 10001 }, inmsg`one`);
+  const second = await ctx.mock.receiveGroup({ groupId: 20001, userId: 10002 }, inmsg`two`);
+  await tick();
+  ctx.mock.apiCalls.length = 0;
+
+  const history = await ctx.client.get_history_messages({
+    message_scene: 'group',
+    peer_id: 20001,
+    limit: 30,
+  });
+
+  assert.deepEqual(history, {
+    messages: [first, second],
+    next_message_seq: first.message_seq - 1,
+  });
+  assert.deepEqual(ctx.mock.apiCalls, []);
+  await ctx.stop();
+});
+
 test('falls back to the remote history API when no local messages match the query', async () => {
   const ctx = createMockContext();
   installMessageStore(ctx);
