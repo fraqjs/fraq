@@ -1,7 +1,7 @@
 {
   "name": "@fraqjs/plugin-conversation",
   "type": "module",
-  "version": "0.7.1",
+  "version": "0.8.0",
   "description": "提供对多轮对话的支持，帮助开发者编写交互式机器人功能",
   "files": [
     "dist"
