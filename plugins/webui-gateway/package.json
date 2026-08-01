@@ -47,7 +47,7 @@
     "lucide-react": "^1.27.0",
     "radix-ui": "^1.6.7",
     "react": "^19.2.7",
-    "react-dom": "^19.2.7",
+    "react-dom": "^19.2.8",
     "shadcn": "^4.16.0",
     "tailwind-merge": "^3.6.0",
     "tailwindcss": "^4.1.18",
