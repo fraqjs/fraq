@@ -1,5 +1,6 @@
 import { definePlugin } from '@fraqjs/fraq';
 import { HonoService } from '@fraqjs/plugin-hono';
+import { cors } from 'hono/cors';
 
 import { registerApiEndpoint } from './api-server';
 import { EventBroadcaster, registerEventEndpoint } from './event-server';
@@ -19,6 +20,7 @@ export const MilkyServerPlugin = definePlugin({
     const prefix = normalizePrefix(options?.prefix ?? '/milky');
     const broadcaster = new EventBroadcaster();
 
+    ctx.hono.app.use(`${prefix}/*`, cors());
     registerApiEndpoint(ctx, ctx.hono, prefix, accessToken);
     registerEventEndpoint(ctx, ctx.hono, broadcaster, prefix, accessToken);
   },
