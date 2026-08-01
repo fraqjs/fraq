@@ -46,7 +46,6 @@ export const DashboardPlugin = definePlugin({
 
 ```typescript
 ctx.webui.mount({
-  id: 'dashboard',
   assets: new URL('../webui', import.meta.url),
   routes(api) {
     api.get('/status', (c, session) => {
@@ -59,7 +58,7 @@ ctx.webui.mount({
 });
 ```
 
-以上配置会创建：
+Gateway 会使用当前插件名 `dashboard` 作为 WebUI id，以上配置会创建：
 
 - SPA：`/webui/dashboard/`
 - API：`/webui/dashboard/api/status`
