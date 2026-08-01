@@ -74,11 +74,11 @@ test('sorts plugins by service dependencies', async () => {
 
   const BetaPlugin = definePlugin({
     name: 'beta',
-    requires: [AlphaService],
+    inject: { alpha: AlphaService },
     provides: [BetaService],
     apply(ctx) {
       calls.push('beta');
-      ctx.provide(BetaService, new BetaService(ctx.resolve(AlphaService)));
+      ctx.provide(BetaService, new BetaService(ctx.alpha));
     },
   });
   const AlphaPlugin = definePlugin({
@@ -159,16 +159,17 @@ test('uses injected services to order and apply plugin dependencies', async () =
   assert.equal(injectedAlpha, ctx.resolve(AlphaService));
 });
 
-test('orders plugins by optional service dependencies when providers are installed', async () => {
+test('orders plugins by optional injections when providers are installed', async () => {
   const ctx = createMockContext();
   const calls: string[] = [];
 
   ctx.install(
     definePlugin({
       name: 'alpha-consumer',
-      optionalRequires: [AlphaService],
-      apply() {
+      optionalInject: { alpha: AlphaService },
+      apply(ctx) {
         calls.push('consumer');
+        assert.ok(ctx.alpha);
       },
     }),
   );
@@ -188,17 +189,17 @@ test('orders plugins by optional service dependencies when providers are install
   assert.deepEqual(calls, ['alpha', 'consumer']);
 });
 
-test('does not require optional service dependencies without installed providers', async () => {
+test('does not require optional injections without installed providers', async () => {
   const ctx = createMockContext();
   const calls: string[] = [];
 
   ctx.install(
     definePlugin({
       name: 'alpha-consumer',
-      optionalRequires: [AlphaService],
+      optionalInject: { alpha: AlphaService },
       apply(ctx) {
         calls.push('consumer');
-        assert.equal(ctx.tryResolve(AlphaService), undefined);
+        assert.equal(ctx.alpha, undefined);
       },
     }),
   );
@@ -270,7 +271,7 @@ test('breaks cycles between optional service dependencies', async () => {
   ctx.install(
     definePlugin({
       name: 'alpha-provider',
-      optionalRequires: [BetaService],
+      optionalInject: { beta: BetaService },
       provides: [AlphaService],
       apply(ctx) {
         calls.push('alpha');
@@ -281,11 +282,12 @@ test('breaks cycles between optional service dependencies', async () => {
   ctx.install(
     definePlugin({
       name: 'beta-provider',
-      optionalRequires: [AlphaService],
+      optionalInject: { alpha: AlphaService },
       provides: [BetaService],
       apply(ctx) {
         calls.push('beta');
-        ctx.provide(BetaService, new BetaService(ctx.resolve(AlphaService)));
+        assert.ok(ctx.alpha);
+        ctx.provide(BetaService, new BetaService(ctx.alpha));
       },
     }),
   );
@@ -326,8 +328,8 @@ test('rejects startup when a required service is missing', async () => {
 
   ctx.install(
     definePlugin({
-      name: 'requires-alpha',
-      requires: [AlphaService],
+      name: 'injects-alpha',
+      inject: { alpha: AlphaService },
       apply() {},
     }),
   );
@@ -366,7 +368,7 @@ test('rejects startup when plugin service dependencies form a cycle', async () =
   ctx.install(
     definePlugin({
       name: 'cycle-alpha-provider',
-      requires: [BetaService],
+      inject: { beta: BetaService },
       provides: [AlphaService],
       apply(ctx) {
         ctx.provide(AlphaService, new AlphaService());
@@ -376,10 +378,10 @@ test('rejects startup when plugin service dependencies form a cycle', async () =
   ctx.install(
     definePlugin({
       name: 'cycle-beta-provider',
-      requires: [AlphaService],
+      inject: { alpha: AlphaService },
       provides: [BetaService],
       apply(ctx) {
-        ctx.provide(BetaService, new BetaService(ctx.resolve(AlphaService)));
+        ctx.provide(BetaService, new BetaService(ctx.alpha));
       },
     }),
   );
@@ -452,10 +454,10 @@ test('uses services from parent contexts to satisfy plugin dependencies', async 
   child.install(
     definePlugin({
       name: 'beta-from-parent-alpha',
-      requires: [AlphaService],
+      inject: { alpha: AlphaService },
       provides: [BetaService],
       apply(ctx) {
-        ctx.provide(BetaService, new BetaService(ctx.resolve(AlphaService)));
+        ctx.provide(BetaService, new BetaService(ctx.alpha));
       },
     }),
   );
@@ -619,10 +621,10 @@ test('resolves dependencies against services provided before startup', async () 
   ctx.install(
     definePlugin({
       name: 'gamma-from-existing-alpha',
-      requires: [AlphaService],
+      inject: { alpha: AlphaService },
       provides: [GammaService],
       apply(ctx) {
-        assert.equal(ctx.resolve(AlphaService), alpha);
+        assert.equal(ctx.alpha, alpha);
         ctx.provide(GammaService, new GammaService());
       },
     }),

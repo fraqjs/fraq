@@ -13,16 +13,16 @@ export type InstalledPlugin = {
   scope?: ServiceResolutionScope;
 };
 
-function areRequiredServicesAvailable(plugin: AnyPlugin, available: Set<ServiceClass>): boolean {
-  return (plugin.requires ?? []).every((service) => available.has(service));
+function areInjectedServicesAvailable(plugin: AnyPlugin, available: Set<ServiceClass>): boolean {
+  return Object.values(plugin.inject ?? {}).every((service) => available.has(service));
 }
 
-function areOptionalServicesReady(
+function areOptionalInjectedServicesReady(
   plugin: AnyPlugin,
   available: Set<ServiceClass>,
   pendingProviders: Map<ServiceClass, InstalledPlugin>,
 ): boolean {
-  return (plugin.optionalRequires ?? []).every((service) => {
+  return Object.values(plugin.optionalInject ?? {}).every((service) => {
     if (available.has(service)) {
       return true;
     }
@@ -41,7 +41,7 @@ function createUnresolvablePluginError(pending: InstalledPlugin[], available: Se
   }
 
   for (const { plugin } of pending) {
-    for (const service of plugin.requires ?? []) {
+    for (const service of Object.values(plugin.inject ?? {})) {
       if (!available.has(service)) {
         const plugins = missingRequirements.get(service) ?? [];
         plugins.push(plugin);
@@ -94,25 +94,21 @@ export class PluginRegistry {
       const { plugin, args } = installedPlugin;
       const providedBeforeApply = new Set(this.services.ownServiceClasses());
       let applyingMessage = `Applying plugin ${plugin.name}`;
-      const requiredServices: string[] = [];
+      const injectedServices: string[] = [];
       const providedServices: string[] = [];
-      if (plugin.requires) {
-        for (const service of plugin.requires) {
-          requiredServices.push(service.name);
-        }
+      for (const service of Object.values(plugin.inject ?? {})) {
+        injectedServices.push(service.name);
       }
-      if (plugin.optionalRequires) {
-        for (const service of plugin.optionalRequires) {
-          requiredServices.push(`${service.name}?`);
-        }
+      for (const service of Object.values(plugin.optionalInject ?? {})) {
+        injectedServices.push(`${service.name}?`);
       }
       if (plugin.provides) {
         for (const service of plugin.provides) {
           providedServices.push(service.name);
         }
       }
-      if (requiredServices.length > 0) {
-        applyingMessage += `, requires: [${requiredServices.join(', ')}]`;
+      if (injectedServices.length > 0) {
+        applyingMessage += `, injects: [${injectedServices.join(', ')}]`;
       }
       if (providedServices.length > 0) {
         applyingMessage += `, provides: [${providedServices.join(', ')}]`;
@@ -164,11 +160,11 @@ export class PluginRegistry {
           availableByPendingPlugins.set(service, installedPlugin);
         }
       }
-      const requiredReadyIndex = pending.findIndex(({ plugin }) => areRequiredServicesAvailable(plugin, available));
+      const requiredReadyIndex = pending.findIndex(({ plugin }) => areInjectedServicesAvailable(plugin, available));
       const optionalReadyIndex = pending.findIndex(
         ({ plugin }) =>
-          areRequiredServicesAvailable(plugin, available) &&
-          areOptionalServicesReady(plugin, available, availableByPendingPlugins),
+          areInjectedServicesAvailable(plugin, available) &&
+          areOptionalInjectedServicesReady(plugin, available, availableByPendingPlugins),
       );
       const nextIndex = optionalReadyIndex === -1 ? requiredReadyIndex : optionalReadyIndex;
       if (nextIndex === -1) {

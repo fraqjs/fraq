@@ -149,23 +149,6 @@ const PluginB = definePlugin({
 
 这里的 `provides` 和 `inject` 很重要，它告诉 Fraq 哪个插件提供了 `AlphaService`，哪个插件依赖了 `AlphaService`，Fraq 会根据这些信息来正确地加载和初始化插件。例如，如果用户同时安装了 `PluginA` 和 `PluginB`，Fraq 会确保在加载 `PluginB` 之前先加载 `PluginA`，以保证 `AlphaService` 已经被提供了。如果用户安装了 `PluginB` 而没有安装 `PluginA`，Fraq 会抛出一个错误，提示缺少依赖。
 
-### 使用 `requires` 声明依赖
-
-可以使用 `requires` 字段来声明对 `AlphaService` 的依赖，并通过 `ctx.resolve` 方法来获取这个服务的实例：
-
-```typescript
-const PluginB = definePlugin({
-  name: 'plugin-b',
-  requires: [AlphaService],
-  apply(ctx) {
-    const alphaService = ctx.resolve(AlphaService);
-    console.log(alphaService.alpha()); // prints 'alpha'
-  },
-});
-```
-
-需要注意的是，`inject` 和 `requires` 不能同时使用在同一个插件中，因为它们的作用是相同的，都是用来声明插件的依赖关系的；如果同时使用，Fraq 会抛出一个错误提示。推荐使用 `inject` 这种更加简便的方式来声明和解析依赖。
-
 ### 声明可选依赖
 
 除此之外，我们还可以用 `optionalInject` 来声明可选依赖，例如：
@@ -186,30 +169,7 @@ const PluginC = definePlugin({
 });
 ```
 
-当然也可以用 `optionalRequires` 来声明可选依赖。`Context` 还提供了 `tryResolve` 和 `isProvided` 方法，分别用于尝试获取一个服务的实例（如果没有提供则返回 `undefined`）和检查一个服务是否已经被提供了。用例如下：
-
-```typescript
-const PluginC = definePlugin({
-  name: 'plugin-c',
-  optionalRequires: [AlphaService],
-  apply(ctx) {
-    if (ctx.isProvided(AlphaService)) {
-      // 可以被安全地调用，因为我们已经检查过它是否被提供了
-      const alphaService = ctx.resolve(AlphaService);
-      console.log(alphaService.alpha());
-    } else {
-      console.log('AlphaService is not provided');
-    }
-    // OR:
-    const alphaService = ctx.tryResolve(AlphaService);
-    if (alphaService) {
-      console.log(alphaService.alpha());
-    } else {
-      console.log('AlphaService is not provided');
-    }
-  },
-});
-```
+通过 `optionalInject` 注入的属性类型会包含 `undefined`。如果没有插件提供对应服务，Fraq 不会阻止当前插件启动，并会为该属性注入 `undefined`。
 
 ### 将服务绑定到作用域
 

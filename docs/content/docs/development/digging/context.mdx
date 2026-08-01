@@ -94,10 +94,9 @@ const PluginA = definePlugin({
 
 const PluginB = definePlugin({
   name: 'plugin-b',
-  requires: [AlphaService],
+  inject: { alpha: AlphaService },
   apply(ctx) {
-    const alphaService = ctx.resolve(AlphaService);
-    console.log(alphaService.alpha());
+    console.log(ctx.alpha.alpha());
   },
 });
 
@@ -132,10 +131,9 @@ const pluginX = definePlugin({
 
 const pluginY = definePlugin({
   name: 'plugin-y',
-  requires: [OmegaService],
+  inject: { omega: OmegaService },
   apply(ctx) {
-    const omegaService = ctx.resolve(OmegaService);
-    console.log(omegaService.omega());
+    console.log(ctx.omega.omega());
   },
 });
 

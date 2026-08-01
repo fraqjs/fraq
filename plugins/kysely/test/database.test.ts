@@ -47,9 +47,9 @@ test('vacuums the database automatically after startup', async () => {
   ctx.install(
     definePlugin({
       name: 'observe-vacuum',
-      requires: [KyselyService],
+      inject: { kysely: KyselyService },
       apply(ctx) {
-        const service = ctx.resolve(KyselyService);
+        const service = ctx.kysely;
         const vacuum = service.vacuum.bind(service);
         service.vacuum = async () => {
           vacuumRuns += 1;
@@ -76,9 +76,9 @@ test('allows automatic vacuum to be disabled', async () => {
   ctx.install(
     definePlugin({
       name: 'observe-disabled-vacuum',
-      requires: [KyselyService],
+      inject: { kysely: KyselyService },
       apply(ctx) {
-        const service = ctx.resolve(KyselyService);
+        const service = ctx.kysely;
         const vacuum = service.vacuum.bind(service);
         service.vacuum = async () => {
           vacuumRuns += 1;

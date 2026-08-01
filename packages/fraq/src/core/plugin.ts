@@ -19,9 +19,7 @@ export interface Plugin<
   OI extends Injection | undefined = undefined,
 > {
   name: string;
-  requires?: readonly ServiceClass[];
   inject?: I;
-  optionalRequires?: readonly ServiceClass[];
   optionalInject?: OI;
   provides?: readonly ServiceClass[];
   apply(ctx: Context & InjectedServices<I> & OptionalInjectedServices<OI>, ...args: T): void | Promise<void>;
@@ -33,18 +31,5 @@ export function definePlugin<
   I extends Injection | undefined,
   OI extends Injection | undefined,
 >(plugin: Plugin<T, I, OI>): Plugin<T, I, OI> {
-  if (plugin.inject) {
-    if (plugin.requires) {
-      throw new Error(`Plugin "${plugin.name}" cannot have both "requires" and "inject" properties.`);
-    }
-    // Generate "requires" from the values of "inject"
-    plugin.requires = Object.values(plugin.inject);
-  }
-  if (plugin.optionalInject) {
-    if (plugin.optionalRequires) {
-      throw new Error(`Plugin "${plugin.name}" cannot have both "optionalRequires" and "optionalInject" properties.`);
-    }
-    plugin.optionalRequires = Object.values(plugin.optionalInject);
-  }
   return plugin;
 }

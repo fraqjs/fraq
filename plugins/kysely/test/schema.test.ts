@@ -24,9 +24,9 @@ test('registers schemas and migrates them to latest during startup', async () =>
   ctx.install(
     definePlugin({
       name: 'test-schema',
-      requires: [KyselyService],
+      inject: { kysely: KyselyService },
       apply(ctx) {
-        ctx.resolve(KyselyService).schemas.register({
+        ctx.kysely.schemas.register({
           name: 'test',
           migrations: {
             '001_create_user_account': {
@@ -74,9 +74,9 @@ test('migrateToLatest can be called again after migrations have already run', as
   ctx.install(
     definePlugin({
       name: 'repeatable-schema',
-      requires: [KyselyService],
+      inject: { kysely: KyselyService },
       apply(ctx) {
-        ctx.resolve(KyselyService).schemas.register({
+        ctx.kysely.schemas.register({
           name: 'repeatable',
           migrations: {
             '001_create_repeatable_item': {
@@ -117,9 +117,9 @@ test('runs migrations in the order they are registered', async () => {
   ctx.install(
     definePlugin({
       name: 'ordered-schema',
-      requires: [KyselyService],
+      inject: { kysely: KyselyService },
       apply(ctx) {
-        ctx.resolve(KyselyService).schemas.register({
+        ctx.kysely.schemas.register({
           name: 'ordered',
           migrations: {
             '002_create_ordered_item': {
@@ -171,9 +171,9 @@ test('migrateToLatest applies newly registered migrations after schema changes',
   firstCtx.install(
     definePlugin({
       name: 'evolving-schema-v1',
-      requires: [KyselyService],
+      inject: { kysely: KyselyService },
       apply(ctx) {
-        ctx.resolve(KyselyService).schemas.register({
+        ctx.kysely.schemas.register({
           name: 'evolving',
           migrations: {
             '001_create_evolving_item': {
@@ -209,9 +209,9 @@ test('migrateToLatest applies newly registered migrations after schema changes',
   secondCtx.install(
     definePlugin({
       name: 'evolving-schema-v2',
-      requires: [KyselyService],
+      inject: { kysely: KyselyService },
       apply(ctx) {
-        ctx.resolve(KyselyService).schemas.register({
+        ctx.kysely.schemas.register({
           name: 'evolving',
           migrations: {
             '001_create_evolving_item': {
