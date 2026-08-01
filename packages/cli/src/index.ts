@@ -314,6 +314,7 @@ const cli = c.subcommands({
     update: c.command({
       name: 'update',
       description: 'Update Fraq and plugin versions interactively',
+      aliases: ['upgrade', 'up'],
       args: {},
       handler: async () => {
         printBanner();
@@ -322,8 +323,8 @@ const cli = c.subcommands({
     }),
     wizard: c.command({
       name: 'wizard',
-      aliases: ['init'],
       description: 'Initialize a fraq.yml through a wizard',
+      aliases: ['init', 'setup'],
       args: {},
       handler: async () => {
         printBanner();
