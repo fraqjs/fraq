@@ -6,7 +6,7 @@ export const RandomPlugin = definePlugin({
   name: 'random',
   provides: [RandomService],
   apply(ctx, options?: RandomServiceOptions) {
-    ctx.provide(RandomService, new RandomService(options));
+    ctx.provide(RandomService, () => new RandomService(options));
   },
 });
 
