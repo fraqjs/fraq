@@ -115,6 +115,8 @@ ctx.start();
 
 ```typescript
 class OmegaService {
+  static readonly token = serviceToken<OmegaService>('x/OmegaService');
+
   constructor(public name: string) {}
   omega() {
     return `omega ${this.name}`;

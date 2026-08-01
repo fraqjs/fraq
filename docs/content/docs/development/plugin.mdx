@@ -111,15 +111,29 @@ definePlugin({
 
 ## 依赖注入
 
-插件不仅能用来封装功能，还可以用来提供服务（Service）供其他插件依赖和调用。假设我们有一个 `AlphaService`，它提供了一个 `alpha` 方法：
+插件不仅能用来封装功能，还可以用来提供服务（Service）供其他插件依赖和调用。
+
+### 定义服务
+
+假如我们编写了一个插件 `a`，它提供了一个服务 `AlphaService`，其他插件可以依赖这个服务来调用它的方法。我们可以这样定义 `AlphaService`：
 
 ```typescript
+import { serviceToken } from '@fraqjs/fraq';
+
 class AlphaService {
+  static readonly token = serviceToken<AlphaService>('a/AlphaService');
+
   alpha() {
     return 'alpha';
   }
 }
 ```
+
+这里的 service token 用于向 Fraq 声明这个服务的唯一标识符，所有服务 `class` 都应该具有这样的静态 `token` 属性。`serviceToken` 函数接收一个字符串作为参数，这个字符串可以是任意的，但建议使用类似 `plugin-name/ServiceName` 的格式来命名，例如：
+
+- `fraq-plugin-a` 的 `AlphaService`：`a/AlphaService`
+- `@acme/fraq-plugin-b` 的 `BetaService`：`acme/b/BetaService`
+- `@fraqjs/plugin-hono` 的 `HonoService`：`fraqjs/hono/HonoService`
 
 插件可以在定义时声明并通过 `ctx.provide` 方法提供一个服务：
 
@@ -133,7 +147,19 @@ const PluginA = definePlugin({
 });
 ```
 
-其他插件可以用 `inject` 字段来声明对这个服务的依赖，并且在 `apply` 方法中直接通过 `ctx` 参数来访问这个服务实例：
+### 声明依赖
+
+当定义了 `AlphaService` 并[发布](#准备发布)了插件 `a` 后，其他插件可以将 `fraq-plugin-a` 添加到它们的 `peerDependencies`：
+
+```json
+{
+  "peerDependencies": {
+    "fraq-plugin-a": "^0.1.0"
+  }
+}
+```
+
+并且用 `inject` 字段来声明对这个服务的依赖，并且在 `apply` 方法中直接通过 `ctx` 参数来访问这个服务实例：
 
 ```typescript
 const PluginB = definePlugin({
@@ -149,15 +175,34 @@ const PluginB = definePlugin({
 
 这里的 `provides` 和 `inject` 很重要，它告诉 Fraq 哪个插件提供了 `AlphaService`，哪个插件依赖了 `AlphaService`，Fraq 会根据这些信息来正确地加载和初始化插件。例如，如果用户同时安装了 `PluginA` 和 `PluginB`，Fraq 会确保在加载 `PluginB` 之前先加载 `PluginA`，以保证 `AlphaService` 已经被提供了。如果用户安装了 `PluginB` 而没有安装 `PluginA`，Fraq 会抛出一个错误，提示缺少依赖。
 
-### 声明可选依赖
+除此之外，我们还可以用 `optionalInject` 来声明可选依赖。在这种情况下，应该将插件添加到 `peerDependencies` 的同时在 `peerDependenciesMeta` 中声明它是可选的：
 
-除此之外，我们还可以用 `optionalInject` 来声明可选依赖，例如：
+```json
+{
+  "peerDependencies": {
+    "fraq-plugin-a": "^0.1.0"
+  },
+  "peerDependenciesMeta": {
+    "fraq-plugin-a": {
+      "optional": true
+    }
+  }
+}
+```
+
+并且使用 `serviceToken` 来声明依赖，而不是直接使用服务类，这样，如果可选依赖没有被提供，Fraq 不会阻止当前插件启动，而是会为该属性注入 `undefined`。例如：
 
 ```typescript
+import { serviceToken, definePlugin } from '@fraqjs/fraq';
+import type { AlphaService } from 'fraq-plugin-a';
+// 只通过 import type 导入服务类型
+// 这一行会被 tsdown 等工具在编译时移除，因此不会引入对 fraq-plugin-a 的实际依赖
+
 const PluginC = definePlugin({
   name: 'plugin-c',
   optionalInject: {
-    alpha: AlphaService,
+    alpha: serviceToken<AlphaService>('a/AlphaService'),
+    // 这里的 service token 可以在不同模块中通过相同的 key 创建，指向同一个服务
   },
   apply(ctx) {
     if (ctx.alpha) {
@@ -169,14 +214,14 @@ const PluginC = definePlugin({
 });
 ```
 
-通过 `optionalInject` 注入的属性类型会包含 `undefined`。如果没有插件提供对应服务，Fraq 不会阻止当前插件启动，并会为该属性注入 `undefined`。
-
 ### 将服务绑定到作用域
 
 除了直接使用 `provide(class, instance)` 来提供服务的单个实例之外，`Context` 还提供了 `provide(class, factory)` 方法来将服务绑定到作用域，这样每个插件实例都会有一个独立的服务实例。例如：
 
 ```typescript
 class AlphaService {
+  static readonly token = serviceToken<AlphaService>('a/AlphaService');
+
   constructor(readonly suffix: string) {
     this.suffix = suffix;
   }
@@ -232,9 +277,13 @@ Fraq 会为 `PluginB` 和 `PluginC` 分别创建一个独立的 `AlphaService` �
 Fraq 提供了一个 `Disposable` 接口，如果一个服务实现了这个接口，那么当插件被卸载时，Fraq 会自动调用它的 `dispose` 方法来进行清理工作。例如：
 
 ```typescript
-import type { Disposable } from '@fraqjs/fraq';
+import { type Disposable, serviceToken } from '@fraqjs/fraq';
 
 class DisposableService implements Disposable {
+  static readonly token = serviceToken<DisposableService>(
+    'example/DisposableService',
+  );
+
   dispose() {
     console.log('Service is being disposed');
   }
