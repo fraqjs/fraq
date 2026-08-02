@@ -98,15 +98,15 @@ export function App() {
   }
 
   return (
-    <main className="flex min-h-dvh items-center justify-center bg-[#f6f9fc] px-6 py-12">
-      <section className="w-full max-w-[23rem]" aria-labelledby="login-title">
-        <h1 id="login-title" className="mb-8 text-center text-2xl font-semibold text-[#0a2540]">
-          登录 WebUI
+    <main className="flex min-h-dvh items-center justify-center bg-white px-6 py-12 text-[#171717]">
+      <section className="w-full max-w-[22.5rem]" aria-labelledby="login-title">
+        <h1 id="login-title" className="mb-8 text-center text-xl font-semibold text-[#171717]">
+          登录 Fraq WebUI
         </h1>
 
         <form className="space-y-5" onSubmit={submit}>
           <div className="space-y-2.5">
-            <Label htmlFor="access-token" className="text-[0.8125rem] font-semibold text-[#0a2540]">
+            <Label htmlFor="access-token" className="text-sm font-medium text-[#171717]">
               访问令牌
             </Label>
             <div className="relative">
@@ -119,13 +119,13 @@ export function App() {
                 value={accessToken}
                 onChange={(event) => setAccessToken(event.target.value)}
                 aria-invalid={Boolean(error)}
-                className="h-11 rounded-md border border-[#cfd7df] bg-white px-3 pr-11 font-mono text-sm text-[#0a2540] shadow-[0_1px_2px_rgba(10,37,64,0.08)] focus-visible:border-[#635bff] focus-visible:ring-2 focus-visible:ring-[#635bff]/20"
+                className="h-11 rounded-md border border-[#d4d4d4] bg-white px-3 pr-11 font-mono text-sm text-[#171717] transition-colors duration-150 focus-visible:border-[#171717] focus-visible:ring-1 focus-visible:ring-[#171717] aria-invalid:border-[#e5484d] aria-invalid:ring-1 aria-invalid:ring-[#e5484d]"
               />
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="absolute right-0.5 top-0.5 size-10 rounded-md text-[#697386] hover:bg-[#f6f9fc] hover:text-[#0a2540]"
+                className="absolute right-0.5 top-0.5 size-10 rounded-md text-[#737373] transition-colors duration-150 hover:bg-[#f5f5f5] hover:text-[#171717] focus-visible:border-transparent focus-visible:ring-1 focus-visible:ring-[#171717]"
                 disabled={status !== 'idle'}
                 onClick={() => setShowToken((visible) => !visible)}
                 title={showToken ? '隐藏访问令牌' : '显示访问令牌'}
@@ -137,14 +137,14 @@ export function App() {
           </div>
 
           {error ? (
-            <Alert variant="destructive" className="rounded-md border-[#f5a3b3] bg-[#fff5f7] px-3.5 py-3">
+            <Alert variant="destructive" className="rounded-md border-[#f1aeb1] bg-[#fff8f8] px-3.5 py-3">
               <CircleAlertIcon className="size-4" aria-hidden="true" />
-              <AlertDescription className="text-[#a51736]">{error}</AlertDescription>
+              <AlertDescription className="text-[#b4232a]">{error}</AlertDescription>
             </Alert>
           ) : null}
 
           <Button
-            className="h-11 w-full rounded-md bg-[#635bff] text-sm font-semibold text-white shadow-[0_2px_5px_rgba(50,50,93,0.18)] hover:bg-[#5851e1]"
+            className="h-11 w-full rounded-md border border-[#171717] bg-[#171717] text-sm font-medium text-white transition-colors duration-150 hover:border-[#333333] hover:bg-[#333333] focus-visible:border-[#171717] focus-visible:ring-2 focus-visible:ring-[#171717]/25 disabled:border-[#e5e5e5] disabled:bg-[#e5e5e5] disabled:text-[#a3a3a3] disabled:opacity-100"
             type="submit"
             disabled={!accessToken || status !== 'idle'}
           >

@@ -43,7 +43,7 @@ Method names should express domain intent, not merely translate implementation i
 
 ## Frontend Design
 
-Prefer a restrained, Stripe-like visual language: clear hierarchy, precise spacing, strong typography, subtle borders and shadows, and a small purposeful color palette. Interfaces should feel polished through proportion and alignment rather than through decoration.
+Prefer a restrained, Vercel-like visual language: monochrome-first surfaces, high contrast, crisp borders, precise spacing, strong typography, and minimal shadows. Use color sparingly for status and emphasis, and keep motion subtle and functional. Interfaces should feel polished through proportion, alignment, and clarity rather than decoration.
 
 Remove copy and visual elements that do not help the user complete the current task. Avoid explanatory panels, feature callouts, ornamental backgrounds, oversized headings, redundant security text, and decorative footer content in focused application flows. Do not turn a simple form into a marketing page.
 
