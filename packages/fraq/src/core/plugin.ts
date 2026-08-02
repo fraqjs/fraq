@@ -27,10 +27,12 @@ export interface Plugin<
   start?(ctx: Context & InjectedServices<I> & OptionalInjectedServices<OI>): void | Promise<void>;
 }
 
+export type PluginDefinition<T extends ParameterList> = Plugin<T, Injection | undefined, OptionalInjection | undefined>;
+
 export function definePlugin<
   T extends ParameterList,
   I extends Injection | undefined,
   OI extends OptionalInjection | undefined,
->(plugin: Plugin<T, I, OI>): Plugin<T, I, OI> {
+>(plugin: Plugin<T, I, OI>): PluginDefinition<T> {
   return plugin;
 }

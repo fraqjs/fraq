@@ -9,7 +9,7 @@ import type { Session } from '../../routing/command';
 import { defaultRouteActivationResolver, type RouteActivationResolver, Router } from '../../routing/router';
 import type { Filter } from '../filter';
 import { Logger, type LogHandler } from '../logging';
-import type { Injection, OptionalInjection, ParameterList, Plugin } from '../plugin';
+import type { ParameterList, PluginDefinition } from '../plugin';
 import type { ScopedServiceFactory, ServiceClass, ServiceIdentifier, ServiceToken } from '../service';
 import { ApiHookRegistry } from './api-hooks';
 import { EventSourceRegistry } from './event-sources';
@@ -146,10 +146,7 @@ export class Context {
     };
   }
 
-  install<T extends ParameterList, I extends Injection | undefined, OI extends OptionalInjection | undefined>(
-    plugin: Plugin<T, I, OI>,
-    ...args: T
-  ): void {
+  install<T extends ParameterList>(plugin: PluginDefinition<T>, ...args: T): void {
     this.plugins.install(plugin, ...args);
   }
 

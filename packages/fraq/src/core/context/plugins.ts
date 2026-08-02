@@ -1,10 +1,10 @@
 import { Logger, type LogHandler } from '../logging';
-import type { Injection, OptionalInjection, ParameterList, Plugin } from '../plugin';
+import type { ParameterList, PluginDefinition } from '../plugin';
 import type { ServiceClass, ServiceIdentifier } from '../service';
 import type { Context } from './index';
 import type { ServiceRegistry, ServiceResolutionScope } from './services';
 
-type AnyPlugin = Plugin<ParameterList, Injection | undefined, OptionalInjection | undefined>;
+type AnyPlugin = PluginDefinition<ParameterList>;
 
 export type InstalledPlugin = {
   plugin: AnyPlugin;
@@ -71,10 +71,7 @@ export class PluginRegistry {
     private readonly logHandler: LogHandler | undefined,
   ) {}
 
-  install<T extends ParameterList, I extends Injection | undefined, OI extends OptionalInjection | undefined>(
-    plugin: Plugin<T, I, OI>,
-    ...args: T
-  ): void {
+  install<T extends ParameterList>(plugin: PluginDefinition<T>, ...args: T): void {
     this.plugins.push({ plugin: plugin as AnyPlugin, args });
   }
 
