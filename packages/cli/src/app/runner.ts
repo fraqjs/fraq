@@ -8,7 +8,24 @@ import { constants as osConstants } from 'node:os';
 const terminationSignals: readonly NodeJS.Signals[] =
   process.platform === 'win32' ? ['SIGINT', 'SIGTERM', 'SIGBREAK'] : ['SIGINT', 'SIGTERM', 'SIGHUP', 'SIGQUIT'];
 
-async function waitForProcessExit(child: ResultPromise): Promise<number> {
+export interface RunningProcess {
+  readonly exit: Promise<number>;
+  kill(signal: NodeJS.Signals): boolean;
+}
+
+function toRunningProcess(child: ResultPromise): RunningProcess {
+  return {
+    exit: child.then((result) => {
+      if (result.signal) {
+        return 128 + (osConstants.signals[result.signal] ?? 1);
+      }
+      return result.exitCode ?? 1;
+    }),
+    kill: (signal) => child.kill(signal),
+  };
+}
+
+async function waitForProcessExit(child: RunningProcess): Promise<number> {
   let forwardedSignal: NodeJS.Signals | undefined;
   const signalHandlers = new Map<NodeJS.Signals, () => void>();
 
@@ -23,14 +40,11 @@ async function waitForProcessExit(child: ResultPromise): Promise<number> {
   }
 
   try {
-    const result = await child;
+    const exitCode = await child.exit;
     if (forwardedSignal) {
       return 128 + (osConstants.signals[forwardedSignal] ?? 1);
     }
-    if (result.signal) {
-      return 128 + (osConstants.signals[result.signal] ?? 1);
-    }
-    return result.exitCode ?? 1;
+    return exitCode;
   } finally {
     for (const [signal, handler] of signalHandlers) {
       process.off(signal, handler);
@@ -61,23 +75,31 @@ export function installAppDependencies(packageManager: PackageManagerInfo & { co
   }
 
   return waitForProcessExit(
-    execa(packageManager.commandPath, ['install', ...additionalArgs], {
-      ...options,
-      killDescendants: true,
-      reject: false,
-    }),
+    toRunningProcess(
+      execa(packageManager.commandPath, ['install', ...additionalArgs], {
+        ...options,
+        forceKillAfterDelay: 5_000,
+        killDescendants: true,
+        reject: false,
+      }),
+    ),
   );
 }
 
-export function startAppProcess(): Promise<number> {
-  return waitForProcessExit(
+export function spawnAppProcess(): RunningProcess {
+  return toRunningProcess(
     execaNode('index.js', {
       cwd: getAppPath(),
       env: process.env,
+      forceKillAfterDelay: 5_000,
       killDescendants: true,
       nodeOptions: [],
       reject: false,
       stdio: 'inherit',
     }),
   );
+}
+
+export function startAppProcess(): Promise<number> {
+  return waitForProcessExit(spawnAppProcess());
 }

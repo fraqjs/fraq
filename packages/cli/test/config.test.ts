@@ -191,6 +191,33 @@ test('injects native tree values and resolves nested paths from the containing f
   }
 });
 
+test('reports every configuration source that it attempts to read', () => {
+  const fixturePath = mkdtempSync(path.join(testRoot, 'accessed-files-'));
+  const configPath = path.join(fixturePath, 'fraq.yml');
+  const treePath = path.join(fixturePath, 'nested.yml');
+  const textPath = path.join(fixturePath, 'value.txt');
+  writeFileSync(configPath, 'nested: ${{ tree:nested.yml }}\n');
+  writeFileSync(treePath, 'value: ${{ text:value.txt }}\n');
+  writeFileSync(textPath, 'resolved\n');
+
+  const accessedFiles = new Set<string>();
+  assert.deepEqual(
+    parseConfigReferences(configPath, true, (filePath) => accessedFiles.add(filePath)),
+    {
+      nested: { value: 'resolved' },
+    },
+  );
+  assert.deepEqual(accessedFiles, new Set([configPath, treePath, textPath]));
+
+  writeFileSync(treePath, 'value: ${{ text:missing.txt }}\n');
+  const attemptedFiles = new Set<string>();
+  assert.throws(
+    () => parseConfigReferences(configPath, true, (filePath) => attemptedFiles.add(filePath)),
+    /Failed to read text reference/,
+  );
+  assert.deepEqual(attemptedFiles, new Set([configPath, treePath, path.join(fixturePath, 'missing.txt')]));
+});
+
 test('reports invalid references with their source location and reference chain', () => {
   const fixturePath = mkdtempSync(path.join(testRoot, 'errors-'));
   const configPath = path.join(fixturePath, 'fraq.yml');

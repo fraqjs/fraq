@@ -1,6 +1,7 @@
 import chalk from 'chalk';
 import z from 'zod';
 
+import type { FileAccessHandler } from './references';
 import { parseConfigReferences } from './references';
 import { findConfigPath, RouteActivation, zSingleOrArray } from './shared';
 
@@ -116,15 +117,25 @@ export const DependencyConfigV1 = DependencyContextConfigV1.extend({
 });
 export type DependencyConfigV1 = z.infer<typeof DependencyConfigV1>;
 
-export function loadConfigV1(options: { resolveAllReferences: true }): ConfigV1;
-export function loadConfigV1(options?: { resolveAllReferences?: false }): DependencyConfigV1;
-export function loadConfigV1(options: { resolveAllReferences?: boolean } = {}): ConfigV1 | DependencyConfigV1 {
+interface LoadConfigV1Options {
+  resolveAllReferences?: boolean;
+  onFileAccess?: FileAccessHandler;
+  throwOnValidationError?: boolean;
+}
+
+export function loadConfigV1(options: LoadConfigV1Options & { resolveAllReferences: true }): ConfigV1;
+export function loadConfigV1(options?: LoadConfigV1Options & { resolveAllReferences?: false }): DependencyConfigV1;
+export function loadConfigV1(options: LoadConfigV1Options = {}): ConfigV1 | DependencyConfigV1 {
   const configPath = findConfigPath();
   const resolveAllReferences = options.resolveAllReferences ?? false;
-  const rawConfig = parseConfigReferences(configPath, resolveAllReferences);
+  const rawConfig = parseConfigReferences(configPath, resolveAllReferences, options.onFileAccess);
 
   const configParseResult = (resolveAllReferences ? ConfigV1 : DependencyConfigV1).safeParse(rawConfig);
   if (configParseResult.error) {
+    const message = `There are issues with your configuration file:\n${z.prettifyError(configParseResult.error)}`;
+    if (options.throwOnValidationError) {
+      throw new Error(message);
+    }
     console.log(chalk.red('There are issues with your configuration file:'));
     console.log(chalk.red(z.prettifyError(configParseResult.error)));
     process.exit(1);

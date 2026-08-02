@@ -8,8 +8,11 @@ import type z from 'zod';
 
 import pkg from '../package.json';
 import { startApp, startInstall } from './app';
+import { startWatchedApp } from './app/lifecycle';
 import type { Config, DependencyConfig } from './config';
 import { loadConfig } from './config';
+import type { FileAccessHandler } from './config/references';
+import { findConfigPath } from './config/shared';
 import type { ConfigV1 } from './config/v1';
 import { getPluginDependencyDiagnostic } from './dependency';
 import { getLatestPackageJson } from './package-jsons';
@@ -26,23 +29,53 @@ import {
 
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
 
 function printBanner() {
   console.log(chalk.bold(chalk.cyan(`Fraq CLI ${chalk.green(`v${pkg.version}`)}`)));
   console.log();
 }
 
-async function ensureConfigWithVersions(options: { resolveAllReferences: true }): Promise<Config>;
-async function ensureConfigWithVersions(options?: { resolveAllReferences?: false }): Promise<DependencyConfig>;
+interface EnsureConfigOptions {
+  resolveAllReferences?: boolean;
+  onFileAccess?: FileAccessHandler;
+  recoverable?: boolean;
+}
+
+function reportOrThrow(message: string, recoverable: boolean): never {
+  if (recoverable) {
+    throw new Error(message);
+  }
+  console.error(chalk.red(message));
+  process.exit(1);
+}
+
+async function ensureConfigWithVersions(options: EnsureConfigOptions & { resolveAllReferences: true }): Promise<Config>;
 async function ensureConfigWithVersions(
-  options: { resolveAllReferences?: boolean } = {},
-): Promise<Config | DependencyConfig> {
-  const config = options.resolveAllReferences ? await loadConfig({ resolveAllReferences: true }) : await loadConfig();
+  options?: EnsureConfigOptions & { resolveAllReferences?: false },
+): Promise<DependencyConfig>;
+async function ensureConfigWithVersions(options: EnsureConfigOptions = {}): Promise<Config | DependencyConfig> {
+  const config = options.resolveAllReferences
+    ? await loadConfig({
+        resolveAllReferences: true,
+        onFileAccess: options.onFileAccess,
+        throwOnValidationError: options.recoverable,
+      })
+    : await loadConfig({
+        onFileAccess: options.onFileAccess,
+        throwOnValidationError: options.recoverable,
+      });
   const lockfileVersions = readVersions();
   config.versions = { ...lockfileVersions, ...config.versions };
 
   const completeness = checkVersionsCompleteness(config, config.versions);
   if (completeness.status === 'missing') {
+    if (options.recoverable) {
+      reportOrThrow(
+        `The following plugin versions are missing:\n${completeness.missingPlugins.map((plugin) => `- ${plugin}`).join('\n')}`,
+        true,
+      );
+    }
     console.log(chalk.red('The following plugin versions are missing:'));
     for (const missingPlugin of completeness.missingPlugins) {
       console.log(chalk.red(`- ${missingPlugin}`));
@@ -57,6 +90,14 @@ async function ensureConfigWithVersions(
 
   const consistency = checkVersionsConsistency(config.versions, lockfileVersions);
   if (consistency.status === 'inconsistent') {
+    if (options.recoverable) {
+      reportOrThrow(
+        `The following plugin versions are inconsistent with the lockfile:\n${consistency.inconsistentPlugins
+          .map((plugin) => `- ${plugin.name}: configured ${plugin.configured}, lockfile ${plugin.lockfile}`)
+          .join('\n')}`,
+        true,
+      );
+    }
     console.log(chalk.red('The following plugin versions are inconsistent with the lockfile:'));
     for (const inconsistentPlugin of consistency.inconsistentPlugins) {
       console.log(chalk.red(`- ${inconsistentPlugin.name}`));
@@ -74,13 +115,16 @@ async function ensureConfigWithVersions(
 
 async function ensurePackageManager(
   config: Pick<DependencyConfig, 'packageManager'>,
+  options: { recoverable?: boolean } = {},
 ): Promise<PackageManagerInfo & { commandPath: string }> {
   let packageManager: PackageManagerInfo | undefined;
   if (config.packageManager) {
     const result = await detectPackageManager(config.packageManager);
     if (!result.installed || !result.commandPath) {
-      console.error(chalk.red(`Specified package manager '${config.packageManager}' is not found in the system PATH.`));
-      process.exit(1);
+      reportOrThrow(
+        `Specified package manager '${config.packageManager}' is not found in the system PATH.`,
+        options.recoverable ?? false,
+      );
     }
     packageManager = result;
   } else {
@@ -94,12 +138,10 @@ async function ensurePackageManager(
     }
   }
   if (!packageManager?.commandPath) {
-    console.error(
-      chalk.red(
-        "No package manager found in the system PATH. Please install one of 'pnpm', 'yarn', or 'npm', or specify a package manager in the configuration.",
-      ),
+    reportOrThrow(
+      "No package manager found in the system PATH. Please install one of 'pnpm', 'yarn', or 'npm', or specify a package manager in the configuration.",
+      options.recoverable ?? false,
     );
-    process.exit(1);
   }
   return { ...packageManager, commandPath: packageManager.commandPath };
 }
@@ -124,14 +166,53 @@ async function start(runInstall: boolean = true): Promise<void> {
   process.exit(exitCode);
 }
 
-async function lock() {
-  console.log(chalk.cyan('Syncing lockfile versions...'));
-  const config = await loadConfig();
+async function lock(
+  options: { onFileAccess?: FileAccessHandler; recoverable?: boolean; silent?: boolean } = {},
+): Promise<boolean> {
+  if (!options.silent) {
+    console.log(chalk.cyan('Syncing lockfile versions...'));
+  }
+  const config = await loadConfig({
+    onFileAccess: options.onFileAccess,
+    throwOnValidationError: options.recoverable,
+  });
   const lockfileVersions = readVersions();
   config.versions = { ...lockfileVersions, ...config.versions };
   const completedVersions = await completeAndSyncVersions(config, config.versions);
-  writeFileSync(getVersionsPath(), YAML.stringify(completedVersions));
-  console.log(chalk.green('Successfully synced lockfile versions.'));
+  const changed = !isDeepStrictEqual(lockfileVersions, completedVersions);
+  if (changed) {
+    writeFileSync(getVersionsPath(), YAML.stringify(completedVersions));
+  }
+  if (!options.silent) {
+    console.log(chalk.green('Successfully synced lockfile versions.'));
+  }
+  return changed;
+}
+
+async function watch(): Promise<void> {
+  const configPath = findConfigPath();
+  const versionsPath = getVersionsPath();
+  const exitCode = await startWatchedApp({
+    initialFiles: [configPath, versionsPath],
+    prepare: async (accessedFiles) => {
+      const onFileAccess = (filePath: string) => accessedFiles.add(filePath);
+      await lock({ onFileAccess, recoverable: true, silent: true });
+      const config = await ensureConfigWithVersions({
+        resolveAllReferences: true,
+        onFileAccess,
+        recoverable: true,
+      });
+      const diagnostic = await getPluginDependencyDiagnostic(config);
+      if (diagnostic.status === 'missing') {
+        throw new Error(`There are issues with the plugin dependencies:\n${diagnostic.message.join('\n')}`);
+      }
+      return {
+        config,
+        packageManager: await ensurePackageManager(config, { recoverable: true }),
+      };
+    },
+  });
+  process.exit(exitCode);
 }
 
 async function installOnly() {
@@ -273,9 +354,21 @@ const cli = c.subcommands({
           long: 'frozen-lockfile',
           description: 'Use the frozen lockfile, i.e. no automatic locking, when starting the application',
         }),
+        watch: c.flag({
+          long: 'watch',
+          description: 'Restart the Fraq application when configuration sources change',
+        }),
       },
-      handler: async ({ noInstall, frozenLockfile }) => {
+      handler: async ({ noInstall, frozenLockfile, watch: watchEnabled }) => {
         printBanner();
+        if (watchEnabled && (noInstall || frozenLockfile)) {
+          console.error(chalk.red('--watch cannot be used with --no-install or --frozen-lockfile.'));
+          process.exit(1);
+        }
+        if (watchEnabled) {
+          await watch();
+          return;
+        }
         if (!frozenLockfile) {
           await lock();
           console.log();
