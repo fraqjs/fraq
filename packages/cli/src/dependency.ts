@@ -86,8 +86,24 @@ export async function getPluginDependencyDiagnostic(config: Config): Promise<Plu
       if (peerDependencies === null || typeof peerDependencies !== 'object' || Array.isArray(peerDependencies)) {
         continue;
       }
+      const peerDependenciesMeta = packageJson?.peerDependenciesMeta;
 
       for (const dependencyPackageName of Object.keys(peerDependencies)) {
+        const dependencyMeta =
+          peerDependenciesMeta !== null &&
+          typeof peerDependenciesMeta === 'object' &&
+          !Array.isArray(peerDependenciesMeta)
+            ? peerDependenciesMeta[dependencyPackageName]
+            : undefined;
+        if (
+          dependencyMeta !== null &&
+          typeof dependencyMeta === 'object' &&
+          !Array.isArray(dependencyMeta) &&
+          dependencyMeta.optional === true
+        ) {
+          continue;
+        }
+
         let dependencyName: string;
         try {
           dependencyName = denormalizePluginName(dependencyPackageName);

@@ -15,11 +15,16 @@ after(() => {
   rmSync(testRoot, { recursive: true, force: true });
 });
 
-function cachePackage(name: string, version: string, peerDependencies?: Record<string, string>): void {
+function cachePackage(
+  name: string,
+  version: string,
+  peerDependencies?: Record<string, string>,
+  peerDependenciesMeta?: Record<string, { optional?: boolean }>,
+): void {
   const packageName = normalizePluginName(name);
   const cacheFile = path.join(testRoot, 'cache', 'package-json', `${packageName}@${version}.json`);
   mkdirSync(path.dirname(cacheFile), { recursive: true });
-  writeFileSync(cacheFile, JSON.stringify({ name: packageName, version, peerDependencies }));
+  writeFileSync(cacheFile, JSON.stringify({ name: packageName, version, peerDependencies, peerDependenciesMeta }));
 }
 
 function createConfig(context: Pick<Config, 'plugins' | 'forks'>, pluginVersions: Record<string, string>): Config {
@@ -155,6 +160,43 @@ test('reports every plugin dependency unavailable from its context parent chain'
       'Plugin "alpha-consumer" in context "alpha" requires plugin "beta-provider", but it is not installed in that context or any parent context.',
       'Plugin "alpha-consumer" in context "alpha" requires plugin "missing-alpha", but it is not installed in that context or any parent context.',
       'Plugin "beta-consumer" in context "beta" requires plugin "missing-beta", but it is not installed in that context or any parent context.',
+    ],
+  });
+});
+
+test('ignores unavailable optional plugin dependencies', async () => {
+  const optionalProvider = normalizePluginName('optional-provider');
+  cachePackage(
+    'consumer',
+    '1.0.0',
+    {
+      [optionalProvider]: '*',
+      [normalizePluginName('required-provider')]: '*',
+    },
+    {
+      [optionalProvider]: { optional: true },
+    },
+  );
+
+  const diagnostic = await withTestRoot(() =>
+    getPluginDependencyDiagnostic(
+      createConfig(
+        {
+          plugins: {
+            consumer: {},
+          },
+        },
+        {
+          consumer: '1.0.0',
+        },
+      ),
+    ),
+  );
+
+  assert.deepEqual(diagnostic, {
+    status: 'missing',
+    message: [
+      'Plugin "consumer" in context "root" requires plugin "required-provider", but it is not installed in that context or any parent context.',
     ],
   });
 });
