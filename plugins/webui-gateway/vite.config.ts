@@ -6,7 +6,7 @@ import { fileURLToPath, URL } from 'node:url';
 
 export default defineConfig({
   root: 'webui',
-  base: './',
+  base: '/webui/login/',
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {

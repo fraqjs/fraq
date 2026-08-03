@@ -17,6 +17,8 @@ import { fileURLToPath } from 'node:url';
 
 const WEBUI_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const RESERVED_WEBUI_IDS = new Set(['auth', 'login']);
+const WEBUI_CONTENT_SECURITY_POLICY =
+  "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'";
 
 type WebuiEnv = {
   Variables: {
@@ -120,14 +122,12 @@ export class WebuiGateway {
   private registerRoutes(): void {
     const app = this.hono.app;
     const loginPath = `${WEBUI_BASE_PATH}/login`;
+    const serveGatewayEntry = serveStatic({ root: this.loginAssetsRoot, path: 'index.html' });
 
     app.use(`${loginPath}/*`, async (c, next) => {
       setSecurityHeaders(c);
       c.header('Cache-Control', c.req.path.includes('/assets/') ? 'public, max-age=31536000, immutable' : 'no-cache');
-      c.header(
-        'Content-Security-Policy',
-        "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'",
-      );
+      c.header('Content-Security-Policy', WEBUI_CONTENT_SECURITY_POLICY);
       await next();
     });
 
@@ -176,29 +176,31 @@ export class WebuiGateway {
       const session = await this.authentication.getSession(c);
       return c.json(
         session
-          ? { authenticated: true, authenticatedAt: session.authenticatedAt, expiresAt: session.expiresAt }
+          ? {
+              authenticated: true,
+              authenticatedAt: session.authenticatedAt,
+              expiresAt: session.expiresAt,
+              webuis: Array.from(this.mountedIds),
+            }
           : { authenticated: false },
       );
     });
 
     app.get(WEBUI_BASE_PATH, (c) => c.redirect(`${WEBUI_BASE_PATH}/`));
-    app.get(`${WEBUI_BASE_PATH}/`, async (c) => {
+    app.get(`${WEBUI_BASE_PATH}/`, async (c, next) => {
       setSecurityHeaders(c);
+      c.header('Cache-Control', 'no-cache');
+      c.header('Content-Security-Policy', WEBUI_CONTENT_SECURITY_POLICY);
       const session = await this.authentication.getSession(c);
       if (!session) {
         return c.redirect(`${loginPath}/?returnTo=${encodeURIComponent(`${WEBUI_BASE_PATH}/`)}`);
       }
-      const firstId = this.mountedIds.values().next().value;
-      if (firstId) {
-        return c.redirect(`${WEBUI_BASE_PATH}/${firstId}/`);
-      }
-      return c.json({ error: 'No WebUI is mounted' }, 404);
+      return serveGatewayEntry(c, next);
     });
   }
 
   private resolveReturnTo(value: unknown): string {
-    const fallbackId = this.mountedIds.values().next().value;
-    const fallback = fallbackId ? `${WEBUI_BASE_PATH}/${fallbackId}/` : `${WEBUI_BASE_PATH}/`;
+    const fallback = `${WEBUI_BASE_PATH}/`;
     if (typeof value !== 'string' || !value.startsWith('/')) {
       return fallback;
     }

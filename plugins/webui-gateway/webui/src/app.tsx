@@ -1,4 +1,13 @@
-import { ArrowRightIcon, CircleAlertIcon, EyeIcon, EyeOffIcon, LoaderCircleIcon } from 'lucide-react';
+import {
+  ArrowRightIcon,
+  CircleAlertIcon,
+  EyeIcon,
+  EyeOffIcon,
+  LoaderCircleIcon,
+  LogOutIcon,
+  PanelsTopLeftIcon,
+  RotateCwIcon,
+} from 'lucide-react';
 import { type SyntheticEvent, useEffect, useRef, useState } from 'react';
 
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -6,9 +15,17 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
-const params = new URLSearchParams(window.location.search);
 const gatewayBasePath = '/webui';
+const loginPath = `${gatewayBasePath}/login`;
+const isGatewayIndex =
+  window.location.pathname === gatewayBasePath || window.location.pathname === `${gatewayBasePath}/`;
+const params = new URLSearchParams(window.location.search);
 const returnTo = resolveReturnTo(params.get('returnTo'));
+
+interface SessionResponse {
+  authenticated?: boolean;
+  webuis?: unknown;
+}
 
 function resolveReturnTo(value: string | null): string {
   const fallback = `${gatewayBasePath}/`;
@@ -20,8 +37,8 @@ function resolveReturnTo(value: string | null): string {
     if (
       url.origin !== window.location.origin ||
       (url.pathname !== gatewayBasePath && !url.pathname.startsWith(`${gatewayBasePath}/`)) ||
-      url.pathname === `${gatewayBasePath}/login` ||
-      url.pathname.startsWith(`${gatewayBasePath}/login/`) ||
+      url.pathname === loginPath ||
+      url.pathname.startsWith(`${loginPath}/`) ||
       url.pathname === `${gatewayBasePath}/auth` ||
       url.pathname.startsWith(`${gatewayBasePath}/auth/`)
     ) {
@@ -33,7 +50,158 @@ function resolveReturnTo(value: string | null): string {
   }
 }
 
+async function requestSession(signal?: AbortSignal): Promise<SessionResponse> {
+  const response = await fetch(`${gatewayBasePath}/auth/session`, {
+    credentials: 'same-origin',
+    signal,
+  });
+  if (!response.ok) {
+    throw new Error('session request failed');
+  }
+  return response.json() as Promise<SessionResponse>;
+}
+
 export function App() {
+  useEffect(() => {
+    document.title = isGatewayIndex ? 'Fraq WebUI' : '登录到 Fraq';
+  }, []);
+
+  return isGatewayIndex ? <WebuiIndex /> : <Login />;
+}
+
+function WebuiIndex() {
+  const [webuis, setWebuis] = useState<string[]>();
+  const [error, setError] = useState<string>();
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    requestSession(controller.signal)
+      .then((session) => {
+        if (!session.authenticated) {
+          window.location.replace(`${loginPath}/`);
+          return;
+        }
+        setWebuis(
+          Array.isArray(session.webuis) ? session.webuis.filter((id): id is string => typeof id === 'string') : [],
+        );
+      })
+      .catch((requestError: unknown) => {
+        if (requestError instanceof DOMException && requestError.name === 'AbortError') {
+          return;
+        }
+        setError('暂时无法加载 WebUI，请稍后重试。');
+      });
+    return () => controller.abort();
+  }, []);
+
+  async function logout() {
+    if (loggingOut) {
+      return;
+    }
+    setError(undefined);
+    setLoggingOut(true);
+    try {
+      const response = await fetch(`${gatewayBasePath}/auth/logout`, {
+        method: 'POST',
+        credentials: 'same-origin',
+      });
+      if (!response.ok) {
+        throw new Error('logout request failed');
+      }
+      window.location.replace(`${loginPath}/`);
+    } catch {
+      setError('暂时无法退出登录，请稍后重试。');
+      setLoggingOut(false);
+    }
+  }
+
+  return (
+    <div className="min-h-dvh bg-white text-[#171717]">
+      <header className="border-b border-[#eaeaea]">
+        <div className="mx-auto flex h-14 w-full max-w-3xl items-center justify-between px-5 sm:px-6">
+          <span className="text-sm font-semibold">Fraq</span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-9 rounded-md text-[#666666] hover:bg-[#f5f5f5] hover:text-[#171717]"
+            disabled={loggingOut}
+            onClick={logout}
+            title="退出登录"
+            aria-label="退出登录"
+          >
+            {loggingOut ? (
+              <LoaderCircleIcon className="size-4 animate-spin" aria-hidden="true" />
+            ) : (
+              <LogOutIcon className="size-4" aria-hidden="true" />
+            )}
+          </Button>
+        </div>
+      </header>
+
+      <main className="mx-auto w-full max-w-3xl px-5 py-10 sm:px-6 sm:py-14" aria-labelledby="webui-title">
+        <h1 id="webui-title" className="text-2xl font-semibold">
+          WebUI
+        </h1>
+
+        {error ? (
+          <Alert variant="destructive" className="mt-6 rounded-md border-[#f1aeb1] bg-[#fff8f8] px-3.5 py-3">
+            <CircleAlertIcon className="size-4" aria-hidden="true" />
+            <AlertDescription className="flex min-w-0 items-center justify-between gap-3 text-[#b4232a]">
+              <span>{error}</span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="shrink-0 rounded-md text-[#b4232a] hover:bg-[#fce8e9] hover:text-[#8f1d22]"
+                onClick={() => window.location.reload()}
+              >
+                <RotateCwIcon className="size-3.5" aria-hidden="true" />
+                重试
+              </Button>
+            </AlertDescription>
+          </Alert>
+        ) : null}
+
+        {webuis === undefined ? (
+          error ? null : (
+            <div className="flex h-40 items-center justify-center" aria-label="正在加载 WebUI">
+              <LoaderCircleIcon className="size-5 animate-spin text-[#737373]" aria-hidden="true" />
+            </div>
+          )
+        ) : webuis.length === 0 ? (
+          <div className="mt-6 border-t border-[#eaeaea] py-12 text-center">
+            <p className="text-sm font-medium">暂无可用 WebUI</p>
+            <p className="mt-1 text-sm text-[#737373]">挂载后会显示在这里。</p>
+          </div>
+        ) : (
+          <ul className="mt-6 grid gap-3 sm:grid-cols-2">
+            {webuis.map((id) => (
+              <li key={id}>
+                <a
+                  href={`${gatewayBasePath}/${id}/`}
+                  className="group flex min-h-20 items-center gap-3 rounded-md border border-[#e5e5e5] px-4 py-3 transition-colors hover:border-[#a3a3a3] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#171717]/25"
+                >
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-md border border-[#e5e5e5] bg-[#fafafa] text-[#525252]">
+                    <PanelsTopLeftIcon className="size-4" aria-hidden="true" />
+                  </span>
+                  <span className="min-w-0 flex-1 [overflow-wrap:anywhere] text-sm font-medium">{id}</span>
+                  <ArrowRightIcon
+                    className="size-4 shrink-0 text-[#a3a3a3] transition-transform group-hover:translate-x-0.5 group-hover:text-[#525252]"
+                    aria-hidden="true"
+                  />
+                </a>
+              </li>
+            ))}
+          </ul>
+        )}
+      </main>
+    </div>
+  );
+}
+
+function Login() {
   const [accessToken, setAccessToken] = useState('');
   const [showToken, setShowToken] = useState(false);
   const [status, setStatus] = useState<'checking' | 'idle' | 'submitting'>('checking');
@@ -42,12 +210,8 @@ export function App() {
 
   useEffect(() => {
     const controller = new AbortController();
-    fetch(`${gatewayBasePath}/auth/session`, { credentials: 'same-origin', signal: controller.signal })
-      .then(async (response) => {
-        if (!response.ok) {
-          throw new Error('session request failed');
-        }
-        const session = (await response.json()) as { authenticated?: boolean };
+    requestSession(controller.signal)
+      .then((session) => {
         if (session.authenticated) {
           window.location.replace(returnTo);
           return;

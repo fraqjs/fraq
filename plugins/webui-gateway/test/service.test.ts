@@ -25,7 +25,7 @@ async function createTestGateway(): Promise<TestGateway> {
   const assetsRoot = join(root, 'example');
   await mkdir(join(loginRoot, 'assets'), { recursive: true });
   await mkdir(join(assetsRoot, 'assets'), { recursive: true });
-  await writeFile(join(loginRoot, 'index.html'), '<h1>Fraq login</h1>');
+  await writeFile(join(loginRoot, 'index.html'), '<h1>Fraq gateway</h1>');
   await writeFile(join(loginRoot, 'assets', 'login.js'), 'console.log("login")');
   await writeFile(join(assetsRoot, 'index.html'), '<h1>Example WebUI</h1>');
   await writeFile(join(assetsRoot, 'assets', 'app.js'), 'console.log("example")');
@@ -62,7 +62,7 @@ test('serves the public login page and protects mounted pages', async (t) => {
 
   const loginResponse = await hono.app.request('/webui/login/');
   assert.equal(loginResponse.status, 200);
-  assert.equal(await loginResponse.text(), '<h1>Fraq login</h1>');
+  assert.equal(await loginResponse.text(), '<h1>Fraq gateway</h1>');
 
   const protectedResponse = await hono.app.request('/webui/example/settings?tab=profile', {
     headers: { Accept: 'text/html' },
@@ -105,7 +105,57 @@ test('creates a signed session and exposes it to limited API handlers', async (t
 
   const session = await hono.app.request('/webui/auth/session', { headers: { Cookie: cookie } });
   assert.equal(session.status, 200);
-  assert.equal(((await session.json()) as { authenticated: boolean }).authenticated, true);
+  const sessionBody = (await session.json()) as { authenticated: boolean; webuis: string[] };
+  assert.equal(sessionBody.authenticated, true);
+  assert.deepEqual(sessionBody.webuis, ['example']);
+});
+
+test('serves the WebUI index after login when no destination is specified', async (t) => {
+  const { assetsRoot, gateway, hono, root } = await createTestGateway();
+  t.after(() => rm(root, { recursive: true, force: true }));
+  gateway.mount({ assets: assetsRoot });
+
+  const loginResponse = await hono.app.request('/webui/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ accessToken: 'correct-token' }),
+  });
+  assert.equal(loginResponse.status, 200);
+  assert.deepEqual(await loginResponse.clone().json(), { redirectTo: '/webui/' });
+  const cookie = loginResponse.headers.get('Set-Cookie');
+  assert.ok(cookie);
+
+  const indexResponse = await hono.app.request('/webui/', {
+    headers: { Cookie: cookie.split(';', 1)[0] },
+  });
+  assert.equal(indexResponse.status, 200);
+  assert.equal(await indexResponse.text(), '<h1>Fraq gateway</h1>');
+  assert.equal(indexResponse.headers.get('Cache-Control'), 'no-cache');
+
+  const existingSessionResponse = await hono.app.request('/webui/login/', {
+    headers: { Cookie: cookie.split(';', 1)[0] },
+  });
+  assert.equal(existingSessionResponse.status, 302);
+  assert.equal(existingSessionResponse.headers.get('Location'), '/webui/');
+
+  const explicitLoginResponse = await hono.app.request('/webui/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ accessToken: 'correct-token', returnTo: '/webui/example/settings?tab=profile' }),
+  });
+  assert.deepEqual(await explicitLoginResponse.json(), { redirectTo: '/webui/example/settings?tab=profile' });
+});
+
+test('serves an empty WebUI index when nothing is mounted', async (t) => {
+  const { hono, root } = await createTestGateway();
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const cookie = await login(hono, '/webui/');
+
+  const indexResponse = await hono.app.request('/webui/', { headers: { Cookie: cookie } });
+  assert.equal(indexResponse.status, 200);
+
+  const sessionResponse = await hono.app.request('/webui/auth/session', { headers: { Cookie: cookie } });
+  assert.deepEqual(((await sessionResponse.json()) as { webuis: string[] }).webuis, []);
 });
 
 test('serves assets and only uses the SPA fallback for HTML navigation', async (t) => {
@@ -159,7 +209,7 @@ test('keeps login redirects inside the WebUI base path', async (t) => {
       body: JSON.stringify({ accessToken: 'correct-token', returnTo }),
     });
     assert.equal(response.status, 200);
-    assert.deepEqual(await response.json(), { redirectTo: '/webui/example/' });
+    assert.deepEqual(await response.json(), { redirectTo: '/webui/' });
   }
 });
 
@@ -216,6 +266,8 @@ test('provides a specialized service to each plugin while sharing one Hono app',
   const headers = { Accept: 'text/html', Cookie: cookie };
   const first = await hono.app.request('/webui/first-plugin/', { headers });
   const second = await hono.app.request('/webui/second-plugin/', { headers });
+  const session = await hono.app.request('/webui/auth/session', { headers });
   assert.equal(await first.text(), '<h1>First WebUI</h1>');
   assert.equal(await second.text(), '<h1>Second WebUI</h1>');
+  assert.deepEqual(((await session.json()) as { webuis: string[] }).webuis, ['first-plugin', 'second-plugin']);
 });
