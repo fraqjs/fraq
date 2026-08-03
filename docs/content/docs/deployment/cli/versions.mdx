@@ -1,0 +1,38 @@
+---
+title: 版本锁定与更新
+---
+
+为了保证每次启动时使用的插件版本一致，Fraq CLI 使用版本锁文件来记录插件的版本。
+
+## 版本 lock 文件
+
+`versions.yml` 是 Fraq CLI 生成的版本 lock 文件，位于项目根目录，记录了所有已安装插件的确切版本：
+
+```yaml
+retrieve: 0.1.2
+status: 1.4.0
+```
+
+如果你希望在 `fraq.yml` 中显式声明插件的版本，可以在配置文件的 `versions` 字段下声明，声明方式遵循 [Semantic Versioning 规范](https://github.com/npm/node-semver#versions)。`fraq.yml` 中声明的版本优先于版本 lock 文件中的版本。
+
+```yaml
+versions:
+  status: 1.3.0 # 将 status 插件锁定为 1.3.0
+```
+
+## 启动前的版本检查
+
+`fraq start` 在启动前会检查版本配置：
+
+- 如果某个插件既没有在 `versions.yml` 中记录，也没有在 `fraq.yml` 的 `versions` 字段中声明，Fraq CLI 会停止，并提示你运行 `fraq lock` 来补全版本。
+- 如果 `fraq.yml` 中声明的版本与 `versions.yml` 记录的不一致，Fraq CLI 会停止并列出冲突的插件和两处声明的版本，你需要统一两处声明后再启动。
+
+## 补全版本
+
+运行 `fraq lock` 可以为配置中所有缺失版本的插件查询 npm Registry 上的最新版本，并将补全后的版本写入 `versions.yml`。`fraq start` 在每次启动时也会自动执行 `fraq lock`，确保版本记录完整；如果你的网络环境无法访问 npm Registry，可以使用 `fraq start --frozen-lockfile` 跳过自动锁定。
+
+## 检查与更新版本
+
+运行 `fraq outdated` 可以检查 Fraq 与所有插件是否有可用的新版本。Fraq CLI 会列出每个包的当前版本和最新版本；如果某个包无法检查（例如网络问题），也会单独列出错误信息。
+
+运行 `fraq update` 可以交互式地更新版本。Fraq CLI 会先检查所有可用的新版本，然后让用户勾选要更新的包，确认后会将新版本写入 `fraq.yml`（`fraqVersion` 或 `versions` 字段）和 `versions.yml`，并打印更新结果。

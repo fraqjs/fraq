@@ -34,37 +34,40 @@ npm i -g @fraqjs/cli
 npm i -g pnpm
 ```
 
-Fraq 会按照 `pnpm -> yarn -> npm` 的顺序查找可用的包管理器，并使用第一个找到的包管理器来安装依赖。
+Fraq 会按照 `pnpm -> yarn -> npm` 的顺序查找可用的包管理器，并使用第一个找到的包管理器来安装依赖。如果你希望固定使用某个包管理器，可以在 `fraq.yml` 中通过 `packageManager` 字段显式指定 `npm`、`pnpm` 或 `yarn`。
 
 ## 初始化 `fraq.yml`
 
 在命令行中执行 `fraq wizard` 命令来初始化一个新的 Fraq 机器人项目。Fraq CLI 会询问你一些问题来生成一个默认的 `fraq.yml` 配置文件，你可以在命令行中直接输入答案，或者按 `Enter` 键使用默认值。最后，Fraq CLI 会打印出生成的配置文件内容，并且询问你是否确认创建该配置文件。命令行输出形如：
 
+{/* prettier-ignore */}
 ```
 > fraq wizard
-Fraq CLI v0.6.0
-
+Fraq CLI v0.9.0
+ 
 ✔ Project name: my-fraq-app
-✔ Fraq version to use: 0.14.0
+✔ Fraq version to use: 0.16.1
 ✔ Milky server address: localhost
 ✔ Milky server port: 30001
-
+ 
 Fraq CLI is going to create my-fraq-app/fraq.yml with the following content:
-
+ 
 configVersion: 1
-fraqVersion: 0.14.0
+fraqVersion: 0.16.1
 milky:
   url: http://localhost:30001/
-
+ 
 ✔ Is it ok? Yes
-
+ 
 Configuration file created succesfully.
-
+ 
 Please run:
 cd my-fraq-app
 fraq start
 to start your Fraq application.
 ```
+
+{/* prettier-ignore-end */}
 
 随后，你可以 `cd` 到指定的项目目录下，查看和修改生成的 `fraq.yml` 配置文件。
 
@@ -95,6 +98,23 @@ Starting the Fraq application...
 ```
 
 你可以随时使用 `Ctrl + C` 来停止 Fraq 机器人。
+
+## 配置 Milky 连接
+
+`fraq.yml` 中的 `milky` 字段用于配置与 Milky 协议端的连接：
+
+```yaml
+milky:
+  url: http://localhost:30001/ # 协议端地址
+  accessToken: <如果你的 Milky 协议端配置了 token，请在这里添加>
+  connectEvent: true # 是否监听协议端推送的事件
+```
+
+| 字段           | 含义                                                                                     |
+| -------------- | ---------------------------------------------------------------------------------------- |
+| `url`          | Milky 协议端的地址                                                                       |
+| `accessToken`  | 协议端要求的访问令牌。如果协议端配置了 token，需要在这里填写相同的 token                 |
+| `connectEvent` | 是否监听协议端推送的事件（如消息），默认 `true`。设为 `false` 后机器人不再接收消息等事件 |
 
 ## 安装与配置插件
 
@@ -187,3 +207,27 @@ plugins: ${{ tree:config/plugins.yml }}
 ```yaml
 example: $${{ env:NAME }} # 解析结果为字面量 `${{ env:NAME }}`
 ```
+
+## 命令参考
+
+Fraq CLI 提供以下命令：
+
+| 命令            | 说明                                                                       |
+| --------------- | -------------------------------------------------------------------------- |
+| `fraq wizard`   | 通过向导初始化 `fraq.yml`                                                  |
+| `fraq start`    | 启动 Fraq 应用                                                             |
+| `fraq lock`     | 为缺失版本的插件补全版本并写入版本锁文件，详见[版本锁定与更新](./versions) |
+| `fraq install`  | 安装依赖但不启动应用                                                       |
+| `fraq outdated` | 检查 Fraq 与插件是否有新版本，详见[版本锁定与更新](./versions)             |
+| `fraq update`   | 交互式选择要更新的版本，详见[版本锁定与更新](./versions)                   |
+| `fraq version`  | 查看 Fraq CLI 的版本号                                                     |
+
+### `fraq start` 参数
+
+`fraq start` 支持以下参数：
+
+- `--no-install`：跳过依赖安装，直接启动应用。
+- `--frozen-lockfile`：跳过启动前的自动版本锁定（即不执行 `fraq lock`），直接启动。
+- `--watch`：监听配置文件的变化，在配置发生变化时自动重启应用。监听范围包括 `fraq.yml`、`versions.yml` 以及配置中通过 `${{ text:... }}` 和 `${{ tree:... }}` 引用的文件。
+
+`--watch` 不能与 `--no-install` 或 `--frozen-lockfile` 同时使用。

@@ -1,6 +1,7 @@
 {
   "pages": [
     "activation",
-    "fork"
+    "fork",
+    "versions"
   ]
 }
