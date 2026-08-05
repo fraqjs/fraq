@@ -68,7 +68,7 @@ export default function HomePage() {
             用声明式的参数定义机器人指令，利用 TypeScript 自动推断用户输入和处理函数的类型。
           </Card>
           <Card icon={<MessageSquareIcon />} title="直观的消息构建">
-            内置模板表情字符串支持，用自然的方式组合文本、表情、图片等消息段，减少样板代码。
+            内置模板标签字符串支持，用自然的方式组合文本、表情、图片等消息段，减少样板代码。
           </Card>
           <Card icon={<PuzzleIcon />} title="可组合的插件架构">
             将指令、事件处理器和共享服务封装成插件，由框架统一加载和管理，方便复用、组合和扩展。
