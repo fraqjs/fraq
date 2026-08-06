@@ -1,7 +1,7 @@
 {
   "name": "@fraqjs/plugin-milky-server",
   "type": "module",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "提供在 Fraq 上代理上游 Milky 服务的能力",
   "files": [
     "dist"
