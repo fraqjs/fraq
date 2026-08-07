@@ -152,8 +152,8 @@ importers:
   packages/takumi-preview:
     dependencies:
       '@hono/node-server':
-        specifier: ^2.0.12
-        version: 2.0.12(hono@4.12.31)
+        specifier: ^2.1.0
+        version: 2.1.0(hono@4.13.0)
       chokidar:
         specifier: ^5.0.0
         version: 5.0.0
@@ -161,8 +161,8 @@ importers:
         specifier: ^15.0.0
         version: 15.0.0
       hono:
-        specifier: ^4.12.31
-        version: 4.12.31
+        specifier: ^4.13.0
+        version: 4.13.0
       react:
         specifier: ^19.0.0
         version: 19.2.8
@@ -254,11 +254,11 @@ importers:
         specifier: workspace:^
         version: link:../../packages/fraq
       '@hono/node-server':
-        specifier: ^2.0.12
-        version: 2.0.12(hono@4.12.33)
+        specifier: ^2.1.0
+        version: 2.1.0(hono@4.13.0)
       hono:
-        specifier: ^4.12.33
-        version: 4.12.33
+        specifier: ^4.13.0
+        version: 4.13.0
       ws:
         specifier: ^8.21.1
         version: 8.21.1
@@ -305,8 +305,8 @@ importers:
         specifier: workspace:^
         version: link:../hono
       hono:
-        specifier: ^4.12.26
-        version: 4.12.31
+        specifier: ^4.13.0
+        version: 4.13.0
     devDependencies:
       '@fraqjs/plugin-mock':
         specifier: workspace:^
@@ -371,11 +371,11 @@ importers:
         specifier: workspace:^
         version: link:../hono
       '@hono/node-server':
-        specifier: ^2.0.12
-        version: 2.0.12(hono@4.12.33)
+        specifier: ^2.1.0
+        version: 2.1.0(hono@4.13.0)
       hono:
-        specifier: ^4.12.31
-        version: 4.12.33
+        specifier: ^4.13.0
+        version: 4.13.0
     devDependencies:
       '@fontsource-variable/inter':
         specifier: ^5.3.0
@@ -944,8 +944,8 @@ packages:
       tailwindcss:
         optional: true
 
-  '@hono/node-server@2.0.12':
-    resolution: {integrity: sha512-eWpQYr67tqJLeaSUl0Q+TquuYfUdTibpOJlUMV2FfUP7+KqCC5TufnwnlXL6mobZBJbGAYRd7ZvEBDCbLInjhg==}
+  '@hono/node-server@2.1.0':
+    resolution: {integrity: sha512-XovyyCCnBzW+zKu+z/zq8hwNs4KOR5rEMAOxo2f40Q5xoOI37IMm6MIg2COOUtUApo0i6850MTBKH2u4QLGIqg==}
     engines: {node: '>=20'}
     peerDependencies:
       hono: ^4
@@ -4410,12 +4410,8 @@ packages:
   hastscript@9.0.1:
     resolution: {integrity: sha512-g7df9rMFX/SPi34tyGCyUBREQoKkapwdY/T04Qn9TDWfHhAYt4/I0gMVirzK5wEzeUqIjEB+LXC/ypb7Aqno5w==}
 
-  hono@4.12.31:
-    resolution: {integrity: sha512-zJIHFrl6bq3RDd2YusFNCDlM8qUprxKswyi/OPzPyzKDdyBXDqWx8bZlZ7R+saTdSTatUmb3O7K4SspGPaEOQg==}
-    engines: {node: '>=16.9.0'}
-
-  hono@4.12.33:
-    resolution: {integrity: sha512-+SwvkaiJtxsiPjhy9LivY/1m7UsNqCJetM1BrZl9A5DkQhlbHQDU730mMiDPWjnoCYOM8Chf3WrCJw27kNTPFQ==}
+  hono@4.13.0:
+    resolution: {integrity: sha512-jhunvfHWxd7J5EFfSgH4xsYJzSe/lfqbUCxiyyeaQasUsXeEHXtzVid+7EOGByc5JnFa23SSFL3Y2RV/z1T+eQ==}
     engines: {node: '>=16.9.0'}
 
   hookable@6.1.1:
@@ -6477,13 +6473,9 @@ snapshots:
     optionalDependencies:
       tailwindcss: 4.3.3
 
-  '@hono/node-server@2.0.12(hono@4.12.31)':
+  '@hono/node-server@2.1.0(hono@4.13.0)':
     dependencies:
-      hono: 4.12.31
-
-  '@hono/node-server@2.0.12(hono@4.12.33)':
-    dependencies:
-      hono: 4.12.33
+      hono: 4.13.0
 
   '@img/colour@1.1.0':
     optional: true
@@ -6752,7 +6744,7 @@ snapshots:
 
   '@modelcontextprotocol/sdk@1.30.0(supports-color@7.2.0)(zod@3.25.76)':
     dependencies:
-      '@hono/node-server': 2.0.12(hono@4.12.31)
+      '@hono/node-server': 2.1.0(hono@4.13.0)
       ajv: 8.18.0
       ajv-formats: 3.0.1(ajv@8.18.0)
       content-type: 1.0.5
@@ -6762,7 +6754,7 @@ snapshots:
       eventsource-parser: 3.1.0
       express: 5.2.1(supports-color@7.2.0)
       express-rate-limit: 8.6.1(express@5.2.1(supports-color@7.2.0))(supports-color@7.2.0)
-      hono: 4.12.31
+      hono: 4.13.0
       jose: 6.2.4
       json-schema-typed: 8.0.2
       pkce-challenge: 5.0.1
@@ -9615,9 +9607,7 @@ snapshots:
       property-information: 7.2.0
       space-separated-tokens: 2.0.2
 
-  hono@4.12.31: {}
-
-  hono@4.12.33: {}
+  hono@4.13.0: {}
 
   hookable@6.1.1: {}
 
