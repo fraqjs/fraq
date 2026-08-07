@@ -169,12 +169,8 @@ const ContextRuntime = defineContext<RootOptions, Filter>()
       rootOptions?.options?.routing?.activationResolver ??
       parent?.context.routeActivationResolver ??
       defaultRouteActivationResolver;
-    const router = new Router().setActivationResolver(routeActivationResolver);
-    const hookApi = (endpointOrHook: ApiEndpointName | AnyApiHook, hook?: ApiHook<ApiEndpointName>) =>
-      systems.apiHooks.register(endpointOrHook, hook);
-
     return {
-      router,
+      router: new Router().setActivationResolver(routeActivationResolver),
       logger: systems.logger,
       routeActivationResolver,
       client: systems.apiHooks.client,
@@ -194,7 +190,8 @@ const ContextRuntime = defineContext<RootOptions, Filter>()
         return () => systems.eventBus.off(type, wrappedHandler);
       },
       installEventSource: (eventSource) => systems.eventSources.install(eventSource),
-      hookApi,
+      hookApi: (endpointOrHook: ApiEndpointName | AnyApiHook, hook?: ApiHook<ApiEndpointName>) =>
+        systems.apiHooks.register(endpointOrHook, hook),
       timeout: (delayMs, callback) => systems.timers.timeout(delayMs, callback),
       interval: (intervalMs, callback) => systems.timers.interval(intervalMs, callback),
       createSession: (selfId, message) => createSession(systems.apiHooks.client, selfId, message),

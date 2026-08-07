@@ -1,3 +1,4 @@
+/** biome-ignore-all lint/style/noNonNullAssertion: Safe enough since the builder is only used after the subsystems and builtins are defined. */
 import type { ParameterList, PluginDefinition } from '../plugin';
 import type { ScopedServiceFactory, ServiceClass, ServiceIdentifier, ServiceToken } from '../service';
 import { type ContextState, LifecycleManager } from './lifecycle';
@@ -54,7 +55,7 @@ interface ParentContext<Subsystems, Builtins extends object, ForkOptions> extend
   readonly context: ContextInstance<Builtins, ForkOptions>;
 }
 
-export interface SubsystemAssembly<RootOptions, ForkOptions, Subsystems> {
+type SubsystemFactory<RootOptions, ForkOptions, Subsystems> = (assembly: {
   readonly name: string;
   readonly path: readonly string[];
   readonly rootOptions: RootOptions | undefined;
@@ -62,9 +63,9 @@ export interface SubsystemAssembly<RootOptions, ForkOptions, Subsystems> {
   readonly parent: ParentSystems<Subsystems> | undefined;
   readonly getState: () => ContextState;
   subsystem<T>(definition: SubsystemDefinition<T>): T;
-}
+}) => Subsystems;
 
-export interface BuiltinAssembly<RootOptions, ForkOptions, Subsystems, Builtins extends object> {
+type BuiltinFactory<RootOptions, ForkOptions, Subsystems, Builtins extends object> = (assembly: {
   readonly name: string;
   readonly path: readonly string[];
   readonly rootOptions: RootOptions | undefined;
@@ -72,6 +73,12 @@ export interface BuiltinAssembly<RootOptions, ForkOptions, Subsystems, Builtins 
   readonly parent: ParentContext<Subsystems, Builtins, ForkOptions> | undefined;
   readonly systems: Subsystems;
   readonly getState: () => ContextState;
+}) => Builtins;
+
+export interface PluginContextOptions<Subsystems, Builtins extends object, ForkOptions> {
+  create?(assembly: PluginContextAssembly<Subsystems, Builtins, ForkOptions>): object | undefined;
+  applying?(assembly: PluginContextAssembly<Subsystems, Builtins, ForkOptions>): void;
+  starting?(assembly: PluginContextAssembly<Subsystems, Builtins, ForkOptions>): void;
 }
 
 export interface ContextWiring<Subsystems, Builtins extends object, ForkOptions> {
@@ -83,20 +90,6 @@ export interface PluginContextAssembly<Subsystems, Builtins extends object, Fork
   extends ContextWiring<Subsystems, Builtins, ForkOptions> {
   readonly plugin: PluginDefinition<ContextInstance<Builtins, ForkOptions>, ParameterList>;
 }
-
-export interface PluginContextOptions<Subsystems, Builtins extends object, ForkOptions> {
-  create?(assembly: PluginContextAssembly<Subsystems, Builtins, ForkOptions>): object | undefined;
-  applying?(assembly: PluginContextAssembly<Subsystems, Builtins, ForkOptions>): void;
-  starting?(assembly: PluginContextAssembly<Subsystems, Builtins, ForkOptions>): void;
-}
-
-type SubsystemFactory<RootOptions, ForkOptions, Subsystems> = (
-  assembly: SubsystemAssembly<RootOptions, ForkOptions, Subsystems>,
-) => Subsystems;
-
-type BuiltinFactory<RootOptions, ForkOptions, Subsystems, Builtins extends object> = (
-  assembly: BuiltinAssembly<RootOptions, ForkOptions, Subsystems, Builtins>,
-) => Builtins;
 
 type Wire<Subsystems, Builtins extends object, ForkOptions> = (
   wiring: ContextWiring<Subsystems, Builtins, ForkOptions>,
@@ -149,8 +142,8 @@ export class ContextBuilder<RootOptions, ForkOptions, Subsystems = never, Builti
     this: [Builtins] extends [never] ? never : ContextBuilder<RootOptions, ForkOptions, Subsystems, Builtins>,
   ): ContextClass<RootOptions, ForkOptions, Builtins> {
     type Context = ContextInstance<Builtins, ForkOptions>;
-    const createSubsystems = this.createSubsystems as SubsystemFactory<RootOptions, ForkOptions, Subsystems>;
-    const createBuiltins = this.createBuiltins as BuiltinFactory<RootOptions, ForkOptions, Subsystems, Builtins>;
+    const createSubsystems = this.createSubsystems!;
+    const createBuiltins = this.createBuiltins!;
     const wireContext = this.wireContext;
     const pluginContextOptions = this.pluginContextOptions;
 
