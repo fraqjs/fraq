@@ -1,7 +1,7 @@
-// Generated from Milky 1.3 (1.3.0-rc.2)
+// Generated from Milky 1.3 (1.3.0)
 
 export const milkyVersion = '1.3';
-export const milkyPackageVersion = '1.3.0-rc.2';
+export const milkyPackageVersion = '1.3.0';
 
 // ####################################
 // Common Structs
@@ -2155,7 +2155,10 @@ export interface IncomingXmlSegment_ZodInput {
   }
 }
 
-/** Markdown 消息段 */
+/**
+ * Markdown 消息段
+ * @since 1.3
+ */
 export interface IncomingMarkdownSegment {
   /** 数据类型区分字段，表示自身为Markdown 消息段 */
   type: 'markdown';
@@ -2166,7 +2169,10 @@ export interface IncomingMarkdownSegment {
   }
 }
 
-/** Markdown 消息段 */
+/**
+ * Markdown 消息段
+ * @since 1.3
+ */
 export interface IncomingMarkdownSegment_ZodInput {
   /** 数据类型区分字段，表示自身为Markdown 消息段 */
   type: 'markdown';
@@ -4103,7 +4109,10 @@ export interface GetPrivateFileDownloadUrlInput {
   file_id: string;
   /** 文件的 TriSHA1 哈希值 */
   file_hash: string;
-  /** 是否为自己发送的文件 */
+  /**
+   * 是否为自己发送的文件
+   * @since 1.3
+   */
   is_self_send: boolean;
 }
 
@@ -4115,7 +4124,10 @@ export interface GetPrivateFileDownloadUrlInput_ZodInput {
   file_id: string;
   /** 文件的 TriSHA1 哈希值 */
   file_hash: string;
-  /** 是否为自己发送的文件 */
+  /**
+   * 是否为自己发送的文件
+   * @since 1.3
+   */
   is_self_send?: boolean | null | undefined;
 }
 
@@ -4882,14 +4894,12 @@ export interface ApiCategories {
 
 export interface ApiEndpoints {
   /** 获取登录信息 */
-  /** 获取登录信息 */
   'get_login_info': {
     request: GetLoginInfoInput;
     request_ZodInput: GetLoginInfoInput_ZodInput;
     response: GetLoginInfoOutput;
     response_ZodInput: GetLoginInfoOutput_ZodInput;
   };
-  /** 获取协议端信息 */
   /** 获取协议端信息 */
   'get_impl_info': {
     request: GetImplInfoInput;
@@ -4898,14 +4908,12 @@ export interface ApiEndpoints {
     response_ZodInput: GetImplInfoOutput_ZodInput;
   };
   /** 获取用户个人信息 */
-  /** 获取用户个人信息 */
   'get_user_profile': {
     request: GetUserProfileInput;
     request_ZodInput: GetUserProfileInput_ZodInput;
     response: GetUserProfileOutput;
     response_ZodInput: GetUserProfileOutput_ZodInput;
   };
-  /** 获取好友列表 */
   /** 获取好友列表 */
   'get_friend_list': {
     request: GetFriendListInput;
@@ -4914,14 +4922,12 @@ export interface ApiEndpoints {
     response_ZodInput: GetFriendListOutput_ZodInput;
   };
   /** 获取好友信息 */
-  /** 获取好友信息 */
   'get_friend_info': {
     request: GetFriendInfoInput;
     request_ZodInput: GetFriendInfoInput_ZodInput;
     response: GetFriendInfoOutput;
     response_ZodInput: GetFriendInfoOutput_ZodInput;
   };
-  /** 获取群列表 */
   /** 获取群列表 */
   'get_group_list': {
     request: GetGroupListInput;
@@ -4930,7 +4936,6 @@ export interface ApiEndpoints {
     response_ZodInput: GetGroupListOutput_ZodInput;
   };
   /** 获取群信息 */
-  /** 获取群信息 */
   'get_group_info': {
     request: GetGroupInfoInput;
     request_ZodInput: GetGroupInfoInput_ZodInput;
@@ -4938,14 +4943,12 @@ export interface ApiEndpoints {
     response_ZodInput: GetGroupInfoOutput_ZodInput;
   };
   /** 获取群成员列表 */
-  /** 获取群成员列表 */
   'get_group_member_list': {
     request: GetGroupMemberListInput;
     request_ZodInput: GetGroupMemberListInput_ZodInput;
     response: GetGroupMemberListOutput;
     response_ZodInput: GetGroupMemberListOutput_ZodInput;
   };
-  /** 获取群成员信息 */
   /** 获取群成员信息 */
   'get_group_member_info': {
     request: GetGroupMemberInfoInput;
@@ -4957,7 +4960,6 @@ export interface ApiEndpoints {
    * 获取置顶的好友和群列表
    * @since 1.2
    */
-  /** 获取置顶的好友和群列表 */
   'get_peer_pins': {
     request: GetPeerPinsInput;
     request_ZodInput: GetPeerPinsInput_ZodInput;
@@ -4968,7 +4970,6 @@ export interface ApiEndpoints {
    * 设置好友或群的置顶状态
    * @since 1.2
    */
-  /** 设置好友或群的置顶状态 */
   'set_peer_pin': {
     request: SetPeerPinInput;
     request_ZodInput: SetPeerPinInput_ZodInput;
@@ -4979,7 +4980,6 @@ export interface ApiEndpoints {
    * 设置 QQ 账号头像
    * @since 1.1
    */
-  /** 设置 QQ 账号头像 */
   'set_avatar': {
     request: SetAvatarInput;
     request_ZodInput: SetAvatarInput_ZodInput;
@@ -4990,7 +4990,6 @@ export interface ApiEndpoints {
    * 设置 QQ 账号昵称
    * @since 1.1
    */
-  /** 设置 QQ 账号昵称 */
   'set_nickname': {
     request: SetNicknameInput;
     request_ZodInput: SetNicknameInput_ZodInput;
@@ -5001,7 +5000,6 @@ export interface ApiEndpoints {
    * 设置 QQ 账号个性签名
    * @since 1.1
    */
-  /** 设置 QQ 账号个性签名 */
   'set_bio': {
     request: SetBioInput;
     request_ZodInput: SetBioInput_ZodInput;
@@ -5012,14 +5010,12 @@ export interface ApiEndpoints {
    * 获取自定义表情 URL 列表
    * @since 1.1
    */
-  /** 获取自定义表情 URL 列表 */
   'get_custom_face_url_list': {
     request: GetCustomFaceUrlListInput;
     request_ZodInput: GetCustomFaceUrlListInput_ZodInput;
     response: GetCustomFaceUrlListOutput;
     response_ZodInput: GetCustomFaceUrlListOutput_ZodInput;
   };
-  /** 获取 Cookies */
   /** 获取 Cookies */
   'get_cookies': {
     request: GetCookiesInput;
@@ -5028,14 +5024,12 @@ export interface ApiEndpoints {
     response_ZodInput: GetCookiesOutput_ZodInput;
   };
   /** 获取 CSRF Token */
-  /** 获取 CSRF Token */
   'get_csrf_token': {
     request: GetCSRFTokenInput;
     request_ZodInput: GetCSRFTokenInput_ZodInput;
     response: GetCSRFTokenOutput;
     response_ZodInput: GetCSRFTokenOutput_ZodInput;
   };
-  /** 发送私聊消息 */
   /** 发送私聊消息 */
   'send_private_message': {
     request: SendPrivateMessageInput;
@@ -5044,14 +5038,12 @@ export interface ApiEndpoints {
     response_ZodInput: SendPrivateMessageOutput_ZodInput;
   };
   /** 发送群聊消息 */
-  /** 发送群聊消息 */
   'send_group_message': {
     request: SendGroupMessageInput;
     request_ZodInput: SendGroupMessageInput_ZodInput;
     response: SendGroupMessageOutput;
     response_ZodInput: SendGroupMessageOutput_ZodInput;
   };
-  /** 撤回私聊消息 */
   /** 撤回私聊消息 */
   'recall_private_message': {
     request: RecallPrivateMessageInput;
@@ -5060,14 +5052,12 @@ export interface ApiEndpoints {
     response_ZodInput: RecallPrivateMessageOutput_ZodInput;
   };
   /** 撤回群聊消息 */
-  /** 撤回群聊消息 */
   'recall_group_message': {
     request: RecallGroupMessageInput;
     request_ZodInput: RecallGroupMessageInput_ZodInput;
     response: RecallGroupMessageOutput;
     response_ZodInput: RecallGroupMessageOutput_ZodInput;
   };
-  /** 获取消息 */
   /** 获取消息 */
   'get_message': {
     request: GetMessageInput;
@@ -5076,14 +5066,12 @@ export interface ApiEndpoints {
     response_ZodInput: GetMessageOutput_ZodInput;
   };
   /** 获取历史消息列表 */
-  /** 获取历史消息列表 */
   'get_history_messages': {
     request: GetHistoryMessagesInput;
     request_ZodInput: GetHistoryMessagesInput_ZodInput;
     response: GetHistoryMessagesOutput;
     response_ZodInput: GetHistoryMessagesOutput_ZodInput;
   };
-  /** 获取临时资源链接 */
   /** 获取临时资源链接 */
   'get_resource_temp_url': {
     request: GetResourceTempUrlInput;
@@ -5092,14 +5080,12 @@ export interface ApiEndpoints {
     response_ZodInput: GetResourceTempUrlOutput_ZodInput;
   };
   /** 获取合并转发消息内容 */
-  /** 获取合并转发消息内容 */
   'get_forwarded_messages': {
     request: GetForwardedMessagesInput;
     request_ZodInput: GetForwardedMessagesInput_ZodInput;
     response: GetForwardedMessagesOutput;
     response_ZodInput: GetForwardedMessagesOutput_ZodInput;
   };
-  /** 标记消息为已读 */
   /** 标记消息为已读 */
   'mark_message_as_read': {
     request: MarkMessageAsReadInput;
@@ -5108,14 +5094,12 @@ export interface ApiEndpoints {
     response_ZodInput: MarkMessageAsReadOutput_ZodInput;
   };
   /** 发送好友戳一戳 */
-  /** 发送好友戳一戳 */
   'send_friend_nudge': {
     request: SendFriendNudgeInput;
     request_ZodInput: SendFriendNudgeInput_ZodInput;
     response: SendFriendNudgeOutput;
     response_ZodInput: SendFriendNudgeOutput_ZodInput;
   };
-  /** 发送名片点赞 */
   /** 发送名片点赞 */
   'send_profile_like': {
     request: SendProfileLikeInput;
@@ -5127,14 +5111,12 @@ export interface ApiEndpoints {
    * 删除好友
    * @since 1.1
    */
-  /** 删除好友 */
   'delete_friend': {
     request: DeleteFriendInput;
     request_ZodInput: DeleteFriendInput_ZodInput;
     response: DeleteFriendOutput;
     response_ZodInput: DeleteFriendOutput_ZodInput;
   };
-  /** 获取好友请求列表 */
   /** 获取好友请求列表 */
   'get_friend_requests': {
     request: GetFriendRequestsInput;
@@ -5143,14 +5125,12 @@ export interface ApiEndpoints {
     response_ZodInput: GetFriendRequestsOutput_ZodInput;
   };
   /** 同意好友请求 */
-  /** 同意好友请求 */
   'accept_friend_request': {
     request: AcceptFriendRequestInput;
     request_ZodInput: AcceptFriendRequestInput_ZodInput;
     response: AcceptFriendRequestOutput;
     response_ZodInput: AcceptFriendRequestOutput_ZodInput;
   };
-  /** 拒绝好友请求 */
   /** 拒绝好友请求 */
   'reject_friend_request': {
     request: RejectFriendRequestInput;
@@ -5159,14 +5139,12 @@ export interface ApiEndpoints {
     response_ZodInput: RejectFriendRequestOutput_ZodInput;
   };
   /** 设置群名称 */
-  /** 设置群名称 */
   'set_group_name': {
     request: SetGroupNameInput;
     request_ZodInput: SetGroupNameInput_ZodInput;
     response: SetGroupNameOutput;
     response_ZodInput: SetGroupNameOutput_ZodInput;
   };
-  /** 设置群头像 */
   /** 设置群头像 */
   'set_group_avatar': {
     request: SetGroupAvatarInput;
@@ -5175,14 +5153,12 @@ export interface ApiEndpoints {
     response_ZodInput: SetGroupAvatarOutput_ZodInput;
   };
   /** 设置群名片 */
-  /** 设置群名片 */
   'set_group_member_card': {
     request: SetGroupMemberCardInput;
     request_ZodInput: SetGroupMemberCardInput_ZodInput;
     response: SetGroupMemberCardOutput;
     response_ZodInput: SetGroupMemberCardOutput_ZodInput;
   };
-  /** 设置群成员专属头衔 */
   /** 设置群成员专属头衔 */
   'set_group_member_special_title': {
     request: SetGroupMemberSpecialTitleInput;
@@ -5191,14 +5167,12 @@ export interface ApiEndpoints {
     response_ZodInput: SetGroupMemberSpecialTitleOutput_ZodInput;
   };
   /** 设置群管理员 */
-  /** 设置群管理员 */
   'set_group_member_admin': {
     request: SetGroupMemberAdminInput;
     request_ZodInput: SetGroupMemberAdminInput_ZodInput;
     response: SetGroupMemberAdminOutput;
     response_ZodInput: SetGroupMemberAdminOutput_ZodInput;
   };
-  /** 设置群成员禁言 */
   /** 设置群成员禁言 */
   'set_group_member_mute': {
     request: SetGroupMemberMuteInput;
@@ -5207,14 +5181,12 @@ export interface ApiEndpoints {
     response_ZodInput: SetGroupMemberMuteOutput_ZodInput;
   };
   /** 设置群全员禁言 */
-  /** 设置群全员禁言 */
   'set_group_whole_mute': {
     request: SetGroupWholeMuteInput;
     request_ZodInput: SetGroupWholeMuteInput_ZodInput;
     response: SetGroupWholeMuteOutput;
     response_ZodInput: SetGroupWholeMuteOutput_ZodInput;
   };
-  /** 踢出群成员 */
   /** 踢出群成员 */
   'kick_group_member': {
     request: KickGroupMemberInput;
@@ -5223,14 +5195,12 @@ export interface ApiEndpoints {
     response_ZodInput: KickGroupMemberOutput_ZodInput;
   };
   /** 获取群公告列表 */
-  /** 获取群公告列表 */
   'get_group_announcements': {
     request: GetGroupAnnouncementsInput;
     request_ZodInput: GetGroupAnnouncementsInput_ZodInput;
     response: GetGroupAnnouncementsOutput;
     response_ZodInput: GetGroupAnnouncementsOutput_ZodInput;
   };
-  /** 发送群公告 */
   /** 发送群公告 */
   'send_group_announcement': {
     request: SendGroupAnnouncementInput;
@@ -5239,14 +5209,12 @@ export interface ApiEndpoints {
     response_ZodInput: SendGroupAnnouncementOutput_ZodInput;
   };
   /** 删除群公告 */
-  /** 删除群公告 */
   'delete_group_announcement': {
     request: DeleteGroupAnnouncementInput;
     request_ZodInput: DeleteGroupAnnouncementInput_ZodInput;
     response: DeleteGroupAnnouncementOutput;
     response_ZodInput: DeleteGroupAnnouncementOutput_ZodInput;
   };
-  /** 获取群精华消息列表 */
   /** 获取群精华消息列表 */
   'get_group_essence_messages': {
     request: GetGroupEssenceMessagesInput;
@@ -5255,14 +5223,12 @@ export interface ApiEndpoints {
     response_ZodInput: GetGroupEssenceMessagesOutput_ZodInput;
   };
   /** 设置群精华消息 */
-  /** 设置群精华消息 */
   'set_group_essence_message': {
     request: SetGroupEssenceMessageInput;
     request_ZodInput: SetGroupEssenceMessageInput_ZodInput;
     response: SetGroupEssenceMessageOutput;
     response_ZodInput: SetGroupEssenceMessageOutput_ZodInput;
   };
-  /** 退出群 */
   /** 退出群 */
   'quit_group': {
     request: QuitGroupInput;
@@ -5271,14 +5237,12 @@ export interface ApiEndpoints {
     response_ZodInput: QuitGroupOutput_ZodInput;
   };
   /** 发送群消息表情回应 */
-  /** 发送群消息表情回应 */
   'send_group_message_reaction': {
     request: SendGroupMessageReactionInput;
     request_ZodInput: SendGroupMessageReactionInput_ZodInput;
     response: SendGroupMessageReactionOutput;
     response_ZodInput: SendGroupMessageReactionOutput_ZodInput;
   };
-  /** 发送群戳一戳 */
   /** 发送群戳一戳 */
   'send_group_nudge': {
     request: SendGroupNudgeInput;
@@ -5287,14 +5251,12 @@ export interface ApiEndpoints {
     response_ZodInput: SendGroupNudgeOutput_ZodInput;
   };
   /** 获取群通知列表 */
-  /** 获取群通知列表 */
   'get_group_notifications': {
     request: GetGroupNotificationsInput;
     request_ZodInput: GetGroupNotificationsInput_ZodInput;
     response: GetGroupNotificationsOutput;
     response_ZodInput: GetGroupNotificationsOutput_ZodInput;
   };
-  /** 同意入群/邀请他人入群请求 */
   /** 同意入群/邀请他人入群请求 */
   'accept_group_request': {
     request: AcceptGroupRequestInput;
@@ -5303,14 +5265,12 @@ export interface ApiEndpoints {
     response_ZodInput: AcceptGroupRequestOutput_ZodInput;
   };
   /** 拒绝入群/邀请他人入群请求 */
-  /** 拒绝入群/邀请他人入群请求 */
   'reject_group_request': {
     request: RejectGroupRequestInput;
     request_ZodInput: RejectGroupRequestInput_ZodInput;
     response: RejectGroupRequestOutput;
     response_ZodInput: RejectGroupRequestOutput_ZodInput;
   };
-  /** 同意他人邀请自身入群 */
   /** 同意他人邀请自身入群 */
   'accept_group_invitation': {
     request: AcceptGroupInvitationInput;
@@ -5319,14 +5279,12 @@ export interface ApiEndpoints {
     response_ZodInput: AcceptGroupInvitationOutput_ZodInput;
   };
   /** 拒绝他人邀请自身入群 */
-  /** 拒绝他人邀请自身入群 */
   'reject_group_invitation': {
     request: RejectGroupInvitationInput;
     request_ZodInput: RejectGroupInvitationInput_ZodInput;
     response: RejectGroupInvitationOutput;
     response_ZodInput: RejectGroupInvitationOutput_ZodInput;
   };
-  /** 上传私聊文件 */
   /** 上传私聊文件 */
   'upload_private_file': {
     request: UploadPrivateFileInput;
@@ -5335,14 +5293,12 @@ export interface ApiEndpoints {
     response_ZodInput: UploadPrivateFileOutput_ZodInput;
   };
   /** 上传群文件 */
-  /** 上传群文件 */
   'upload_group_file': {
     request: UploadGroupFileInput;
     request_ZodInput: UploadGroupFileInput_ZodInput;
     response: UploadGroupFileOutput;
     response_ZodInput: UploadGroupFileOutput_ZodInput;
   };
-  /** 获取私聊文件下载链接 */
   /** 获取私聊文件下载链接 */
   'get_private_file_download_url': {
     request: GetPrivateFileDownloadUrlInput;
@@ -5351,14 +5307,12 @@ export interface ApiEndpoints {
     response_ZodInput: GetPrivateFileDownloadUrlOutput_ZodInput;
   };
   /** 获取群文件下载链接 */
-  /** 获取群文件下载链接 */
   'get_group_file_download_url': {
     request: GetGroupFileDownloadUrlInput;
     request_ZodInput: GetGroupFileDownloadUrlInput_ZodInput;
     response: GetGroupFileDownloadUrlOutput;
     response_ZodInput: GetGroupFileDownloadUrlOutput_ZodInput;
   };
-  /** 获取群文件列表 */
   /** 获取群文件列表 */
   'get_group_files': {
     request: GetGroupFilesInput;
@@ -5367,7 +5321,6 @@ export interface ApiEndpoints {
     response_ZodInput: GetGroupFilesOutput_ZodInput;
   };
   /** 移动群文件 */
-  /** 移动群文件 */
   'move_group_file': {
     request: MoveGroupFileInput;
     request_ZodInput: MoveGroupFileInput_ZodInput;
@@ -5375,14 +5328,12 @@ export interface ApiEndpoints {
     response_ZodInput: MoveGroupFileOutput_ZodInput;
   };
   /** 重命名群文件 */
-  /** 重命名群文件 */
   'rename_group_file': {
     request: RenameGroupFileInput;
     request_ZodInput: RenameGroupFileInput_ZodInput;
     response: RenameGroupFileOutput;
     response_ZodInput: RenameGroupFileOutput_ZodInput;
   };
-  /** 删除群文件 */
   /** 删除群文件 */
   'delete_group_file': {
     request: DeleteGroupFileInput;
@@ -5394,14 +5345,12 @@ export interface ApiEndpoints {
    * 转存群文件为永久文件
    * @since 1.3
    */
-  /** 转存群文件为永久文件 */
   'persist_group_file': {
     request: PersistGroupFileInput;
     request_ZodInput: PersistGroupFileInput_ZodInput;
     response: PersistGroupFileOutput;
     response_ZodInput: PersistGroupFileOutput_ZodInput;
   };
-  /** 创建群文件夹 */
   /** 创建群文件夹 */
   'create_group_folder': {
     request: CreateGroupFolderInput;
@@ -5410,14 +5359,12 @@ export interface ApiEndpoints {
     response_ZodInput: CreateGroupFolderOutput_ZodInput;
   };
   /** 重命名群文件夹 */
-  /** 重命名群文件夹 */
   'rename_group_folder': {
     request: RenameGroupFolderInput;
     request_ZodInput: RenameGroupFolderInput_ZodInput;
     response: RenameGroupFolderOutput;
     response_ZodInput: RenameGroupFolderOutput_ZodInput;
   };
-  /** 删除群文件夹 */
   /** 删除群文件夹 */
   'delete_group_folder': {
     request: DeleteGroupFolderInput;

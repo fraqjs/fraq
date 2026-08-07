@@ -12,7 +12,7 @@
     "typings": "dist/index.d.mts"
   },
   "scripts": {
-    "build": "tsdown && tsx scripts/format-dts-comments.ts && biome format --vcs-enabled=false --write dist/index.d.mts",
+    "build": "tsdown",
     "test": "tsx --test test/*.test.ts",
     "prepack": "pnpm build"
   },
