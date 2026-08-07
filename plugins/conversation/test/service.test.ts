@@ -12,8 +12,8 @@ async function tick(): Promise<void> {
 
 test('open resolves when a later message matches its temporary router', async () => {
   const ctx = createMockContext();
-  ctx.hookApi('send_private_message', async (_params, next) => {
-    await next();
+  ctx.hookApi('send_private_message', async (params, next) => {
+    await next(params);
     return { message_seq: 3, time: 3 };
   });
   const conversation = new ConversationService(ctx, { defaultTimeout: 1000 });
@@ -171,8 +171,8 @@ test('requires defaultTimeout and timeout to be positive finite numbers', async 
 
 test('active conversation handles a repeated triggering command without dispatching the command again', async () => {
   const ctx = createMockContext();
-  ctx.hookApi('send_private_message', async (_params, next) => {
-    await next();
+  ctx.hookApi('send_private_message', async (params, next) => {
+    await next(params);
     return { message_seq: 2, time: 2 };
   });
   const conversation = new ConversationService(ctx, { defaultTimeout: 1000 });

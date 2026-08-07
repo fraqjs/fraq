@@ -100,10 +100,8 @@ test('a terminal ctx.hookApi stub overrides the response and bypasses the mock',
 
 test('a ctx.hookApi that calls next() lets the mock record the call', async () => {
   const ctx = createMockContext();
-  // Non-terminal hook: it forwards to the mock via next(), so the call is
-  // still recorded, and the hook can observe or transform the response.
-  ctx.hookApi('send_private_message', async (_params, next) => {
-    const result = (await next()) as Record<string, unknown>;
+  ctx.hookApi('send_private_message', async (params, next) => {
+    const result = await next(params);
     return { ...result, message_seq: 42 };
   });
 

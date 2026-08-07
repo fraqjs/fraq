@@ -91,6 +91,7 @@ export function registerEventEndpoint(
       };
     }),
     (c) =>
+      // @ts-expect-error
       streamSSE(c, async (stream) => {
         const unsubscribe = broadcaster.subscribe((event) => {
           if (stream.aborted) return;
