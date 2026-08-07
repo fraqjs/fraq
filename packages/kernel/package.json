@@ -1,0 +1,23 @@
+{
+  "name": "@fraqjs/kernel",
+  "type": "module",
+  "version": "0.1.0",
+  "description": "Typed context runtime for plugin-based frameworks",
+  "files": [
+    "dist"
+  ],
+  "main": "src/index.ts",
+  "publishConfig": {
+    "main": "dist/index.mjs",
+    "typings": "dist/index.d.mts"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "test": "tsx --test test/*.test.ts",
+    "prepack": "pnpm build"
+  },
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  }
+}

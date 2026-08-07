@@ -1,6 +1,7 @@
+import type { ContextState } from '@fraqjs/kernel';
+
 import type { MilkyClient } from '../../protocol/client';
 import type { AnyApiCall, AnyApiHook, ApiEndpointName, ApiHook } from '../../protocol/endpoint';
-import type { ContextState } from './lifecycle';
 
 type InternalApiCall = {
   endpoint: ApiEndpointName;

@@ -136,6 +136,9 @@ importers:
 
   packages/fraq:
     dependencies:
+      '@fraqjs/kernel':
+        specifier: workspace:^
+        version: link:../kernel
       mitt:
         specifier: ^3.0.1
         version: 3.0.1
@@ -143,6 +146,8 @@ importers:
       '@fraqjs/plugin-mock':
         specifier: workspace:^
         version: link:../../plugins/mock
+
+  packages/kernel: {}
 
   packages/takumi-preview:
     dependencies:

@@ -25,6 +25,7 @@
   "homepage": "https://fraq.dev/",
   "license": "MIT",
   "dependencies": {
+    "@fraqjs/kernel": "workspace:^",
     "mitt": "^3.0.1"
   },
   "devDependencies": {

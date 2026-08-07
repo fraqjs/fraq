@@ -211,5 +211,6 @@ test('creates contexts from URLs with the default client', () => {
     accessToken: 'token',
   });
 
+  assert.equal(ctx instanceof Context, true);
   assert.equal((ctx.client as unknown as { baseUrl: string }).baseUrl, 'http://localhost:30001');
 });

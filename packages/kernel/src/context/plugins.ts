@@ -1,26 +1,30 @@
-import { Logger, type LogHandler } from '../logging';
-import type { ParameterList, PluginDefinition } from '../plugin';
+import type { Injection, OptionalInjection, ParameterList, PluginDefinition } from '../plugin';
 import type { ServiceClass, ServiceIdentifier } from '../service';
-import type { Context } from './index';
 import type { ServiceRegistry, ServiceResolutionScope } from './services';
 
-type AnyPlugin = PluginDefinition<ParameterList>;
+type AnyPlugin<C extends object> = PluginDefinition<C, ParameterList>;
 
-export type InstalledPlugin = {
-  plugin: AnyPlugin;
+export type InstalledPlugin<C extends object> = {
+  plugin: AnyPlugin<C>;
   args: ParameterList;
-  proxy?: Context;
-  scope?: ServiceResolutionScope;
+  proxy?: C;
+  scope?: ServiceResolutionScope<C>;
 };
 
-function areInjectedServicesAvailable(plugin: AnyPlugin, available: Set<string>): boolean {
+export interface PluginRegistryOptions<C extends object> {
+  createContextProperties?(context: C, plugin: AnyPlugin<C>): object | undefined;
+  applying?(context: C, plugin: AnyPlugin<C>): void;
+  starting?(context: C, plugin: AnyPlugin<C>): void;
+}
+
+function areInjectedServicesAvailable(plugin: { inject?: Injection }, available: Set<string>): boolean {
   return Object.values(plugin.inject ?? {}).every((service) => available.has(service.token.key));
 }
 
-function areOptionalInjectedServicesReady(
-  plugin: AnyPlugin,
+function areOptionalInjectedServicesReady<C extends object>(
+  plugin: { optionalInject?: OptionalInjection },
   available: Set<string>,
-  pendingProviders: Map<string, InstalledPlugin>,
+  pendingProviders: Map<string, InstalledPlugin<C>>,
 ): boolean {
   return Object.values(plugin.optionalInject ?? {}).every((token) => {
     if (available.has(token.key)) {
@@ -31,8 +35,8 @@ function areOptionalInjectedServicesReady(
   });
 }
 
-function createUnresolvablePluginError(pending: InstalledPlugin[], available: Set<string>): Error {
-  const missingRequirements = new Map<string, { service: ServiceClass; plugins: AnyPlugin[] }>();
+function createUnresolvablePluginError<C extends object>(pending: InstalledPlugin<C>[], available: Set<string>): Error {
+  const missingRequirements = new Map<string, { service: ServiceClass; plugins: AnyPlugin<C>[] }>();
   const pendingProviders = new Set<string>();
   for (const { plugin } of pending) {
     for (const service of plugin.provides ?? []) {
@@ -61,61 +65,26 @@ function createUnresolvablePluginError(pending: InstalledPlugin[], available: Se
   return new Error(`Unable to resolve plugin service dependencies: ${lines.join('; ')}.`);
 }
 
-export class PluginRegistry {
-  private readonly plugins: InstalledPlugin[] = [];
+export class PluginRegistry<C extends object> {
+  private readonly plugins: InstalledPlugin<C>[] = [];
 
   constructor(
-    private readonly context: Context,
-    private readonly services: ServiceRegistry,
+    private readonly context: C,
+    private readonly services: ServiceRegistry<C>,
     private readonly contextPath: readonly string[],
-    private readonly logHandler: LogHandler | undefined,
+    private readonly options: PluginRegistryOptions<C>,
   ) {}
 
-  install<T extends ParameterList>(plugin: PluginDefinition<T>, ...args: T): void {
-    this.plugins.push({ plugin: plugin as AnyPlugin, args });
+  install<T extends ParameterList>(plugin: PluginDefinition<C, T>, ...args: T): void {
+    this.plugins.push({ plugin: plugin as AnyPlugin<C>, args });
   }
 
-  private resolve<T extends object>(identifier: ServiceIdentifier<T>, installedPlugin: InstalledPlugin): T {
-    return this.services.resolve(identifier, this.getPluginScope(installedPlugin));
-  }
-
-  private tryResolve<T extends object>(
-    identifier: ServiceIdentifier<T>,
-    installedPlugin: InstalledPlugin,
-  ): T | undefined {
-    return this.services.tryResolve(identifier, this.getPluginScope(installedPlugin));
-  }
-
-  private isProvided<T extends object>(identifier: ServiceIdentifier<T>): boolean {
-    return this.services.isProvided(identifier);
-  }
-
-  async apply(): Promise<InstalledPlugin[]> {
+  async apply(): Promise<InstalledPlugin<C>[]> {
     const sortedPlugins = this.sortPlugins();
     for (const installedPlugin of sortedPlugins) {
       const { plugin, args } = installedPlugin;
       const providedBeforeApply = new Set(this.services.ownServiceTokens().map(({ key }) => key));
-      let applyingMessage = `Applying plugin ${plugin.name}`;
-      const injectedServices: string[] = [];
-      const providedServices: string[] = [];
-      for (const service of Object.values(plugin.inject ?? {})) {
-        injectedServices.push(service.name);
-      }
-      for (const token of Object.values(plugin.optionalInject ?? {})) {
-        injectedServices.push(`${token.key}?`);
-      }
-      if (plugin.provides) {
-        for (const service of plugin.provides) {
-          providedServices.push(service.name);
-        }
-      }
-      if (injectedServices.length > 0) {
-        applyingMessage += `, injects: [${injectedServices.join(', ')}]`;
-      }
-      if (providedServices.length > 0) {
-        applyingMessage += `, provides: [${providedServices.join(', ')}]`;
-      }
-      this.context.logger.info(applyingMessage);
+      this.options.applying?.(this.context, plugin);
       await plugin.apply(this.getPluginContext(installedPlugin), ...args);
       for (const service of plugin.provides ?? []) {
         if (!this.services.hasOwn(service.token) || providedBeforeApply.has(service.token.key)) {
@@ -126,19 +95,30 @@ export class PluginRegistry {
     return sortedPlugins;
   }
 
-  async start(sortedPlugins: InstalledPlugin[]): Promise<void> {
+  async start(sortedPlugins: InstalledPlugin<C>[]): Promise<void> {
     for (const installedPlugin of sortedPlugins) {
       const { plugin } = installedPlugin;
       if (!plugin.start) {
         continue;
       }
-      this.context.logger.debug(`Plugin ${plugin.name} is starting...`);
+      this.options.starting?.(this.context, plugin);
       await plugin.start(this.getPluginContext(installedPlugin));
     }
   }
 
-  private sortPlugins(): InstalledPlugin[] {
-    const providers = new Map<string, AnyPlugin>();
+  private resolve<T extends object>(identifier: ServiceIdentifier<T>, installedPlugin: InstalledPlugin<C>): T {
+    return this.services.resolve(identifier, this.getPluginScope(installedPlugin));
+  }
+
+  private tryResolve<T extends object>(
+    identifier: ServiceIdentifier<T>,
+    installedPlugin: InstalledPlugin<C>,
+  ): T | undefined {
+    return this.services.tryResolve(identifier, this.getPluginScope(installedPlugin));
+  }
+
+  private sortPlugins(): InstalledPlugin<C>[] {
+    const providers = new Map<string, AnyPlugin<C>>();
     for (const { plugin } of this.plugins) {
       for (const service of plugin.provides ?? []) {
         const existingProvider = providers.get(service.token.key);
@@ -152,21 +132,20 @@ export class PluginRegistry {
     }
 
     const pending = [...this.plugins];
-    const sorted: InstalledPlugin[] = [];
+    const sorted: InstalledPlugin<C>[] = [];
     const available = new Set(this.services.collectAvailableServiceTokens().map(({ key }) => key));
-
     while (pending.length > 0) {
-      const availableByPendingPlugins = new Map<string, InstalledPlugin>();
+      const pendingProviders = new Map<string, InstalledPlugin<C>>();
       for (const installedPlugin of pending) {
         for (const service of installedPlugin.plugin.provides ?? []) {
-          availableByPendingPlugins.set(service.token.key, installedPlugin);
+          pendingProviders.set(service.token.key, installedPlugin);
         }
       }
       const requiredReadyIndex = pending.findIndex(({ plugin }) => areInjectedServicesAvailable(plugin, available));
       const optionalReadyIndex = pending.findIndex(
         ({ plugin }) =>
           areInjectedServicesAvailable(plugin, available) &&
-          areOptionalInjectedServicesReady(plugin, available, availableByPendingPlugins),
+          areOptionalInjectedServicesReady(plugin, available, pendingProviders),
       );
       const nextIndex = optionalReadyIndex === -1 ? requiredReadyIndex : optionalReadyIndex;
       if (nextIndex === -1) {
@@ -179,16 +158,15 @@ export class PluginRegistry {
         available.add(service.token.key);
       }
     }
-
     return sorted;
   }
 
-  private getPluginContext(installedPlugin: InstalledPlugin): Context {
+  private getPluginContext(installedPlugin: InstalledPlugin<C>): C {
     installedPlugin.proxy ??= this.createProxyContextForPlugin(installedPlugin);
     return installedPlugin.proxy;
   }
 
-  private getPluginScope(installedPlugin: InstalledPlugin): ServiceResolutionScope {
+  private getPluginScope(installedPlugin: InstalledPlugin<C>): ServiceResolutionScope<C> {
     installedPlugin.scope ??= {
       key: installedPlugin,
       value: {
@@ -200,31 +178,17 @@ export class PluginRegistry {
     return installedPlugin.scope;
   }
 
-  private createProxyContextForPlugin(installedPlugin: InstalledPlugin): Context {
+  private createProxyContextForPlugin(installedPlugin: InstalledPlugin<C>): C {
     const { plugin } = installedPlugin;
-    const proxyLogger = new Logger(
-      (message) => this.logHandler?.(message),
-      `plugin:${this.context.name ? `${this.context.name}/` : ''}${plugin.name}`,
-    );
-    const proxyRouter = this.context.router.withMeta({
-      context: this.context.name,
-      plugin: plugin.name,
-    });
-
-    const proxyInjections = new Map<string, object | undefined>();
+    const contextProperties = this.options.createContextProperties?.(this.context, plugin);
+    const injections = new Map<string, object | undefined>();
     const resolve = <T extends object>(identifier: ServiceIdentifier<T>) => this.resolve(identifier, installedPlugin);
     const tryResolve = <T extends object>(identifier: ServiceIdentifier<T>) =>
       this.tryResolve(identifier, installedPlugin);
-    const isProvided = (identifier: ServiceIdentifier) => this.isProvided(identifier);
+    const isProvided = (identifier: ServiceIdentifier) => this.services.isProvided(identifier);
 
     const proxy = new Proxy(this.context, {
       get(target, prop, receiver) {
-        if (prop === 'logger') {
-          return proxyLogger;
-        }
-        if (prop === 'router') {
-          return proxyRouter;
-        }
         if (prop === 'resolve') {
           return resolve;
         }
@@ -234,10 +198,11 @@ export class PluginRegistry {
         if (prop === 'isProvided') {
           return isProvided;
         }
-        if (typeof prop === 'string') {
-          if (proxyInjections.has(prop)) {
-            return proxyInjections.get(prop);
-          }
+        if (contextProperties && Object.hasOwn(contextProperties, prop)) {
+          return Reflect.get(contextProperties, prop, contextProperties);
+        }
+        if (typeof prop === 'string' && injections.has(prop)) {
+          return injections.get(prop);
         }
         return Reflect.get(target, prop, receiver);
       },
@@ -245,12 +210,11 @@ export class PluginRegistry {
     installedPlugin.proxy = proxy;
 
     for (const [key, service] of Object.entries(plugin.inject ?? {})) {
-      proxyInjections.set(key, resolve(service));
+      injections.set(key, resolve(service));
     }
     for (const [key, token] of Object.entries(plugin.optionalInject ?? {})) {
-      proxyInjections.set(key, tryResolve(token));
+      injections.set(key, tryResolve(token));
     }
-
     return proxy;
   }
 }

@@ -1,8 +1,9 @@
+import type { ContextState } from '@fraqjs/kernel';
+
 import type { MilkyEventSource, MilkyEventSubscription } from '../../protocol/event';
 import type { Event } from '../../protocol/types';
 import type { Logger } from '../logging';
 import type { ContextOptions } from './index';
-import type { ContextState } from './lifecycle';
 
 const DEFAULT_INITIAL_RECONNECT_DELAY_MS = 1_000;
 const DEFAULT_MAX_RECONNECT_DELAY_MS = 30_000;

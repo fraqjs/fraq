@@ -1,37 +1,33 @@
-import type { ApiHookRegistry } from './api-hooks';
-import type { EventSourceRegistry } from './event-sources';
 import type { InstalledPlugin, PluginRegistry } from './plugins';
 import type { ServiceRegistry } from './services';
-import type { TimerRegistry } from './timers';
+import type { SubsystemRegistry } from './subsystems';
 
 export type ContextState = 'idle' | 'starting' | 'started' | 'stopping' | 'stopped';
 
-type AppliedContextPlugins = {
-  lifecycle: LifecycleManager;
-  sortedPlugins: InstalledPlugin[];
+type AppliedContextPlugins<C extends object> = {
+  lifecycle: LifecycleManager<C>;
+  sortedPlugins: InstalledPlugin<C>[];
 };
 
-export class LifecycleManager {
-  private readonly children = new Set<LifecycleManager>();
+export class LifecycleManager<C extends object> {
+  private readonly children = new Set<LifecycleManager<C>>();
   private currentState: ContextState = 'idle';
   private startPromise?: Promise<void>;
   private stopPromise?: Promise<void>;
 
   constructor(
     private readonly contextName: string,
-    private readonly plugins: PluginRegistry,
-    private readonly services: ServiceRegistry,
-    private readonly timers: TimerRegistry,
-    private readonly eventSources: EventSourceRegistry,
-    private readonly apiHooks: ApiHookRegistry,
-    private readonly detachParentEvents: () => void,
+    private readonly plugins: PluginRegistry<C>,
+    private readonly services: ServiceRegistry<C>,
+    private readonly subsystems: SubsystemRegistry,
+    private readonly unwire: () => void | Promise<void>,
   ) {}
 
   get state(): ContextState {
     return this.currentState;
   }
 
-  addChild(child: LifecycleManager): void {
+  addChild(child: LifecycleManager<C>): void {
     this.children.add(child);
   }
 
@@ -60,16 +56,15 @@ export class LifecycleManager {
   }
 
   async stop(): Promise<void> {
-    if ((this.currentState === 'idle' && !this.timers.hasTimers) || this.currentState === 'stopped') {
+    if (this.currentState === 'stopped') {
       return;
     }
     let stateAfterStart: ContextState = this.currentState;
     if (stateAfterStart === 'starting') {
       await this.startPromise;
-      // The awaited start or another stop call may have changed the state.
       stateAfterStart = this.currentState as ContextState;
     }
-    if ((stateAfterStart === 'idle' && !this.timers.hasTimers) || stateAfterStart === 'stopped') {
+    if (stateAfterStart === 'stopped') {
       return;
     }
     if (stateAfterStart === 'stopping') {
@@ -88,31 +83,29 @@ export class LifecycleManager {
   }
 
   private async startInternal(): Promise<void> {
-    const appliedContextPlugins: AppliedContextPlugins[] = [];
-    const startingContexts: LifecycleManager[] = [];
+    const appliedContextPlugins: AppliedContextPlugins<C>[] = [];
+    const startingContexts: LifecycleManager<C>[] = [];
     try {
       await this.recursiveApplyPlugins(appliedContextPlugins, startingContexts);
       for (const { lifecycle, sortedPlugins } of appliedContextPlugins) {
         await lifecycle.plugins.start(sortedPlugins);
       }
+      for (const { lifecycle } of appliedContextPlugins) {
+        lifecycle.currentState = 'started';
+        await lifecycle.subsystems.activate();
+      }
     } catch (error) {
       for (const lifecycle of startingContexts) {
-        if (lifecycle.currentState === 'starting') {
+        if (lifecycle.currentState === 'starting' || lifecycle.currentState === 'started') {
           lifecycle.currentState = 'idle';
         }
       }
       throw error;
     }
-    for (const { lifecycle } of appliedContextPlugins) {
-      lifecycle.currentState = 'started';
-      lifecycle.eventSources.startAll();
-    }
   }
 
   private async stopInternal(): Promise<void> {
-    const errors: unknown[] = [];
-
-    this.timers.clear();
+    const errors = this.subsystems.suspend();
 
     for (const child of [...this.children].reverse()) {
       try {
@@ -122,10 +115,14 @@ export class LifecycleManager {
       }
     }
 
-    errors.push(...(await this.eventSources.stop()));
-    this.detachParentEvents();
+    errors.push(...(await this.subsystems.deactivate()));
+    try {
+      await this.unwire();
+    } catch (error) {
+      errors.push(error);
+    }
     errors.push(...(await this.services.dispose()));
-    this.apiHooks.clear();
+    errors.push(...(await this.subsystems.stop()));
 
     if (errors.length === 1) {
       throw errors[0];
@@ -136,8 +133,8 @@ export class LifecycleManager {
   }
 
   private async recursiveApplyPlugins(
-    appliedContextPlugins: AppliedContextPlugins[],
-    startingContexts: LifecycleManager[],
+    appliedContextPlugins: AppliedContextPlugins<C>[],
+    startingContexts: LifecycleManager<C>[],
   ): Promise<void> {
     if (this.currentState === 'started') {
       return;
@@ -157,6 +154,7 @@ export class LifecycleManager {
     }
     startingContexts.push(this);
 
+    await this.subsystems.start();
     const sortedPlugins = await this.plugins.apply();
     appliedContextPlugins.push({ lifecycle: this, sortedPlugins });
 

@@ -1,4 +1,5 @@
-import mitt, { type WildcardHandler } from 'mitt';
+import { type ContextOf, defineContext } from '@fraqjs/kernel';
+import mitt, { type Emitter } from 'mitt';
 
 import { createMilkyClient, type MilkyClient } from '../../protocol/client';
 import type { AnyApiHook, ApiEndpointName, ApiHook, EventMap } from '../../protocol/endpoint';
@@ -9,13 +10,8 @@ import type { Session } from '../../routing/command';
 import { defaultRouteActivationResolver, type RouteActivationResolver, Router } from '../../routing/router';
 import type { Filter } from '../filter';
 import { Logger, type LogHandler } from '../logging';
-import type { ParameterList, PluginDefinition } from '../plugin';
-import type { ScopedServiceFactory, ServiceClass, ServiceIdentifier, ServiceToken } from '../service';
 import { ApiHookRegistry } from './api-hooks';
 import { EventSourceRegistry } from './event-sources';
-import { LifecycleManager } from './lifecycle';
-import { PluginRegistry } from './plugins';
-import { ServiceRegistry, type ServiceResolutionScope } from './services';
 import { TimerRegistry } from './timers';
 
 export interface ContextOptions {
@@ -34,261 +30,253 @@ export interface ContextUrlOptions {
   installEventSource?: boolean;
 }
 
-export class Context {
-  readonly router = new Router();
+interface RootOptions {
+  baseClient: MilkyClient;
+  options?: ContextOptions;
+}
+
+interface Subsystems {
+  readonly baseClient: MilkyClient;
+  readonly logHandler: LogHandler | undefined;
+  readonly eventBus: Emitter<EventMap>;
+  readonly detachParentEvents: (() => void) | undefined;
   readonly logger: Logger;
-  readonly name: string;
+  readonly apiHooks: ApiHookRegistry;
+  readonly eventSources: EventSourceRegistry;
+  readonly timers: TimerRegistry;
+}
+
+interface Builtins {
+  readonly router: Router;
+  readonly logger: Logger;
   readonly routeActivationResolver: RouteActivationResolver;
   readonly client: MilkyClient;
+  on<K extends keyof EventMap>(type: K, handler: (event: EventMap[K]) => void | Promise<void>): () => void;
+  installEventSource(eventSource: MilkyEventSource): void;
+  hookApi: {
+    <E extends ApiEndpointName>(endpoint: E, hook: ApiHook<E>): () => void;
+    (hook: AnyApiHook): () => void;
+  };
+  timeout(delayMs: number, callback: () => void | Promise<void>): NodeJS.Timeout;
+  interval(intervalMs: number, callback: () => void | Promise<void>): NodeJS.Timeout;
+  createSession(selfId: number, message: IncomingMessage): Session;
+}
 
-  private readonly baseClient: MilkyClient;
-  private readonly parent?: Context;
-  private readonly filter?: Filter;
-  private readonly eventBus = mitt<EventMap>();
-  private readonly subContexts = new Map<string, Context>();
-  private readonly parentEventForwarder?: WildcardHandler<EventMap>;
-  private readonly logHandler?: LogHandler;
+function createSession(client: MilkyClient, selfId: number, message: IncomingMessage): Session {
+  return {
+    selfId,
+    raw: message,
+    reply: async (textOrSegments, options) => {
+      const actualSegments: OutgoingSegment_ZodInput[] = [];
+      if (typeof textOrSegments === 'string') {
+        actualSegments.push({ type: 'text', data: { text: textOrSegments } });
+      } else {
+        actualSegments.push(...textOrSegments);
+      }
+      if (options?.withMention && message.message_scene === 'group') {
+        actualSegments.unshift(seg.mention(message.sender_id));
+      }
+      if (options?.withQuote) {
+        actualSegments.unshift(seg.reply(message.message_seq));
+      }
 
-  private readonly services: ServiceRegistry;
-  private readonly contextPath: readonly string[];
-  private readonly serviceScope: ServiceResolutionScope;
-  private readonly plugins: PluginRegistry;
-  private readonly apiHooks: ApiHookRegistry;
-  private readonly eventSources: EventSourceRegistry;
-  private readonly timers: TimerRegistry;
-  private readonly lifecycle: LifecycleManager;
-
-  private constructor(
-    baseClient: MilkyClient,
-    options?: ContextOptions,
-    name?: string,
-    parent?: Context,
-    filter?: Filter,
-  ) {
-    this.baseClient = baseClient;
-    this.logHandler = options?.logHandler ?? parent?.logHandler;
-    this.name = name ?? 'root';
-    this.logger = new Logger((message) => this.logHandler?.(message), `context:${this.name}`);
-    this.routeActivationResolver =
-      options?.routing?.activationResolver ?? parent?.routeActivationResolver ?? defaultRouteActivationResolver;
-    this.router.setActivationResolver(this.routeActivationResolver);
-
-    this.parent = parent;
-    this.filter = filter;
-    if (parent) {
-      this.parentEventForwarder = <K extends keyof EventMap>(type: K, event: EventMap[K]) => {
-        if (this.filter) {
-          const predicate = this.filter[type];
-          if (predicate?.(event) !== true) {
-            return;
-          }
+      switch (message.message_scene) {
+        case 'friend': {
+          const { message_seq } = await client.send_private_message({
+            user_id: message.peer_id,
+            message: actualSegments,
+          });
+          return { messageSeq: message_seq };
         }
-        this.eventBus.emit(type, event);
-      };
-      parent.eventBus.on('*', this.parentEventForwarder);
+        case 'group': {
+          const { message_seq } = await client.send_group_message({
+            group_id: message.peer_id,
+            message: actualSegments,
+          });
+          return { messageSeq: message_seq };
+        }
+      }
+      return { messageSeq: 0 };
+    },
+    reaction: async (type, reactionId) => {
+      if (message.message_scene === 'group') {
+        await client.send_group_message_reaction({
+          group_id: message.peer_id,
+          message_seq: message.message_seq,
+          reaction_type: type,
+          reaction: reactionId,
+        });
+      }
+    },
+  };
+}
+
+const ContextRuntime = defineContext<RootOptions, Filter>()
+  .subsystems<Subsystems>(({ name, rootOptions, forkOptions, parent, getState, subsystem }) => {
+    const baseClient = rootOptions?.baseClient ?? parent?.systems.baseClient;
+    if (!baseClient) {
+      throw new Error(`Sub context "${name}" does not have a parent client.`);
     }
-
-    const getState = () => this.lifecycle.state;
-    this.services = new ServiceRegistry(parent?.services);
-    this.contextPath = [...(parent?.contextPath ?? []), this.name];
-    this.serviceScope = { key: this, value: { context: this, contextPath: this.contextPath } };
-    this.plugins = new PluginRegistry(this, this.services, this.contextPath, this.logHandler);
-    this.apiHooks = new ApiHookRegistry(baseClient, parent?.apiHooks, this.name, getState);
-    this.client = this.apiHooks.client;
-    this.timers = new TimerRegistry(this.name, this.logger, getState);
-    this.eventSources = new EventSourceRegistry(options?.reconnect, this.logger, getState, (event) => {
-      this.eventBus.emit(event.event_type, event);
-    });
-    this.lifecycle = new LifecycleManager(
-      this.name,
-      this.plugins,
-      this.services,
-      this.timers,
-      this.eventSources,
-      this.apiHooks,
-      () => {
-        if (this.parent && this.parentEventForwarder) {
-          this.parent.eventBus.off('*', this.parentEventForwarder);
-        }
-      },
-    );
-    parent?.lifecycle.addChild(this.lifecycle);
-
-    this.eventBus.on('message_receive', async ({ self_id, data: message }) => {
-      try {
-        if (this.lifecycle.state === 'stopping' || this.lifecycle.state === 'stopped') {
+    const logHandler = rootOptions?.options?.logHandler ?? parent?.systems.logHandler;
+    const eventBus = mitt<EventMap>();
+    const logger = new Logger((message) => logHandler?.(message), `context:${name}`);
+    let detachParentEvents: (() => void) | undefined;
+    if (parent) {
+      const parentEventForwarder = <K extends keyof EventMap>(type: K, event: EventMap[K]) => {
+        const predicate = forkOptions?.[type];
+        if (forkOptions && predicate?.(event) !== true) {
           return;
         }
-        await this.router.dispatch(this.createSession(self_id, message), message);
+        eventBus.emit(type, event);
+      };
+      parent.systems.eventBus.on('*', parentEventForwarder);
+      detachParentEvents = () => parent.systems.eventBus.off('*', parentEventForwarder);
+    }
+
+    const apiHooks = subsystem({
+      name: 'apiHooks',
+      create: () => new ApiHookRegistry(baseClient, parent?.systems.apiHooks, name, getState),
+      stop: (registry) => registry.clear(),
+    });
+    const timers = subsystem({
+      name: 'timers',
+      create: () => new TimerRegistry(name, logger, getState),
+      suspend: (registry) => registry.clear(),
+    });
+    const eventSources = subsystem({
+      name: 'eventSources',
+      create: () =>
+        new EventSourceRegistry(rootOptions?.options?.reconnect, logger, getState, (event) => {
+          eventBus.emit(event.event_type, event);
+        }),
+      activate: (registry) => registry.startAll(),
+      deactivate: (registry) => registry.stop(),
+    });
+
+    return {
+      baseClient,
+      logHandler,
+      eventBus,
+      detachParentEvents,
+      logger,
+      apiHooks,
+      eventSources,
+      timers,
+    };
+  })
+  .builtins<Builtins>(({ rootOptions, parent, systems, getState }) => {
+    const routeActivationResolver =
+      rootOptions?.options?.routing?.activationResolver ??
+      parent?.context.routeActivationResolver ??
+      defaultRouteActivationResolver;
+    const router = new Router().setActivationResolver(routeActivationResolver);
+    const hookApi = (endpointOrHook: ApiEndpointName | AnyApiHook, hook?: ApiHook<ApiEndpointName>) =>
+      systems.apiHooks.register(endpointOrHook, hook);
+
+    return {
+      router,
+      logger: systems.logger,
+      routeActivationResolver,
+      client: systems.apiHooks.client,
+      on<K extends keyof EventMap>(type: K, handler: (event: EventMap[K]) => void | Promise<void>): () => void {
+        const wrappedHandler = async (event: EventMap[K]) => {
+          try {
+            const state = getState();
+            if (state === 'stopping' || state === 'stopped') {
+              return;
+            }
+            await handler(event);
+          } catch (error) {
+            systems.logger.error(`Error handling event ${type}`, error);
+          }
+        };
+        systems.eventBus.on(type, wrappedHandler);
+        return () => systems.eventBus.off(type, wrappedHandler);
+      },
+      installEventSource: (eventSource) => systems.eventSources.install(eventSource),
+      hookApi,
+      timeout: (delayMs, callback) => systems.timers.timeout(delayMs, callback),
+      interval: (intervalMs, callback) => systems.timers.interval(intervalMs, callback),
+      createSession: (selfId, message) => createSession(systems.apiHooks.client, selfId, message),
+    };
+  })
+  .plugins({
+    create({ context, systems, plugin }) {
+      return {
+        logger: new Logger(
+          (message) => systems.logHandler?.(message),
+          `plugin:${context.name ? `${context.name}/` : ''}${plugin.name}`,
+        ),
+        router: context.router.withMeta({ context: context.name, plugin: plugin.name }),
+      };
+    },
+    applying({ context, plugin }) {
+      let message = `Applying plugin ${plugin.name}`;
+      const injectedServices = [
+        ...Object.values(plugin.inject ?? {}).map((service) => service.name),
+        ...Object.values(plugin.optionalInject ?? {}).map((token) => `${token.key}?`),
+      ];
+      const providedServices = (plugin.provides ?? []).map((service) => service.name);
+      if (injectedServices.length > 0) {
+        message += `, injects: [${injectedServices.join(', ')}]`;
+      }
+      if (providedServices.length > 0) {
+        message += `, provides: [${providedServices.join(', ')}]`;
+      }
+      context.logger.info(message);
+    },
+    starting({ context, plugin }) {
+      context.logger.debug(`Plugin ${plugin.name} is starting...`);
+    },
+  })
+  .wire(({ context, systems }) => {
+    const handleMessage = async ({ self_id, data: message }: EventMap['message_receive']) => {
+      try {
+        if (context.state === 'stopping' || context.state === 'stopped') {
+          return;
+        }
+        await context.router.dispatch(context.createSession(self_id, message), message);
       } catch (error) {
-        this.logger.error(
-          `Error routing command (scene=${message.message_scene} peer=${message.peer_id} sender=${message.sender_id} seq=${message.message_seq})`,
+        context.logger.error(
+          `Error routing command (scene=${message.message_scene} peer=${message.peer_id} ` +
+            `sender=${message.sender_id} seq=${message.message_seq})`,
           error,
         );
       }
-    });
-  }
-
-  on<K extends keyof EventMap>(type: K, handler: (event: EventMap[K]) => void | Promise<void>): () => void {
-    const wrappedHandler = async (event: EventMap[K]) => {
-      try {
-        if (this.lifecycle.state === 'stopping' || this.lifecycle.state === 'stopped') {
-          return;
-        }
-        await handler(event);
-      } catch (error) {
-        this.logger.error(`Error handling event ${type}`, error);
-      }
     };
-    this.eventBus.on(type, wrappedHandler);
+    systems.eventBus.on('message_receive', handleMessage);
     return () => {
-      this.eventBus.off(type, wrappedHandler);
+      systems.eventBus.off('message_receive', handleMessage);
+      systems.detachParentEvents?.();
     };
-  }
+  })
+  .build();
 
-  install<T extends ParameterList>(plugin: PluginDefinition<T>, ...args: T): void {
-    this.plugins.install(plugin, ...args);
-  }
+export type Context = ContextOf<typeof ContextRuntime>;
 
-  installEventSource(eventSource: MilkyEventSource): void {
-    this.eventSources.install(eventSource);
-  }
+interface ContextConstructor {
+  readonly prototype: Context;
+  readonly [Symbol.hasInstance]: (value: unknown) => boolean;
+  fromUrl(baseUrl: string | URL, options?: ContextOptions & ContextUrlOptions): Context;
+  fromClient(client: MilkyClient, options?: ContextOptions): Context;
+}
 
-  hookApi<E extends ApiEndpointName>(endpoint: E, hook: ApiHook<E>): () => void;
-  hookApi(hook: AnyApiHook): () => void;
-  hookApi<E extends ApiEndpointName>(endpointOrHook: E | AnyApiHook, hook?: ApiHook<E>): () => void {
-    return this.apiHooks.register(endpointOrHook, hook);
-  }
-
-  provide<T extends object>(service: ServiceClass<T>, instance: T): void;
-  provide<T extends object>(service: ServiceClass<T>, factory: ScopedServiceFactory<T>): void;
-  provide<T extends object>(service: ServiceClass<T>, instanceOrFactory: T | ScopedServiceFactory<T>): void {
-    this.services.provide(service, instanceOrFactory);
-  }
-
-  resolve<T extends object>(service: ServiceClass<T>): T;
-  resolve<T extends object>(token: ServiceToken<T>): T;
-  resolve<T extends object>(identifier: ServiceIdentifier<T>): T {
-    return this.services.resolve(identifier, this.serviceScope);
-  }
-
-  tryResolve<T extends object>(service: ServiceClass<T>): T | undefined;
-  tryResolve<T extends object>(token: ServiceToken<T>): T | undefined;
-  tryResolve<T extends object>(identifier: ServiceIdentifier<T>): T | undefined {
-    return this.services.tryResolve(identifier, this.serviceScope);
-  }
-
-  isProvided<T extends object>(service: ServiceClass<T>): boolean;
-  isProvided<T extends object>(token: ServiceToken<T>): boolean;
-  isProvided<T extends object>(identifier: ServiceIdentifier<T>): boolean {
-    return this.services.isProvided(identifier);
-  }
-
-  fork(name: string, filter?: Filter): Context {
-    if (this.subContexts.has(name)) {
-      if (filter) {
-        throw new Error(
-          `Sub context "${name}" already exists, so the provided filter cannot be applied. Please use fork('${name}') without a filter to get the existing subcontext.`,
-        );
-      }
-      // biome-ignore lint/style/noNonNullAssertion: we just checked that the subcontext exists
-      return this.subContexts.get(name)!;
-    }
-    const subContext = new Context(this.baseClient, undefined, name, this, filter);
-    this.subContexts.set(name, subContext);
-    return subContext;
-  }
-
-  timeout(delayMs: number, callback: () => void | Promise<void>): NodeJS.Timeout {
-    return this.timers.timeout(delayMs, callback);
-  }
-
-  interval(intervalMs: number, callback: () => void | Promise<void>): NodeJS.Timeout {
-    return this.timers.interval(intervalMs, callback);
-  }
-
-  createSession(selfId: number, message: IncomingMessage): Session {
-    return {
-      selfId,
-      raw: message,
-      reply: async (textOrSegments, options) => {
-        const actualSegments: OutgoingSegment_ZodInput[] = [];
-        if (typeof textOrSegments === 'string') {
-          actualSegments.push({
-            type: 'text',
-            data: { text: textOrSegments },
-          });
-        } else {
-          actualSegments.push(...textOrSegments);
-        }
-        if (options?.withMention && message.message_scene === 'group') {
-          actualSegments.unshift(seg.mention(message.sender_id));
-          // group: [mention, ...rest]
-        }
-        if (options?.withQuote) {
-          actualSegments.unshift(seg.reply(message.message_seq));
-          // friend: [reply, ...rest]
-          // group: [reply, (mention,) ...rest]
-        }
-
-        switch (message.message_scene) {
-          case 'friend': {
-            const { message_seq } = await this.client.send_private_message({
-              user_id: message.peer_id,
-              message: actualSegments,
-            });
-            return { messageSeq: message_seq };
-          }
-          case 'group': {
-            const { message_seq } = await this.client.send_group_message({
-              group_id: message.peer_id,
-              message: actualSegments,
-            });
-            return { messageSeq: message_seq };
-          }
-        }
-        return { messageSeq: 0 };
-      },
-      reaction: async (type, reactionId) => {
-        if (message.message_scene === 'group') {
-          await this.client.send_group_message_reaction({
-            group_id: message.peer_id,
-            message_seq: message.message_seq,
-            reaction_type: type,
-            reaction: reactionId,
-          });
-        }
-      },
-    };
-  }
-
-  async start(): Promise<void> {
-    await this.lifecycle.start();
-  }
-
-  async stop(): Promise<void> {
-    await this.lifecycle.stop();
-  }
-
-  static fromUrl(baseUrl: string | URL, options?: ContextOptions & ContextUrlOptions): Context {
+export const Context: ContextConstructor = Object.assign(ContextRuntime, {
+  fromUrl(baseUrl: string | URL, options?: ContextOptions & ContextUrlOptions): Context {
     const client = createMilkyClient(baseUrl, { accessToken: options?.accessToken });
-    const context = new Context(client, options);
+    const context = ContextRuntime.create({ baseClient: client, options });
     if (options?.installEventSource ?? true) {
-      context.installEventSource(
-        createMilkyWebSocketEventSource(baseUrl, {
-          accessToken: options?.accessToken,
-        }),
-      );
+      context.installEventSource(createMilkyWebSocketEventSource(baseUrl, { accessToken: options?.accessToken }));
     }
     return context;
-  }
+  },
 
-  static fromClient(client: MilkyClient, options?: ContextOptions): Context {
-    const context = new Context(client, options);
+  fromClient(client: MilkyClient, options?: ContextOptions): Context {
+    const context = ContextRuntime.create({ baseClient: client, options });
     const eventSourceLike = client as Partial<MilkyEventSource>;
     if (typeof eventSourceLike.start === 'function') {
       context.installEventSource(eventSourceLike as MilkyEventSource);
     }
     return context;
-  }
-}
+  },
+});

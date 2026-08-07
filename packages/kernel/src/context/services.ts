@@ -8,7 +8,7 @@ import {
   type ServiceToken,
 } from '../service';
 
-type ServiceProvider =
+type ServiceProvider<C extends object> =
   | {
       type: 'instance';
       service: ServiceClass;
@@ -17,12 +17,12 @@ type ServiceProvider =
   | {
       type: 'factory';
       service: ServiceClass;
-      create: ScopedServiceFactory<object>;
+      create: ScopedServiceFactory<object, C>;
     };
 
-export interface ServiceResolutionScope {
+export interface ServiceResolutionScope<C extends object> {
   readonly key: object;
-  readonly value: ServiceScope;
+  readonly value: ServiceScope<C>;
 }
 
 function getServiceToken<T extends object>(identifier: ServiceIdentifier<T>): ServiceToken<T> {
@@ -34,28 +34,19 @@ function checkServiceInstance(service: ServiceClass, instance: unknown): asserts
     throw new TypeError(`Service ${service.name} provider did not return an object.`);
   }
   if (implementsESNextDisposable(instance) && !isDisposable(instance)) {
-    throw new Error(
-      `
-Service ${service.name} implements ESNext Disposable but not Fraq Disposable.
-Please explicitly import the interface like this:
-
-import type { Disposable } from '@fraqjs/fraq';
-
-and implement the dispose method to clean up resources when the context stops.
-    `.trim(),
-    );
+    throw new Error(`Service ${service.name} implements Symbol.dispose but does not provide dispose().`);
   }
 }
 
-export class ServiceRegistry {
-  private readonly providers = new Map<string, ServiceProvider>();
-  private readonly scopedInstances = new Map<object, Map<ServiceProvider, object>>();
-  private readonly resolvingScopedProviders = new Map<object, Set<ServiceProvider>>();
+export class ServiceRegistry<C extends object> {
+  private readonly providers = new Map<string, ServiceProvider<C>>();
+  private readonly scopedInstances = new Map<object, Map<ServiceProvider<C>, object>>();
+  private readonly resolvingScopedProviders = new Map<object, Set<ServiceProvider<C>>>();
   private readonly instances: object[] = [];
 
-  constructor(private readonly parent?: ServiceRegistry) {}
+  constructor(private readonly parent?: ServiceRegistry<C>) {}
 
-  provide<T extends object>(service: ServiceClass<T>, instanceOrFactory: T | ScopedServiceFactory<T>): void {
+  provide<T extends object>(service: ServiceClass<T>, instanceOrFactory: T | ScopedServiceFactory<T, C>): void {
     if (this.providers.has(service.token.key)) {
       throw new Error(`Service ${service.token.key} has already been provided in this context.`);
     }
@@ -74,7 +65,7 @@ export class ServiceRegistry {
     this.instances.push(instanceOrFactory);
   }
 
-  resolve<T extends object>(identifier: ServiceIdentifier<T>, scope: ServiceResolutionScope): T {
+  resolve<T extends object>(identifier: ServiceIdentifier<T>, scope: ServiceResolutionScope<C>): T {
     const token = getServiceToken(identifier);
     const instance = this.tryResolve(token, scope);
     if (instance === undefined) {
@@ -83,7 +74,7 @@ export class ServiceRegistry {
     return instance;
   }
 
-  tryResolve<T extends object>(identifier: ServiceIdentifier<T>, scope: ServiceResolutionScope): T | undefined {
+  tryResolve<T extends object>(identifier: ServiceIdentifier<T>, scope: ServiceResolutionScope<C>): T | undefined {
     const token = getServiceToken(identifier);
     const provider = this.findProvider(token);
     if (!provider) {
@@ -159,7 +150,7 @@ export class ServiceRegistry {
     return errors;
   }
 
-  private findProvider(token: ServiceToken): ServiceProvider | undefined {
+  private findProvider(token: ServiceToken): ServiceProvider<C> | undefined {
     return this.providers.get(token.key) ?? this.parent?.findProvider(token);
   }
 }

@@ -1,5 +1,6 @@
+import type { ContextState } from '@fraqjs/kernel';
+
 import type { Logger } from '../logging';
-import type { ContextState } from './lifecycle';
 
 export class TimerRegistry {
   private readonly timers = new Set<NodeJS.Timeout>();
