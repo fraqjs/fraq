@@ -1,5 +1,6 @@
 /** biome-ignore-all lint/suspicious/noExplicitAny: Plugin arguments and context capabilities are user-defined. */
 /** biome-ignore-all lint/complexity/noBannedTypes: Empty object types model absent injections. */
+import type { KernelContext } from './context';
 import type { ServiceClass, ServiceToken } from './service';
 
 export type ParameterList = Array<any>;
@@ -44,3 +45,10 @@ export function createPluginFactory<C extends object>() {
     return plugin;
   };
 }
+
+export type CommonContext = Pick<
+  KernelContext<any, never>,
+  'name' | 'provide' | 'resolve' | 'tryResolve' | 'isProvided'
+>;
+
+export const defineCommonPlugin = createPluginFactory<CommonContext>();
