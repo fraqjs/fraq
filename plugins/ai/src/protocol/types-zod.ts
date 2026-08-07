@@ -1,8 +1,8 @@
-// Generated from Milky 1.3 (1.3.0-rc.2)
+// Generated from Milky 1.3 (1.3.0)
 import { z } from 'zod';
 
 export const milkyVersion = '1.3';
-export const milkyPackageVersion = '1.3.0-rc.2';
+export const milkyPackageVersion = '1.3.0';
 
 export const zUin = z.number().int().min(10001).max(4294967295);
 
