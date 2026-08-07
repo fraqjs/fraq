@@ -9,10 +9,10 @@ import test from 'node:test';
 test('AiService exposes the configured model', () => {
   const model = mockLanguageModel('hello');
   const service = new AiService({
-    models: {
+    languageModels: {
       'test/model': model,
     },
-    images: {},
+    imageModels: {},
     aliases: {},
     defaultModel: 'test/model',
   });
@@ -24,11 +24,11 @@ test('AiService resolves models by name and alias', () => {
   const primary = mockLanguageModel('primary');
   const fallback = mockLanguageModel('fallback');
   const service = new AiService({
-    models: {
+    languageModels: {
       'openai/gpt-4o': primary,
       'anthropic/claude-sonnet': fallback,
     },
-    images: {},
+    imageModels: {},
     aliases: {
       openai: 'openai/gpt-4o',
       claude: 'anthropic/claude-sonnet',
@@ -49,11 +49,11 @@ test('AiService exposes a list of all model names', () => {
   const first = mockLanguageModel('first');
   const second = mockLanguageModel('second');
   const service = new AiService({
-    models: {
+    languageModels: {
       'test/first': first,
       'test/second': second,
     },
-    images: {},
+    imageModels: {},
     aliases: {
       first: 'test/first',
     },
@@ -65,10 +65,10 @@ test('AiService exposes a list of all model names', () => {
 
 test('AiService throws for unknown model names', () => {
   const service = new AiService({
-    models: {
+    languageModels: {
       'test/model': mockLanguageModel('hello'),
     },
-    images: {},
+    imageModels: {},
     aliases: {},
     defaultModel: 'test/model',
   });
@@ -80,10 +80,10 @@ test('AiService constructor rejects aliases that point to missing models', () =>
   assert.throws(
     () =>
       new AiService({
-        models: {
+        languageModels: {
           'test/model': mockLanguageModel('hello'),
         },
-        images: {},
+        imageModels: {},
         aliases: {
           missing: 'test/missing',
         },
@@ -97,10 +97,10 @@ test('AiService constructor rejects an invalid default model', () => {
   assert.throws(
     () =>
       new AiService({
-        models: {
+        languageModels: {
           'test/model': mockLanguageModel('hello'),
         },
-        images: {},
+        imageModels: {},
         aliases: {},
         defaultModel: 'test/missing',
       }),
@@ -110,10 +110,10 @@ test('AiService constructor rejects an invalid default model', () => {
 
 test('the exposed model works with the raw generateText function', async () => {
   const service = new AiService({
-    models: {
+    languageModels: {
       'test/model': mockLanguageModel('hello from the model'),
     },
-    images: {},
+    imageModels: {},
     aliases: {},
     defaultModel: 'test/model',
   });
@@ -125,10 +125,10 @@ test('the exposed model works with the raw generateText function', async () => {
 
 test('the exposed model works with the raw streamText function', async () => {
   const service = new AiService({
-    models: {
+    languageModels: {
       'test/model': mockLanguageModel('streamed text'),
     },
-    images: {},
+    imageModels: {},
     aliases: {},
     defaultModel: 'test/model',
   });
@@ -145,10 +145,10 @@ test('the exposed model works with the raw streamText function', async () => {
 
 test('the exposed model supports tool calling with full type inference', async () => {
   const service = new AiService({
-    models: {
+    languageModels: {
       'test/model': mockToolCallModel('weather', { city: 'Tokyo' }),
     },
-    images: {},
+    imageModels: {},
     aliases: {},
     defaultModel: 'test/model',
   });
@@ -215,10 +215,10 @@ test('toolset tools execute the matching API through the context client', async 
     return { uin: 10001, nickname: 'Fraq' };
   });
   const service = new AiService({
-    models: {
+    languageModels: {
       'test/model': mockToolCallModel('get_login_info', {}),
     },
-    images: {},
+    imageModels: {},
     aliases: {},
     defaultModel: 'test/model',
   });
@@ -244,10 +244,10 @@ test('toolset tools execute the matching API through the context client', async 
 test('toolset tools normalize empty API responses to an object', async () => {
   const ctx = createMockContext();
   const service = new AiService({
-    models: {
+    languageModels: {
       'test/model': mockToolCallModel('set_nickname', { new_nickname: 'Fraq' }),
     },
-    images: {},
+    imageModels: {},
     aliases: {},
     defaultModel: 'test/model',
   });
@@ -270,8 +270,8 @@ test('toolset tools normalize empty API responses to an object', async () => {
 test('AiService exposes the configured image model', () => {
   const image = mockImageModel('aGVsbG8=');
   const service = new AiService({
-    models: {},
-    images: {
+    languageModels: {},
+    imageModels: {
       'test/dall-e': image,
     },
     aliases: {},
@@ -284,10 +284,10 @@ test('AiService resolves image models by name and alias', () => {
   const primary = mockImageModel('aGVsbG8=');
   const fallback = mockImageModel('d29ybGQ=');
   const service = new AiService({
-    models: {
+    languageModels: {
       'openai/gpt-4o': mockLanguageModel('text'),
     },
-    images: {
+    imageModels: {
       'openai/gpt-image-2': primary,
       'google/imagen': fallback,
     },
@@ -310,10 +310,10 @@ test('AiService resolves image models by name and alias', () => {
 
 test('AiService exposes a list of all image model names', () => {
   const service = new AiService({
-    models: {
+    languageModels: {
       'test/model': mockLanguageModel('text'),
     },
-    images: {
+    imageModels: {
       'test/dall-e': mockImageModel('aGVsbG8='),
       'test/imagen': mockImageModel('d29ybGQ='),
     },
@@ -326,8 +326,8 @@ test('AiService exposes a list of all image model names', () => {
 
 test('AiService throws for unknown image model names', () => {
   const service = new AiService({
-    models: {},
-    images: {
+    languageModels: {},
+    imageModels: {
       'test/dall-e': mockImageModel('aGVsbG8='),
     },
     aliases: {},
@@ -338,10 +338,10 @@ test('AiService throws for unknown image model names', () => {
 
 test('AiService throws when no image model is configured', () => {
   const service = new AiService({
-    models: {
+    languageModels: {
       'test/model': mockLanguageModel('text'),
     },
-    images: {},
+    imageModels: {},
     aliases: {},
     defaultModel: 'test/model',
   });
@@ -351,8 +351,8 @@ test('AiService throws when no image model is configured', () => {
 
 test('AiService rejects an alias pointing to an image model when accessed via model()', () => {
   const service = new AiService({
-    models: {},
-    images: {
+    languageModels: {},
+    imageModels: {
       'test/dall-e': mockImageModel('aGVsbG8='),
     },
     aliases: {
@@ -365,8 +365,8 @@ test('AiService rejects an alias pointing to an image model when accessed via mo
 
 test('the exposed image model works with the raw generateImage function', async () => {
   const service = new AiService({
-    models: {},
-    images: {
+    languageModels: {},
+    imageModels: {
       'test/dall-e': mockImageModel('aGVsbG8='),
     },
     aliases: {},
@@ -380,8 +380,8 @@ test('the exposed image model works with the raw generateImage function', async 
 test('AiService constructor accepts a defaultImage alias', () => {
   const image = mockImageModel('aGVsbG8=');
   const service = new AiService({
-    models: {},
-    images: {
+    languageModels: {},
+    imageModels: {
       'test/dall-e': image,
     },
     aliases: {
@@ -397,8 +397,8 @@ test('AiService constructor rejects an invalid defaultImage', () => {
   assert.throws(
     () =>
       new AiService({
-        models: {},
-        images: {
+        languageModels: {},
+        imageModels: {
           'test/dall-e': mockImageModel('aGVsbG8='),
         },
         aliases: {},

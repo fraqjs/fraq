@@ -2,8 +2,8 @@ import { serviceToken } from '@fraqjs/fraq';
 import type { ImageModel, LanguageModel } from 'ai';
 
 export interface AiServiceOptions {
-  models: Record<string, LanguageModel>;
-  images: Record<string, ImageModel>;
+  languageModels: Record<string, LanguageModel>;
+  imageModels: Record<string, ImageModel>;
   aliases: Record<string, string>;
   defaultModel?: string;
   defaultImageModel?: string;
@@ -19,24 +19,24 @@ export class AiService {
   private readonly defaultImageModel: ImageModel | undefined;
 
   constructor(options: AiServiceOptions) {
-    this.languageModels = options.models;
-    this.imageModels = options.images;
+    this.languageModels = options.languageModels;
+    this.imageModels = options.imageModels;
     this.aliases = options.aliases;
 
-    if (Object.keys(options.models).length === 0 && Object.keys(options.images).length === 0) {
+    if (Object.keys(options.languageModels).length === 0 && Object.keys(options.imageModels).length === 0) {
       throw new Error('No models configured: provide at least one language or image model.');
     }
 
     this.defaultLanguageModel = options.defaultModel
-      ? this.lookup(options.defaultModel, options.models, 'Model')
-      : Object.values(options.models)[0];
+      ? this.lookup(options.defaultModel, options.languageModels, 'Model')
+      : Object.values(options.languageModels)[0];
 
     this.defaultImageModel = options.defaultImageModel
-      ? this.lookup(options.defaultImageModel, options.images, 'Image model')
-      : Object.values(options.images)[0];
+      ? this.lookup(options.defaultImageModel, options.imageModels, 'Image model')
+      : Object.values(options.imageModels)[0];
 
     for (const [alias, target] of Object.entries(options.aliases)) {
-      if (!options.models[target] && !options.images[target]) {
+      if (!options.languageModels[target] && !options.imageModels[target]) {
         throw new Error(`Invalid alias "${alias}": target model "${target}" does not exist.`);
       }
     }

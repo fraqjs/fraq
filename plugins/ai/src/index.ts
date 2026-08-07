@@ -69,8 +69,8 @@ export const AiPlugin = definePlugin({
     ctx.provide(
       AiService,
       new AiService({
-        models: languageModels,
-        images: imageModels,
+        languageModels,
+        imageModels,
         aliases: options.aliases ?? {},
         defaultModel: options.defaultModel ?? Object.keys(languageModels)[0],
         defaultImageModel: options.defaultImageModel,

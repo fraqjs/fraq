@@ -20,7 +20,7 @@ export interface ProviderConfig {
     [key: string]: unknown;
   };
   models: string[];
-  images?: string[];
+  imageModels?: string[];
 }
 
 export interface ResolvedModels {
@@ -29,7 +29,7 @@ export interface ResolvedModels {
 }
 
 export async function resolveModels(name: string, config: ProviderConfig): Promise<ResolvedModels> {
-  const { sdk, options, models, images } = config;
+  const { sdk, options, models, imageModels } = config;
   let provider: ProviderV3 | ProviderV4;
   switch (sdk) {
     case '@ai-sdk/alibaba':
@@ -76,7 +76,7 @@ export async function resolveModels(name: string, config: ProviderConfig): Promi
   }
 
   const image: Record<string, ImageModel> = {};
-  for (const modelId of images ?? []) {
+  for (const modelId of imageModels ?? []) {
     image[`${name}/${modelId}`] = provider.imageModel(modelId);
   }
 
