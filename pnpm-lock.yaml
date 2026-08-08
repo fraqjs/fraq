@@ -174,8 +174,8 @@ importers:
         specifier: workspace:^
         version: link:../../plugins/takumi
       '@takumi-rs/helpers':
-        specifier: ^2.3.2
-        version: 2.3.2(react@19.2.8)
+        specifier: ^2.5.7
+        version: 2.5.7(react@19.2.8)
       '@types/react':
         specifier: ^19.2.17
         version: 19.2.17
@@ -349,8 +349,8 @@ importers:
         specifier: ^2.5.4
         version: 2.5.4(csstype@3.2.3)(react@19.2.8)
       '@takumi-rs/helpers':
-        specifier: ^2.5.4
-        version: 2.5.4(react@19.2.8)
+        specifier: ^2.5.7
+        version: 2.5.7(react@19.2.8)
       react:
         specifier: ^19.0.0
         version: 19.2.8
@@ -3081,8 +3081,8 @@ packages:
       csstype:
         optional: true
 
-  '@takumi-rs/helpers@2.3.2':
-    resolution: {integrity: sha512-EbwP0itsZTZRTbRhPLPotVkkqT++Ga+vNCx2aOnyTknF0nNLF3HmPGwr+2UR74nQxIs2wlIzTMsYVWlzFEWvww==}
+  '@takumi-rs/helpers@2.5.4':
+    resolution: {integrity: sha512-/bNTK2nRSmaugF4m2TDb1SLiEAN7PcORwqqa1RIfahMAqxZoNzMw2krCuNexeDRPGBNJKNCmlOB6F1heBXqHTw==}
     engines: {node: '>=18'}
     peerDependencies:
       preact: ^10.0.0
@@ -3093,8 +3093,8 @@ packages:
       react:
         optional: true
 
-  '@takumi-rs/helpers@2.5.4':
-    resolution: {integrity: sha512-/bNTK2nRSmaugF4m2TDb1SLiEAN7PcORwqqa1RIfahMAqxZoNzMw2krCuNexeDRPGBNJKNCmlOB6F1heBXqHTw==}
+  '@takumi-rs/helpers@2.5.7':
+    resolution: {integrity: sha512-9kSRKd/3h5NLbkhP597VRPsLJPCcpdLKNsyQuO1Z/EE+ulNN0EbeVEV4nYTKSpqXVqxsfe7zZB9i/v7yZcgspw==}
     engines: {node: '>=18'}
     peerDependencies:
       preact: ^10.0.0
@@ -8360,11 +8360,11 @@ snapshots:
       - preact
       - react
 
-  '@takumi-rs/helpers@2.3.2(react@19.2.8)':
+  '@takumi-rs/helpers@2.5.4(react@19.2.8)':
     optionalDependencies:
       react: 19.2.8
 
-  '@takumi-rs/helpers@2.5.4(react@19.2.8)':
+  '@takumi-rs/helpers@2.5.7(react@19.2.8)':
     optionalDependencies:
       react: 19.2.8
 
