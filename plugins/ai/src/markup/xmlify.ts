@@ -5,6 +5,7 @@ import * as hp2 from 'htmlparser2';
 import formatXml, { type XMLFormatterOptions } from 'xml-formatter';
 
 import _faces from './faces.json';
+import { LightApp } from './light-app';
 
 const faces = _faces as Partial<Record<string, FaceDetail>>;
 
@@ -194,8 +195,42 @@ export async function xmlifyToElement(ctx: Context, message: milky.IncomingMessa
         const { summary } = segment.data;
         return buildTaggedTextNode('face', summary);
       }
+      case 'light_app': {
+        const parseResult = LightApp.safeParse(JSON.parse(segment.data.json_payload));
+        if (parseResult.success) {
+          const app = parseResult.data;
+          switch (app.app) {
+            case 'com.tencent.miniapp_01': {
+              return buildPlainNode('miniapp', {
+                type: 'miniapp',
+                software: app.meta.detail_1.title ?? '',
+                description: app.meta.detail_1.desc ?? '',
+              });
+            }
+            case 'com.tencent.music.lua': {
+              return buildPlainNode('music', {
+                software: app.meta.music.tag ?? '',
+                title: app.meta.music.title ?? '',
+                artist: app.meta.music.desc ?? '',
+              });
+            }
+            default: {
+              // unreachable
+              return null;
+            }
+          }
+        } else {
+          return buildTaggedTextNode('light_app', '(Invalid light app data)');
+        }
+      }
+      case 'markdown': {
+        return buildTaggedTextNode('markdown', segment.data.content);
+      }
+      case 'xml': {
+        return buildTaggedTextNode('xml', segment.data.xml_payload);
+      }
     }
-    return null;
+    // return null;
   }
 
   for (const segment of message.segments) {
