@@ -26,6 +26,7 @@ versions:
 
 - 如果某个插件既没有在 `versions.yml` 中记录，也没有在 `fraq.yml` 的 `versions` 字段中声明，Fraq CLI 会停止，并提示你运行 `fraq lock` 来补全版本。
 - 如果 `fraq.yml` 中声明的版本与 `versions.yml` 记录的不一致，Fraq CLI 会停止并列出冲突的插件和两处声明的版本，你需要统一两处声明后再启动。
+- 通过 [`workspacePlugins`](./index#测试工作区插件) 指向本地包的插件不需要版本声明，也不会出现在版本 lock 文件中。
 
 ## 补全版本
 

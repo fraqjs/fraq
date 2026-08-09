@@ -167,6 +167,21 @@ plugins:
 
 你可以在插件的 README 中查找它们的依赖关系。如果一个插件的依赖缺失，Fraq CLI 会在启动时打印出错误信息，并且提示你安装缺失的依赖插件。
 
+### 测试工作区插件
+
+开发插件时，可以通过顶层的 `workspacePlugins` 字段将插件名映射到本地包目录，而不必先发布到 npm Registry：
+
+```yaml
+plugins:
+  status:
+    commandName: status
+
+workspacePlugins:
+  status: ../plugin-status
+```
+
+相对路径以 `fraq.yml` 所在目录为基准。工作区包的 `package.json` 中必须声明与插件名对应的 npm 包名；例如 `status` 对应 `fraq-plugin-status`，`fraqjs/ai` 对应 `@fraqjs/plugin-ai`。Fraq CLI 会将其作为本地 `file:` 依赖安装，并直接读取该 `package.json` 检查插件依赖关系。工作区插件不需要在 `versions` 中声明，也不会写入 `versions.yml` 或参与 `outdated`、`update`。
+
 ## 配置 `additionalDependencies`
 
 部分插件可能会要求安装额外的依赖包，版本声明方式遵循 [Semantic Versioning 规范](https://github.com/npm/node-semver#versions)。通常情况下，插件的 README 中会说明它们所依赖的额外依赖包及其版本要求。这部分的依赖会被直接注入到生成的 `package.json` 中，并且在安装依赖时会被自动安装。
@@ -208,26 +223,10 @@ plugins: ${{ tree:config/plugins.yml }}
 example: $${{ env:NAME }} # 解析结果为字面量 `${{ env:NAME }}`
 ```
 
-## 命令参考
+## Watch 模式
 
-Fraq CLI 提供以下命令：
+`fraq start` 命令支持 `--watch` 参数，它会在启动 Fraq 机器人后，持续观察 `fraq.yml` 配置文件和工作区插件的有效入口点文件的变化。一旦这些文件发生变化，Fraq CLI 会自动重新加载配置或刷新本地依赖，并重启 Fraq 机器人。
 
-| 命令            | 说明                                                                       |
-| --------------- | -------------------------------------------------------------------------- |
-| `fraq wizard`   | 通过向导初始化 `fraq.yml`                                                  |
-| `fraq start`    | 启动 Fraq 应用                                                             |
-| `fraq lock`     | 为缺失版本的插件补全版本并写入版本锁文件，详见[版本锁定与更新](./versions) |
-| `fraq install`  | 安装依赖但不启动应用                                                       |
-| `fraq outdated` | 检查 Fraq 与插件是否有新版本，详见[版本锁定与更新](./versions)             |
-| `fraq update`   | 交互式选择要更新的版本，详见[版本锁定与更新](./versions)                   |
-| `fraq version`  | 查看 Fraq CLI 的版本号                                                     |
-
-### `fraq start` 参数
-
-`fraq start` 支持以下参数：
-
-- `--no-install`：跳过依赖安装，直接启动应用。
-- `--frozen-lockfile`：跳过启动前的自动版本锁定（即不执行 `fraq lock`），直接启动。
-- `--watch`：监听配置文件的变化，在配置发生变化时自动重启应用。监听范围包括 `fraq.yml`、`versions.yml` 以及配置中通过 `${{ text:... }}` 和 `${{ tree:... }}` 引用的文件。
-
-`--watch` 不能与 `--no-install` 或 `--frozen-lockfile` 同时使用。
+```bash
+fraq start --watch
+```
