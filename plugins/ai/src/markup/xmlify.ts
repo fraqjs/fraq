@@ -4,6 +4,14 @@ import { Element, Text } from 'domhandler';
 import * as hp2 from 'htmlparser2';
 import formatXml, { type XMLFormatterOptions } from 'xml-formatter';
 
+import _faces from './faces.json';
+
+const faces = _faces as Partial<Record<string, FaceDetail>>;
+
+interface FaceDetail {
+  qDes: string;
+}
+
 export interface XmlifyOptions {
   maxForwardDepth?: number;
   serialize?: DomSerializerOptions;
@@ -116,7 +124,8 @@ export async function xmlifyToElement(ctx: Context, message: milky.IncomingMessa
         return buildTaggedTextNode('mention', '@全体成员');
       }
       case 'face': {
-        return buildAttributedElement('face', segment.data);
+        const summary = faces[segment.data.face_id]?.qDes?.substring(1) /* to remove `/` prefix */ ?? '';
+        return buildTaggedTextNode('face', summary, segment.data);
       }
       case 'reply': {
         const { message_seq, sender_id, time } = segment.data;
