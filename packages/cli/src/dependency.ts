@@ -1,5 +1,7 @@
 import type { Config, ContextConfig } from './config';
+import type { FileAccessHandler } from './config/references';
 import { getPackageJson } from './package-jsons';
+import { getWorkspacePluginPackageJson, isWorkspacePlugin } from './workspace-plugins';
 
 export type PluginDependencyDiagnostic = { status: 'ok' } | { status: 'missing'; message: string[] };
 
@@ -55,7 +57,10 @@ export function denormalizePluginName(normalizedPluginName: string): string {
   }
 }
 
-export async function getPluginDependencyDiagnostic(config: Config): Promise<PluginDependencyDiagnostic> {
+export async function getPluginDependencyDiagnostic(
+  config: Config,
+  options: { onFileAccess?: FileAccessHandler } = {},
+): Promise<PluginDependencyDiagnostic> {
   const messages: string[] = [];
 
   async function inspectContext(
@@ -74,31 +79,36 @@ export async function getPluginDependencyDiagnostic(config: Config): Promise<Plu
 
     const contextName = contextPath.length === 0 ? 'root' : contextPath.join('/');
     for (const plugin of plugins) {
-      const version = config.versions[plugin.name];
-      if (typeof version !== 'string' || version.trim().length === 0) {
-        throw new Error(
-          `Plugin "${plugin.name}" in context "${contextName}" has no version declared in config.versions.`,
-        );
+      let packageJson: Record<string, unknown>;
+      if (isWorkspacePlugin(config, plugin.name)) {
+        packageJson = getWorkspacePluginPackageJson(config, plugin.name, plugin.packageName, options.onFileAccess);
+      } else {
+        const version = config.versions[plugin.name];
+        if (typeof version !== 'string' || version.trim().length === 0) {
+          throw new Error(
+            `Plugin "${plugin.name}" in context "${contextName}" has no version declared in config.versions.`,
+          );
+        }
+        packageJson = await getPackageJson(plugin.packageName, version);
       }
-
-      const packageJson = await getPackageJson(plugin.packageName, version);
-      const peerDependencies = packageJson?.peerDependencies;
+      const peerDependencies = packageJson.peerDependencies;
       if (peerDependencies === null || typeof peerDependencies !== 'object' || Array.isArray(peerDependencies)) {
         continue;
       }
-      const peerDependenciesMeta = packageJson?.peerDependenciesMeta;
+      const peerDependenciesMeta = packageJson.peerDependenciesMeta;
 
       for (const dependencyPackageName of Object.keys(peerDependencies)) {
         const dependencyMeta =
           peerDependenciesMeta !== null &&
           typeof peerDependenciesMeta === 'object' &&
           !Array.isArray(peerDependenciesMeta)
-            ? peerDependenciesMeta[dependencyPackageName]
+            ? (peerDependenciesMeta as Record<string, unknown>)[dependencyPackageName]
             : undefined;
         if (
           dependencyMeta !== null &&
           typeof dependencyMeta === 'object' &&
           !Array.isArray(dependencyMeta) &&
+          'optional' in dependencyMeta &&
           dependencyMeta.optional === true
         ) {
           continue;

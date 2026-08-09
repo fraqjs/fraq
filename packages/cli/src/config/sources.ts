@@ -9,7 +9,7 @@ export interface ConfigSourceRegistry {
 
 export function createConfigSourceRegistry(options: {
   files: Iterable<string>;
-  onChange: () => void;
+  onChange: (files: ReadonlySet<string>) => void;
   onError?: (error: unknown) => void;
   debounceMs?: number;
 }): ConfigSourceRegistry {
@@ -23,13 +23,19 @@ export function createConfigSourceRegistry(options: {
   });
 
   let watchedFiles = new Set<string>();
+  const changedFiles = new Set<string>();
   let changeTimer: NodeJS.Timeout | undefined;
 
-  watcher.on('all', () => {
+  watcher.on('all', (_event, filePath) => {
+    changedFiles.add(path.resolve(filePath));
     if (changeTimer) {
       clearTimeout(changeTimer);
     }
-    changeTimer = setTimeout(options.onChange, options.debounceMs ?? 120);
+    changeTimer = setTimeout(() => {
+      const files = new Set(changedFiles);
+      changedFiles.clear();
+      options.onChange(files);
+    }, options.debounceMs ?? 120);
   });
   watcher.on('error', (error) => options.onError?.(error));
 
@@ -55,6 +61,7 @@ export function createConfigSourceRegistry(options: {
       if (changeTimer) {
         clearTimeout(changeTimer);
       }
+      changedFiles.clear();
       await watcher.close();
     },
   };

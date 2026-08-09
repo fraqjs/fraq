@@ -6,8 +6,11 @@ import { findConfigPath } from './config/shared';
 import { normalizePluginName } from './dependency';
 import { getLatestPackageJson, getPackageJson } from './package-jsons';
 import { getVersionsPath } from './paths';
+import { isWorkspacePlugin } from './workspace-plugins';
 
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+
+type VersionedContextConfig = ContextConfig & { workspacePlugins?: Record<string, string> };
 
 function readVersionDocument(filePath: string): Document {
   const document = YAML.parseDocument(existsSync(filePath) ? readFileSync(filePath, 'utf-8') : '{}\n');
@@ -45,11 +48,13 @@ export function readVersions(): Record<string, string> {
 export type VersionsCompleteness = { status: 'ok' } | { status: 'missing'; missingPlugins: string[] };
 
 export function checkVersionsCompleteness(
-  config: ContextConfig,
+  config: VersionedContextConfig,
   versions: Record<string, string>,
 ): VersionsCompleteness {
   const pluginNames = collectPluginNames(config);
-  const missingPlugins = Array.from(pluginNames).filter((pluginName) => !versions[pluginName]);
+  const missingPlugins = Array.from(pluginNames).filter(
+    (pluginName) => !isWorkspacePlugin(config, pluginName) && !versions[pluginName],
+  );
   if (missingPlugins.length > 0) {
     return { status: 'missing', missingPlugins: missingPlugins.sort((a, b) => a.localeCompare(b)) };
   }
@@ -70,6 +75,7 @@ export type VersionsConsistency =
 export function checkVersionsConsistency(
   configuredVersions: Record<string, string>,
   lockfileVersions: Record<string, string>,
+  ignoredPlugins: ReadonlySet<string> = new Set(),
 ): VersionsConsistency {
   const inconsistentPlugins: Array<{
     name: string;
@@ -77,6 +83,9 @@ export function checkVersionsConsistency(
     lockfile: string;
   }> = [];
   for (const [name, configuredVersion] of Object.entries(configuredVersions)) {
+    if (ignoredPlugins.has(name)) {
+      continue;
+    }
     const lockfileVersion = lockfileVersions[name];
     if (lockfileVersion && lockfileVersion !== configuredVersion) {
       inconsistentPlugins.push({ name, configured: configuredVersion, lockfile: lockfileVersion });
@@ -185,13 +194,16 @@ export function applyVersionUpdates(updates: {
 }
 
 export async function completeAndSyncVersions(
-  config: ContextConfig,
+  config: VersionedContextConfig,
   lockfileVersions: Record<string, string>,
 ): Promise<Record<string, string>> {
   const pluginNames = collectPluginNames(config);
   const completedVersions: Record<string, string> = {};
 
   for (const pluginName of pluginNames) {
+    if (isWorkspacePlugin(config, pluginName)) {
+      continue;
+    }
     const version = lockfileVersions[pluginName];
     if (typeof version === 'string' && version.trim().length > 0) {
       completedVersions[pluginName] = version;

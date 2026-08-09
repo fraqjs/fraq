@@ -9,6 +9,7 @@ import { installAppDependencies, type RunningProcess, spawnAppProcess } from './
 import { buildStartScript } from './start-script';
 
 import { constants as osConstants } from 'node:os';
+import path from 'node:path';
 
 const terminationSignals: readonly NodeJS.Signals[] =
   process.platform === 'win32' ? ['SIGINT', 'SIGTERM', 'SIGBREAK'] : ['SIGINT', 'SIGTERM', 'SIGHUP', 'SIGQUIT'];
@@ -16,6 +17,7 @@ const terminationSignals: readonly NodeJS.Signals[] =
 export interface PreparedApp {
   config: Config;
   packageManager: PackageManagerInfo & { commandPath: string };
+  restartFiles?: Iterable<string>;
 }
 
 export interface WatchAppOptions {
@@ -65,6 +67,8 @@ export function createAppLifecycle(
   let installedDependencies: string | undefined;
   let installationInvalid = false;
   let appliedStartScript: string | undefined;
+  let restartFiles = new Set<string>();
+  let applicationInvalid = false;
   let dirty = false;
   let closing = false;
   let activeReconcile: Promise<void> | undefined;
@@ -72,7 +76,11 @@ export function createAppLifecycle(
 
   const sources = dependencies.createSources({
     files: watchedFiles,
-    onChange: () => {
+    onChange: (changedFiles) => {
+      if ([...changedFiles].some((file) => restartFiles.has(path.resolve(file)))) {
+        applicationInvalid = true;
+        installationInvalid = true;
+      }
       void requestReconcile();
     },
     onError: (error) => {
@@ -123,6 +131,7 @@ export function createAppLifecycle(
       try {
         const prepared = await options.prepare(accessedFiles);
         updateSources(accessedFiles, true);
+        restartFiles = new Set(Array.from(prepared.restartFiles ?? [], (file) => path.resolve(file)));
         if (dirty) {
           continue;
         }
@@ -130,7 +139,7 @@ export function createAppLifecycle(
         const nextStartScript = buildStartScript(prepared.config);
         const nextDependencies = dependencyFingerprint(prepared.config, prepared.packageManager);
         const dependenciesChanged = installationInvalid || nextDependencies !== installedDependencies;
-        const applicationChanged = nextStartScript !== appliedStartScript;
+        const applicationChanged = applicationInvalid || nextStartScript !== appliedStartScript;
 
         if (currentProcess && !dependenciesChanged && !applicationChanged) {
           continue;
@@ -161,13 +170,13 @@ export function createAppLifecycle(
             throw new Error(`Package manager install failed with exit code ${installResult}.`);
           }
           installedDependencies = nextDependencies;
-          installationInvalid = false;
           console.log();
         }
 
         if (closing || dirty) {
           continue;
         }
+        installationInvalid = false;
         if (restarting) {
           console.log();
           console.log(chalk.cyan('Restarting the Fraq application...'));
@@ -177,6 +186,7 @@ export function createAppLifecycle(
         const appProcess = dependencies.spawn();
         currentProcess = appProcess;
         appliedStartScript = nextStartScript;
+        applicationInvalid = false;
         void appProcess.exit.then((exitCode) => {
           if (currentProcess !== appProcess) {
             return;

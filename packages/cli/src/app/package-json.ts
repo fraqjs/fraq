@@ -1,5 +1,6 @@
 import type { Config } from '../config';
 import { normalizePluginName } from '../dependency';
+import { getNpmPluginVersions, getWorkspacePluginDependency } from '../workspace-plugins';
 
 interface PackageJson {
   name: string;
@@ -16,12 +17,18 @@ export function generateAppPackageJson(config: Config): PackageJson {
     dependencies: {},
   };
   packageJson.dependencies['@fraqjs/fraq'] = config.fraqVersion;
-  for (const [pluginName, version] of Object.entries(config.versions)) {
+  for (const [pluginName, version] of Object.entries(getNpmPluginVersions(config))) {
     packageJson.dependencies[normalizePluginName(pluginName)] = version;
   }
   if (config.additionalDependencies) {
     for (const [dependency, version] of Object.entries(config.additionalDependencies)) {
       packageJson.dependencies[dependency] = version;
+    }
+  }
+  for (const pluginName of Object.keys(config.workspacePlugins ?? {})) {
+    const dependency = getWorkspacePluginDependency(config, pluginName);
+    if (dependency !== undefined) {
+      packageJson.dependencies[normalizePluginName(pluginName)] = dependency;
     }
   }
   packageJson.dependencies['@fraqjs/color-log'] = '0.2.0';

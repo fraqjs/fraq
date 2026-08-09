@@ -104,6 +104,7 @@ export const ConfigV1 = ContextConfigV1.extend({
     })
     .default({ minLevel: 'debug' }),
   versions: z.record(z.string(), z.string()).default({}),
+  workspacePlugins: z.record(z.string(), z.string().trim().min(1)).optional(),
   additionalDependencies: z.record(z.string(), z.string()).optional(),
 });
 export type ConfigV1 = z.infer<typeof ConfigV1>;
@@ -113,6 +114,7 @@ export const DependencyConfigV1 = DependencyContextConfigV1.extend({
   packageManager: z.enum(['npm', 'pnpm', 'yarn']).optional(),
   fraqVersion: z.string(),
   versions: z.record(z.string(), z.string()).default({}),
+  workspacePlugins: z.record(z.string(), z.string().trim().min(1)).optional(),
   additionalDependencies: z.record(z.string(), z.string()).optional(),
 });
 export type DependencyConfigV1 = z.infer<typeof DependencyConfigV1>;

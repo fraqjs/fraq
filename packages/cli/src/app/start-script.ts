@@ -1,5 +1,6 @@
 import type { Config, ContextConfig, FilterConfig } from '../config';
 import { normalizePluginName } from '../dependency';
+import { getWorkspacePluginImportSpecifier, isWorkspacePlugin } from '../workspace-plugins';
 import { compileActivationResolver } from './activation';
 
 function buildFilterExpression(config: FilterConfig): string {
@@ -60,8 +61,12 @@ const ctx = Context.fromUrl(${JSON.stringify(config.milky.url)}, {
   let nextContextId = 0;
   function buildContextPart(parentContextName: string, contextConfig: ContextConfig) {
     for (const [pluginName, pluginConfig] of Object.entries(contextConfig.plugins ?? {})) {
+      const packageName = normalizePluginName(pluginName);
+      const importSpecifier = isWorkspacePlugin(config, pluginName)
+        ? getWorkspacePluginImportSpecifier(config, pluginName, packageName)
+        : packageName;
       lines.push(
-        `${parentContextName}.install((await import(${JSON.stringify(normalizePluginName(pluginName))})).default, ${JSON.stringify(pluginConfig)});`,
+        `${parentContextName}.install((await import(${JSON.stringify(importSpecifier)})).default, ${JSON.stringify(pluginConfig)});`,
       );
     }
     for (const [forkName, forkConfig] of Object.entries(contextConfig.forks ?? {})) {

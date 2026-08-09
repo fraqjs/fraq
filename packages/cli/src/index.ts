@@ -14,7 +14,7 @@ import { loadConfig } from './config';
 import type { FileAccessHandler } from './config/references';
 import { findConfigPath } from './config/shared';
 import type { ConfigV1 } from './config/v1';
-import { getPluginDependencyDiagnostic } from './dependency';
+import { getPluginDependencyDiagnostic, normalizePluginName } from './dependency';
 import { getLatestPackageJson } from './package-jsons';
 import { detectPackageManager, type PackageManagerInfo } from './package-manager';
 import { getVersionsPath } from './paths';
@@ -26,6 +26,7 @@ import {
   completeAndSyncVersions,
   readVersions,
 } from './versions';
+import { getNpmPluginVersions, getWorkspacePluginEntryPoint } from './workspace-plugins';
 
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -88,7 +89,11 @@ async function ensureConfigWithVersions(options: EnsureConfigOptions = {}): Prom
     process.exit(1);
   }
 
-  const consistency = checkVersionsConsistency(config.versions, lockfileVersions);
+  const consistency = checkVersionsConsistency(
+    config.versions,
+    lockfileVersions,
+    new Set(Object.keys(config.workspacePlugins ?? {})),
+  );
   if (consistency.status === 'inconsistent') {
     if (options.recoverable) {
       reportOrThrow(
@@ -202,13 +207,25 @@ async function watch(): Promise<void> {
         onFileAccess,
         recoverable: true,
       });
-      const diagnostic = await getPluginDependencyDiagnostic(config);
+      const diagnostic = await getPluginDependencyDiagnostic(config, { onFileAccess });
       if (diagnostic.status === 'missing') {
         throw new Error(`There are issues with the plugin dependencies:\n${diagnostic.message.join('\n')}`);
+      }
+      const restartFiles = new Set<string>();
+      for (const pluginName of Object.keys(config.workspacePlugins ?? {})) {
+        const entryPoint = getWorkspacePluginEntryPoint(
+          config,
+          pluginName,
+          normalizePluginName(pluginName),
+          onFileAccess,
+        );
+        accessedFiles.add(entryPoint);
+        restartFiles.add(entryPoint);
       }
       return {
         config,
         packageManager: await ensurePackageManager(config, { recoverable: true }),
+        restartFiles,
       };
     },
   });
@@ -224,7 +241,7 @@ async function installOnly() {
 
 async function outdated() {
   const config = await ensureConfigWithVersions();
-  const outdated = await checkOutdatedVersions(config.fraqVersion, config.versions);
+  const outdated = await checkOutdatedVersions(config.fraqVersion, getNpmPluginVersions(config));
   if (outdated.outdated.length === 0 && outdated.errors.length === 0) {
     console.log(chalk.green('All versions are up to date.'));
     return;
@@ -245,7 +262,7 @@ async function outdated() {
 
 async function update() {
   const config = await ensureConfigWithVersions();
-  const result = await checkOutdatedVersions(config.fraqVersion, config.versions);
+  const result = await checkOutdatedVersions(config.fraqVersion, getNpmPluginVersions(config));
   if (result.errors.length > 0) {
     console.log(chalk.red('Failed to check the following versions:'));
     for (const { name, error } of result.errors) {
