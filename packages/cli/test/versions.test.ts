@@ -1,14 +1,14 @@
 import { applyVersionUpdates, checkOutdatedVersions } from '../src/versions';
 
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test, { after } from 'node:test';
 
 const originalCwd = process.cwd();
 const originalFetch = globalThis.fetch;
-const testRoot = mkdtempSync(path.join(tmpdir(), 'fraq-cli-versions-'));
+const testRoot = mkdtempSync(path.join(realpathSync(tmpdir()), 'fraq-cli-versions-'));
 
 after(() => {
   process.chdir(originalCwd);
