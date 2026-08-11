@@ -139,6 +139,7 @@ jobs:
         repository:
           - starter-template
           - plugin-template
+          - plugin-template-webui
     env:
       FRAQ_VERSION: ${{ needs.detect.outputs.version }}
     steps:
