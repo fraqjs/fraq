@@ -1,31 +1,20 @@
 import { serviceToken } from '@fraqjs/fraq';
-import type { Context } from 'hono';
+import type { Hono } from 'hono';
 
 import type { WebuiSession } from './authentication';
 
 export type { WebuiSession } from './authentication';
 
-type WebuiEnv = {
+export type WebuiEnv = {
   Variables: {
     webuiSession: WebuiSession;
   };
 };
 
-export type WebuiContext = Context<WebuiEnv>;
-export type WebuiHandler = (c: WebuiContext, session: WebuiSession) => Response | Promise<Response>;
-
-export interface WebuiApi {
-  get(path: string, handler: WebuiHandler): void;
-  post(path: string, handler: WebuiHandler): void;
-  put(path: string, handler: WebuiHandler): void;
-  patch(path: string, handler: WebuiHandler): void;
-  delete(path: string, handler: WebuiHandler): void;
-}
-
 export interface WebuiMountOptions {
   assets: string | URL;
   entry?: string;
-  routes?(api: WebuiApi): void;
+  routes?(app: Hono<WebuiEnv>): void;
 }
 
 export interface WebuiGatewayServiceOptions {

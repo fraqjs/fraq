@@ -2,14 +2,8 @@ import type { HonoService } from '@fraqjs/plugin-hono';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { type Context, Hono } from 'hono';
 
-import { WebuiAuthentication, type WebuiSession } from './authentication';
-import {
-  WEBUI_BASE_PATH,
-  type WebuiApi,
-  type WebuiGatewayServiceOptions,
-  type WebuiHandler,
-  type WebuiMountOptions,
-} from './service';
+import { WebuiAuthentication } from './authentication';
+import { WEBUI_BASE_PATH, type WebuiEnv, type WebuiGatewayServiceOptions, type WebuiMountOptions } from './service';
 
 import { statSync } from 'node:fs';
 import { isAbsolute, resolve } from 'node:path';
@@ -19,12 +13,6 @@ const WEBUI_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const RESERVED_WEBUI_IDS = new Set(['auth', 'login']);
 const WEBUI_CONTENT_SECURITY_POLICY =
   "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'";
-
-type WebuiEnv = {
-  Variables: {
-    webuiSession: WebuiSession;
-  };
-};
 
 export class WebuiGateway {
   private readonly authentication: WebuiAuthentication;
@@ -82,14 +70,9 @@ export class WebuiGateway {
       await next();
     });
 
-    const api: WebuiApi = {
-      get: (path, handler) => registerApiRoute(app, 'GET', path, handler),
-      post: (path, handler) => registerApiRoute(app, 'POST', path, handler),
-      put: (path, handler) => registerApiRoute(app, 'PUT', path, handler),
-      patch: (path, handler) => registerApiRoute(app, 'PATCH', path, handler),
-      delete: (path, handler) => registerApiRoute(app, 'DELETE', path, handler),
-    };
+    const api = new Hono<WebuiEnv>();
     options.routes?.(api);
+    app.route('/api', api);
 
     app.use('*', async (c, next) => {
       c.header('Cache-Control', c.req.path.includes('/assets/') ? 'public, max-age=31536000, immutable' : 'no-cache');
@@ -238,18 +221,6 @@ function normalizeEntry(entry: string): string {
     throw new Error(`Invalid WebUI entry path: ${entry}`);
   }
   return entry;
-}
-
-function normalizeApiPath(path: string): string {
-  const normalized = path.startsWith('/') ? path : `/${path}`;
-  if (normalized.includes('?') || normalized.includes('#') || normalized.split('/').includes('..')) {
-    throw new Error(`Invalid WebUI API path: ${path}`);
-  }
-  return normalized;
-}
-
-function registerApiRoute(app: Hono<WebuiEnv>, method: string, path: string, handler: WebuiHandler): void {
-  app.on(method, `/api${normalizeApiPath(path)}`, (c) => handler(c, c.get('webuiSession')));
 }
 
 function setSecurityHeaders(c: Context): void {

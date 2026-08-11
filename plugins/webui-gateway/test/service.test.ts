@@ -74,13 +74,17 @@ test('serves the public login page and protects mounted pages', async (t) => {
   );
 });
 
-test('creates a signed session and exposes it to limited API handlers', async (t) => {
+test('creates a signed session and exposes it to a Hono app mounted under /api', async (t) => {
   const { assetsRoot, gateway, hono, root } = await createTestGateway();
   t.after(() => rm(root, { recursive: true, force: true }));
   gateway.mount({
     assets: assetsRoot,
-    routes(api) {
-      api.get('/session', (c, session) => c.json({ authenticatedAt: session.authenticatedAt }));
+    routes(app) {
+      app.use('*', async (c, next) => {
+        c.header('X-Webui-Api', 'true');
+        await next();
+      });
+      app.get('/session', (c) => c.json({ authenticatedAt: c.get('webuiSession').authenticatedAt }));
     },
   });
 
@@ -100,6 +104,7 @@ test('creates a signed session and exposes it to limited API handlers', async (t
     headers: { Cookie: cookie },
   });
   assert.equal(authorized.status, 200);
+  assert.equal(authorized.headers.get('X-Webui-Api'), 'true');
   const body = (await authorized.json()) as { authenticatedAt: number };
   assert.equal(typeof body.authenticatedAt, 'number');
 
