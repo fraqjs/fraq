@@ -30,7 +30,7 @@ import { definePlugin } from '@fraqjs/fraq';
 import { WebuiGatewayService } from '@fraqjs/plugin-webui-gateway';
 
 export const DashboardPlugin = definePlugin({
-  name: 'dashboard',
+  name: 'dashboard', // 假设你的插件名为 dashboard
   inject: {
     webui: WebuiGatewayService,
   },
@@ -47,8 +47,9 @@ export const DashboardPlugin = definePlugin({
 ```typescript
 ctx.webui.mount({
   assets: new URL('../webui', import.meta.url),
-  routes(api) {
-    api.get('/status', (c, session) => {
+  routes(app) {
+    app.get('/status', (c) => {
+      const session = c.get('webuiSession');
       return c.json({
         status: 'ok',
         authenticatedAt: session.authenticatedAt,
@@ -63,7 +64,7 @@ Gateway 会使用当前插件名 `dashboard` 作为 WebUI id，以上配置会�
 - SPA：`/webui/dashboard/`
 - API：`/webui/dashboard/api/status`
 
-`assets` 必须指向一个本地目录，使用 `new URL(..., import.meta.url)` 可以让路径在开发环境和安装后的 npm 包中保持稳定。`routes` 只提供 `get`、`post`、`put`、`patch` 和 `delete`。所有 API 都位于当前 WebUI 的 `/api` 子路径下，并自动经过 Gateway 鉴权。
+`assets` 必须指向一个本地目录，使用 `new URL(..., import.meta.url)` 可以让路径在开发环境和安装后的 npm 包中保持稳定。`routes` 接收一个 Hono App，可以注册路由、中间件或挂载其他 Hono App。Gateway 会将它挂载到当前 WebUI 的 `/api` 子路径下，并在请求进入该 App 前完成鉴权。路由可以通过 `c.get('webuiSession')` 读取当前会话。
 
 ## SPA 构建
 
@@ -71,7 +72,7 @@ SPA 应以挂载路径作为 base path。例如，如果你使用 Vite 构建 SP
 
 ```typescript
 export default defineConfig({
-  base: '/webui/dashboard/',
+  base: '/webui/dashboard/', // 如果你的插件名不是 dashboard，请替换为实际的插件名
 });
 ```
 
