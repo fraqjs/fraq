@@ -28,6 +28,7 @@
     "node": ">=22"
   },
   "dependencies": {
+    "@fraqjs/kernel": "workspace:^",
     "@inquirer/prompts": "^8.5.2",
     "chalk": "^6.0.0",
     "chokidar": "^5.0.0",

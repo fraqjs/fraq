@@ -1,4 +1,4 @@
-import { createAppLifecycle, type PreparedApp } from '../src/app/lifecycle';
+import { AppLifecycle, type PreparedApp } from '../src/app/lifecycle';
 import type { RunningProcess } from '../src/app/runner';
 import type { Config } from '../src/config';
 import type { ConfigSourceRegistry } from '../src/config/sources';
@@ -58,27 +58,28 @@ test('serializes reloads and installs only when effective dependencies change', 
     };
   };
 
-  const lifecycle = createAppLifecycle(
-    {
-      initialFiles: [rootConfigPath, versionsPath],
-      async prepare(accessedFiles): Promise<PreparedApp> {
-        accessedFiles.add(rootConfigPath);
-        accessedFiles.add(currentReference);
-        if (prepareError) {
-          throw prepareError;
-        }
-        return {
-          config: currentConfig,
-          packageManager: {
-            name: 'pnpm',
-            installed: true,
-            commandPath: '/test/pnpm',
-            allCommandPaths: ['/test/pnpm'],
-          },
-        };
-      },
+  const lifecycle = AppLifecycle.create({
+    initialFiles: (function* () {
+      yield rootConfigPath;
+      yield versionsPath;
+    })(),
+    async prepare(accessedFiles): Promise<PreparedApp> {
+      accessedFiles.add(rootConfigPath);
+      accessedFiles.add(currentReference);
+      if (prepareError) {
+        throw prepareError;
+      }
+      return {
+        config: currentConfig,
+        packageManager: {
+          name: 'pnpm',
+          installed: true,
+          commandPath: '/test/pnpm',
+          allCommandPaths: ['/test/pnpm'],
+        },
+      };
     },
-    {
+    dependencies: {
       createSources,
       async install() {
         installCount += 1;
@@ -105,9 +106,10 @@ test('serializes reloads and installs only when effective dependencies change', 
         writeCount += 1;
       },
     },
-  );
+  });
 
-  await lifecycle.reconcile();
+  assert.deepEqual(watchedFileSets[0], new Set([rootConfigPath, versionsPath]));
+  await lifecycle.start();
   assert.equal(writeCount, 1);
   assert.equal(installCount, 1);
   assert.equal(spawnedProcesses.length, 1);
@@ -167,25 +169,23 @@ test('refreshes dependencies and restarts when a runtime entry point changes', a
   let installCount = 0;
   const spawnedProcesses: Array<RunningProcess & { signals: NodeJS.Signals[] }> = [];
 
-  const lifecycle = createAppLifecycle(
-    {
-      initialFiles: [rootConfigPath],
-      async prepare(accessedFiles): Promise<PreparedApp> {
-        accessedFiles.add(rootConfigPath);
-        accessedFiles.add(entryPointPath);
-        return {
-          config: createConfig(),
-          packageManager: {
-            name: 'pnpm',
-            installed: true,
-            commandPath: '/test/pnpm',
-            allCommandPaths: ['/test/pnpm'],
-          },
-          restartFiles: [entryPointPath],
-        };
-      },
+  const lifecycle = AppLifecycle.create({
+    initialFiles: [rootConfigPath],
+    async prepare(accessedFiles): Promise<PreparedApp> {
+      accessedFiles.add(rootConfigPath);
+      accessedFiles.add(entryPointPath);
+      return {
+        config: createConfig(),
+        packageManager: {
+          name: 'pnpm',
+          installed: true,
+          commandPath: '/test/pnpm',
+          allCommandPaths: ['/test/pnpm'],
+        },
+        restartFiles: [entryPointPath],
+      };
     },
-    {
+    dependencies: {
       createSources(options) {
         notifyChange = options.onChange;
         return {
@@ -216,9 +216,9 @@ test('refreshes dependencies and restarts when a runtime entry point changes', a
       },
       writeFiles() {},
     },
-  );
+  });
 
-  await lifecycle.reconcile();
+  await lifecycle.start();
   assert.equal(installCount, 1);
   assert.equal(spawnedProcesses.length, 1);
 
@@ -233,4 +233,121 @@ test('refreshes dependencies and restarts when a runtime entry point changes', a
   assert.deepEqual(spawnedProcesses[0]?.signals, ['SIGTERM']);
 
   await lifecycle.shutdown();
+});
+
+test('shuts down once and escalates a repeated signal to SIGKILL', async (t) => {
+  t.mock.method(console, 'log', () => {});
+  t.mock.method(console, 'error', () => {});
+
+  let closeCount = 0;
+  const signals: NodeJS.Signals[] = [];
+  let resolveExit!: (exitCode: number) => void;
+  const exit = new Promise<number>((resolve) => {
+    resolveExit = resolve;
+  });
+  const lifecycle = AppLifecycle.create({
+    initialFiles: [path.resolve('fraq.yml')],
+    async prepare(): Promise<PreparedApp> {
+      return {
+        config: createConfig(),
+        packageManager: {
+          name: 'pnpm',
+          installed: true,
+          commandPath: '/test/pnpm',
+          allCommandPaths: ['/test/pnpm'],
+        },
+      };
+    },
+    dependencies: {
+      createSources() {
+        return {
+          update() {},
+          async close() {
+            closeCount += 1;
+          },
+        };
+      },
+      async install() {
+        return 0;
+      },
+      spawn() {
+        return {
+          exit,
+          kill(signal) {
+            signals.push(signal);
+            if (signal === 'SIGKILL') {
+              resolveExit(137);
+            }
+            return true;
+          },
+        };
+      },
+      writeFiles() {},
+    },
+  });
+
+  await lifecycle.start();
+  const gracefulShutdown = lifecycle.shutdown('SIGTERM');
+  assert.deepEqual(signals, ['SIGTERM']);
+
+  const forcedShutdown = lifecycle.shutdown('SIGKILL');
+  await Promise.all([gracefulShutdown, forcedShutdown]);
+
+  assert.deepEqual(signals, ['SIGTERM', 'SIGKILL']);
+  assert.equal(closeCount, 1);
+});
+
+test('does not prepare the application when shutdown races with initial startup', async (t) => {
+  t.mock.method(console, 'log', () => {});
+  t.mock.method(console, 'error', () => {});
+
+  let prepareCount = 0;
+  let closeCount = 0;
+  let spawnCount = 0;
+  const lifecycle = AppLifecycle.create({
+    initialFiles: [path.resolve('fraq.yml')],
+    async prepare(): Promise<PreparedApp> {
+      prepareCount += 1;
+      return {
+        config: createConfig(),
+        packageManager: {
+          name: 'pnpm',
+          installed: true,
+          commandPath: '/test/pnpm',
+          allCommandPaths: ['/test/pnpm'],
+        },
+      };
+    },
+    dependencies: {
+      createSources() {
+        return {
+          update() {},
+          async close() {
+            closeCount += 1;
+          },
+        };
+      },
+      async install() {
+        return 0;
+      },
+      spawn() {
+        spawnCount += 1;
+        return {
+          exit: Promise.resolve(0),
+          kill() {
+            return true;
+          },
+        };
+      },
+      writeFiles() {},
+    },
+  });
+
+  const startup = lifecycle.start();
+  const shutdown = lifecycle.shutdown();
+  await Promise.all([startup, shutdown]);
+
+  assert.equal(prepareCount, 0);
+  assert.equal(spawnCount, 0);
+  assert.equal(closeCount, 1);
 });

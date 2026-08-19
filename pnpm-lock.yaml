@@ -99,6 +99,9 @@ importers:
 
   packages/cli:
     dependencies:
+      '@fraqjs/kernel':
+        specifier: workspace:^
+        version: link:../kernel
       '@inquirer/prompts':
         specifier: ^8.5.2
         version: 8.5.2(@types/node@26.1.1)
