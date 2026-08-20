@@ -43,23 +43,23 @@ Fraq 会按照 `pnpm -> yarn -> npm` 的顺序查找可用的包管理器，并�
 {/* prettier-ignore */}
 ```
 > fraq wizard
-Fraq CLI v0.9.0
+Fraq CLI v0.10.0
  
 ✔ Project name: my-fraq-app
-✔ Fraq version to use: 0.16.1
+✔ Fraq version to use: 0.17.0
 ✔ Milky server address: localhost
 ✔ Milky server port: 30001
  
 Fraq CLI is going to create my-fraq-app/fraq.yml with the following content:
  
 configVersion: 1
-fraqVersion: 0.16.1
+fraqVersion: 0.17.0
 milky:
   url: http://localhost:30001/
  
 ✔ Is it ok? Yes
  
-Configuration file created succesfully.
+Configuration file created successfully.
  
 Please run:
 cd my-fraq-app
@@ -71,7 +71,7 @@ to start your Fraq application.
 
 随后，你可以 `cd` 到指定的项目目录下，查看和修改生成的 `fraq.yml` 配置文件。
 
-你可以在在命令行中执行 `fraq start` 来启动。Fraq CLI 会在当前目录的 `app` 子目录下创建一个默认的 Fraq 机器人项目，并且自动安装依赖。安装完成后，Fraq CLI 会启动 Fraq 机器人，并且在命令行中打印出启动日志。如果你安装了 `pnpm`，日志可能形如：
+你可以在命令行中执行 `fraq start` 来启动。Fraq CLI 会在当前目录的 `app` 子目录下创建一个默认的 Fraq 机器人项目，并且自动安装依赖。安装完成后，Fraq CLI 会启动 Fraq 机器人，并且在命令行中打印出启动日志。如果你安装了 `pnpm`，日志可能形如：
 
 {/* prettier-ignore */}
 <Callout>
@@ -81,7 +81,7 @@ YAML 是一种表达力较强但也较为复杂的配置文件格式。你可以
 
 ```
 > fraq start
-Fraq CLI v0.6.0
+Fraq CLI v0.10.0
 
 Syncing lockfile versions...
 Successfully synced lockfile versions.
@@ -131,7 +131,7 @@ plugins:
 - `status` 对应 [`fraq-plugin-status`](https://www.npmjs.com/package/fraq-plugin-status)
 - `retrieve` 对应 [`fraq-plugin-retrieve`](https://www.npmjs.com/package/fraq-plugin-retrieve)
 - `some-scope/foo` 对应 `@some-scope/fraq-plugin-foo`，其中 `some-scope` 是 npm Registry 的 scope 名称
-- `fraqjs/ai` 对应 [`@fraqjs/plugin-ai`](https://www.npmjs.com/package/@fraqjs/fraq-plugin-ai)，属于官方插件，不需要 `fraq-` 前缀
+- `fraqjs/ai` 对应 [`@fraqjs/plugin-ai`](https://www.npmjs.com/package/@fraqjs/plugin-ai)，属于官方插件，不需要 `fraq-` 前缀
 
 可以在[插件市场](/plugins)中查找更多你喜欢的插件，并且在配置文件中添加它们。
 
