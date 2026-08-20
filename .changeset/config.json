@@ -1,0 +1,31 @@
+{
+  "$schema": "https://unpkg.com/@changesets/config@4.0.0/schema.json",
+  "changelog": "@changesets/cli/changelog",
+  "commit": false,
+  "fixed": [
+    [
+      "@fraqjs/cli",
+      "@fraqjs/color-log",
+      "@fraqjs/fraq",
+      "@fraqjs/kernel",
+      "@fraqjs/plugin-ai",
+      "@fraqjs/plugin-conversation",
+      "@fraqjs/plugin-hono",
+      "@fraqjs/plugin-kysely",
+      "@fraqjs/plugin-message-store",
+      "@fraqjs/plugin-milky-server",
+      "@fraqjs/plugin-milky-webhook",
+      "@fraqjs/plugin-mock",
+      "@fraqjs/plugin-random",
+      "@fraqjs/plugin-takumi",
+      "@fraqjs/plugin-webui-gateway",
+      "@fraqjs/takumi-preview"
+    ]
+  ],
+  "linked": [],
+  "access": "public",
+  "baseBranch": "main",
+  "updateInternalDependencies": "patch",
+  "bumpVersionsWithWorkspaceProtocolOnly": true,
+  "ignore": []
+}

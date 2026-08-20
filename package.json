@@ -4,12 +4,17 @@
     "build": "pnpm --filter @fraqjs/* build",
     "test": "pnpm --filter @fraqjs/* test",
     "docs:build": "pnpm --filter fraq-docs build",
-    "docs:dev": "pnpm --filter fraq-docs dev"
+    "docs:dev": "pnpm --filter fraq-docs dev",
+    "changeset": "changeset",
+    "changeset:status": "changeset status",
+    "version-packages": "changeset version",
+    "release": "changeset publish"
   },
   "license": "MIT",
   "packageManager": "pnpm@11.15.1",
   "devDependencies": {
     "@biomejs/biome": "^2.5.9",
+    "@changesets/cli": "^3.0.1",
     "@types/node": "^24.13.3",
     "tsdown": "^0.22.14",
     "tsx": "^4.23.12",
