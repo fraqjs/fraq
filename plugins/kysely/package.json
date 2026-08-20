@@ -28,7 +28,7 @@
     "@fraqjs/fraq": "workspace:^"
   },
   "dependencies": {
-    "kysely": "^0.29.4"
+    "kysely": "^0.29.5"
   },
   "devDependencies": {
     "@fraqjs/plugin-mock": "workspace:^"

@@ -31,12 +31,12 @@
   },
   "dependencies": {
     "@fraqjs/takumi-builtin-fonts": "^1.0.0",
-    "@takumi-rs/core": "^2.5.4",
-    "@takumi-rs/helpers": "^2.5.4"
+    "@takumi-rs/core": "^2.10.0",
+    "@takumi-rs/helpers": "^2.10.0"
   },
   "devDependencies": {
     "@fraqjs/plugin-mock": "workspace:^",
-    "@types/react": "^19.2.17"
+    "@types/react": "^19.2.18"
   },
   "fraq": {
     "category": "infrastructure"

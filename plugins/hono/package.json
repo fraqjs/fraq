@@ -28,9 +28,9 @@
     "@fraqjs/fraq": "workspace:^"
   },
   "dependencies": {
-    "@hono/node-server": "^2.1.0",
-    "hono": "^4.13.0",
-    "ws": "^8.21.1"
+    "@hono/node-server": "^2.1.1",
+    "hono": "^4.13.3",
+    "ws": "^8.21.3"
   },
   "devDependencies": {
     "@fraqjs/plugin-mock": "workspace:^",
