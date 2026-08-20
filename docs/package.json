@@ -6,7 +6,7 @@
     "build": "next build",
     "dev": "next dev",
     "start": "serve out",
-    "types:check": "fumadocs-mdx && next typegen && tsc --noEmit",
+    "types:check": "fumadocs-mdx && next typegen && tsc --noEmit --incremental false",
     "postinstall": "fumadocs-mdx",
     "lint": "biome check",
     "format": "biome format --write"

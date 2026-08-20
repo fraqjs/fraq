@@ -13,7 +13,6 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "jsx": "react-jsx",
-    "incremental": true,
     "paths": {
       "@/*": ["./src/*"],
       "collections/*": ["./.source/*"]
@@ -22,7 +21,8 @@
       {
         "name": "next"
       }
-    ]
+    ],
+    "incremental": true
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", ".next/dev/types/**/*.ts"],
   "exclude": ["node_modules"]
