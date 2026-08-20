@@ -1,0 +1,223 @@
+name: Release and Sync Templates
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Release packages
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      pull-requests: write
+    outputs:
+      published: ${{ steps.changesets.outputs.published }}
+      published_packages: ${{ steps.changesets.outputs['published-packages'] }}
+      version: ${{ steps.release-version.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v5
+        with:
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Test packages
+        run: pnpm test
+
+      - name: Build packages
+        run: pnpm build
+
+      - name: Build documentation
+        run: pnpm docs:build
+
+      - name: Create version pull request or publish packages
+        id: changesets
+        uses: changesets/action@v2
+        with:
+          publish-script: pnpm release
+          version-script: pnpm version-packages
+          commit-message: "[release] Version packages"
+          pr-title: "[release] Version packages"
+          create-github-releases: true
+          push-git-tags: true
+
+      - name: Resolve released version
+        id: release-version
+        if: steps.changesets.outputs.published == 'true'
+        run: |
+          node <<'NODE'
+          const { appendFileSync, readFileSync } = require("node:fs");
+
+          const { version } = JSON.parse(readFileSync("packages/fraq/package.json", "utf8"));
+          appendFileSync(process.env.GITHUB_OUTPUT, `version=${version}\n`);
+          console.log(`Released Fraq packages at ${version}.`);
+          NODE
+
+  wait-for-registry:
+    name: Wait for npm registry
+    needs: release
+    if: needs.release.outputs.published == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Wait for every published package
+        env:
+          PUBLISHED_PACKAGES: ${{ needs.release.outputs.published_packages }}
+        run: |
+          node <<'NODE'
+          const { execFileSync } = require("node:child_process");
+
+          const packages = JSON.parse(process.env.PUBLISHED_PACKAGES);
+
+          for (let attempt = 1; attempt <= 30; attempt++) {
+            const missing = packages.filter(({ name, version }) => {
+              try {
+                const resolved = execFileSync("npm", ["view", `${name}@${version}`, "version"], {
+                  encoding: "utf8",
+                  stdio: ["ignore", "pipe", "ignore"],
+                }).trim();
+                return resolved !== version;
+              } catch {
+                return true;
+              }
+            });
+
+            if (missing.length === 0) {
+              console.log("Every published package is visible on npm.");
+              process.exit(0);
+            }
+
+            console.log(
+              `Attempt ${attempt}/30: waiting for ${missing.map((pkg) => pkg.name).join(", ")}.`,
+            );
+            await new Promise((resolve) => setTimeout(resolve, 20_000));
+          }
+
+          console.error("Published packages did not become visible on npm in time.");
+          process.exit(1);
+          NODE
+
+  update-template:
+    name: Update ${{ matrix.repository }}
+    needs: [release, wait-for-registry]
+    if: needs.release.outputs.published == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        repository:
+          - starter-template
+          - plugin-template
+          - plugin-template-webui
+    env:
+      FRAQ_VERSION: ${{ needs.release.outputs.version }}
+    steps:
+      - name: Check token
+        env:
+          TEMPLATE_SYNC_TOKEN: ${{ secrets.FRAQ_TEMPLATE_SYNC_TOKEN }}
+        run: |
+          if [ -z "${TEMPLATE_SYNC_TOKEN}" ]; then
+            echo "::error::Missing FRAQ_TEMPLATE_SYNC_TOKEN. Add a token with contents:write access to fraqjs/${{ matrix.repository }}."
+            exit 1
+          fi
+
+      - name: Checkout template
+        uses: actions/checkout@v6
+        with:
+          repository: fraqjs/${{ matrix.repository }}
+          ref: main
+          token: ${{ secrets.FRAQ_TEMPLATE_SYNC_TOKEN }}
+          path: template
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v5
+        with:
+          version: 11.15.1
+          run_install: false
+
+      - name: Update Fraq dependencies
+        working-directory: template
+        run: |
+          node <<'NODE'
+          const { readFileSync, writeFileSync } = require("node:fs");
+
+          const versionRange = `^${process.env.FRAQ_VERSION}`;
+          const packagePath = "package.json";
+          const packageJson = JSON.parse(readFileSync(packagePath, "utf8"));
+          const dependencyFields = [
+            "dependencies",
+            "devDependencies",
+            "peerDependencies",
+            "optionalDependencies",
+          ];
+          const ignoredPackages = new Set(["@fraqjs/takumi-builtin-fonts"]);
+          const matchedPackages = new Set();
+
+          for (const field of dependencyFields) {
+            for (const packageName of Object.keys(packageJson[field] ?? {})) {
+              if (!packageName.startsWith("@fraqjs/") || ignoredPackages.has(packageName)) continue;
+              packageJson[field][packageName] = versionRange;
+              matchedPackages.add(packageName);
+            }
+          }
+
+          if (matchedPackages.size === 0) {
+            console.error("No releasable @fraqjs dependency was found in package.json.");
+            process.exit(1);
+          }
+
+          writeFileSync(packagePath, `${JSON.stringify(packageJson, null, 2)}\n`);
+          console.log(`Updated ${Array.from(matchedPackages).join(", ")} to ${versionRange}.`);
+          NODE
+
+      - name: Update lockfile
+        working-directory: template
+        run: pnpm install --lockfile-only --ignore-scripts
+
+      - name: Commit and push
+        working-directory: template
+        run: |
+          if git diff --quiet -- package.json pnpm-lock.yaml; then
+            echo "fraqjs/${{ matrix.repository }} already uses @fraqjs packages at ^${FRAQ_VERSION}."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json pnpm-lock.yaml
+          git commit -m "chore: update Fraq packages to ${FRAQ_VERSION}"
+          git push origin HEAD:main
