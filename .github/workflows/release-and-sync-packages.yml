@@ -96,34 +96,40 @@ jobs:
           node <<'NODE'
           const { execFileSync } = require("node:child_process");
 
-          const packages = JSON.parse(process.env.PUBLISHED_PACKAGES);
+          async function main() {
+            const packages = JSON.parse(process.env.PUBLISHED_PACKAGES);
 
-          for (let attempt = 1; attempt <= 30; attempt++) {
-            const missing = packages.filter(({ name, version }) => {
-              try {
-                const resolved = execFileSync("npm", ["view", `${name}@${version}`, "version"], {
-                  encoding: "utf8",
-                  stdio: ["ignore", "pipe", "ignore"],
-                }).trim();
-                return resolved !== version;
-              } catch {
-                return true;
+            for (let attempt = 1; attempt <= 30; attempt++) {
+              const missing = packages.filter(({ name, version }) => {
+                try {
+                  const resolved = execFileSync("npm", ["view", `${name}@${version}`, "version"], {
+                    encoding: "utf8",
+                    stdio: ["ignore", "pipe", "ignore"],
+                  }).trim();
+                  return resolved !== version;
+                } catch {
+                  return true;
+                }
+              });
+
+              if (missing.length === 0) {
+                console.log("Every published package is visible on npm.");
+                return;
               }
-            });
 
-            if (missing.length === 0) {
-              console.log("Every published package is visible on npm.");
-              process.exit(0);
+              console.log(
+                `Attempt ${attempt}/30: waiting for ${missing.map((pkg) => pkg.name).join(", ")}.`,
+              );
+              await new Promise((resolve) => setTimeout(resolve, 20_000));
             }
 
-            console.log(
-              `Attempt ${attempt}/30: waiting for ${missing.map((pkg) => pkg.name).join(", ")}.`,
-            );
-            await new Promise((resolve) => setTimeout(resolve, 20_000));
+            throw new Error("Published packages did not become visible on npm in time.");
           }
 
-          console.error("Published packages did not become visible on npm in time.");
-          process.exit(1);
+          main().catch((error) => {
+            console.error(error.message);
+            process.exit(1);
+          });
           NODE
 
   update-template:
