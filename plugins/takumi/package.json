@@ -1,7 +1,7 @@
 {
   "name": "@fraqjs/plugin-takumi",
   "type": "module",
-  "version": "0.5.0",
+  "version": "1.0.0",
   "description": "提供基于 Takumi 的图片渲染服务",
   "files": [
     "dist",
