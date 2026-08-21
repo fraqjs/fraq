@@ -1,5 +1,11 @@
 # @fraqjs/cli
 
+## 1.0.1
+
+### Patch Changes
+
+- 634a76c: 从 Fraq 版本推断 @fraqjs/color-log 的版本，而非锁定在 0.2.0.
+
 ## 1.0.0
 
 ### Major Changes
