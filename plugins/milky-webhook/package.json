@@ -1,7 +1,7 @@
 {
   "name": "@fraqjs/plugin-milky-webhook",
   "type": "module",
-  "version": "0.2.0",
+  "version": "1.0.0",
   "description": "提供将 Fraq 接入 Milky 协议端 Webhook 事件推送的能力",
   "files": [
     "dist"
