@@ -17,6 +17,7 @@ export function generateAppPackageJson(config: Config): PackageJson {
     dependencies: {},
   };
   packageJson.dependencies['@fraqjs/fraq'] = config.fraqVersion;
+  packageJson.dependencies['@fraqjs/color-log'] = config.fraqVersion;
   for (const [pluginName, version] of Object.entries(getNpmPluginVersions(config))) {
     packageJson.dependencies[normalizePluginName(pluginName)] = version;
   }
@@ -31,6 +32,5 @@ export function generateAppPackageJson(config: Config): PackageJson {
       packageJson.dependencies[normalizePluginName(pluginName)] = dependency;
     }
   }
-  packageJson.dependencies['@fraqjs/color-log'] = '0.2.0';
   return packageJson;
 }
