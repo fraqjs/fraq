@@ -51,9 +51,6 @@ jobs:
       - name: Build packages
         run: pnpm build
 
-      - name: Build documentation
-        run: pnpm docs:build
-
       - name: Create version pull request or publish packages
         id: changesets
         uses: changesets/action@v2
