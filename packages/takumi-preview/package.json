@@ -29,8 +29,8 @@
   },
   "devDependencies": {
     "@fraqjs/plugin-takumi": "workspace:^",
-    "@takumi-rs/helpers": "^2.10.0",
-    "@types/react": "^19.2.18"
+    "@types/react": "^19.2.18",
+    "takumi-js": "^2.12.0"
   },
   "dependencies": {
     "@hono/node-server": "^2.1.1",

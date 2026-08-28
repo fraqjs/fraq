@@ -1,4 +1,4 @@
-/// <reference types="@takumi-rs/helpers/jsx" />
+/// <reference types="takumi-js/helpers/jsx" />
 
 import { PluginName, PreviewModuleId } from './dependency';
 

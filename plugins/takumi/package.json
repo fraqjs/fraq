@@ -31,8 +31,7 @@
   },
   "dependencies": {
     "@fraqjs/takumi-builtin-fonts": "^1.0.0",
-    "@takumi-rs/core": "^2.10.0",
-    "@takumi-rs/helpers": "^2.10.0"
+    "takumi-js": "^2.12.0"
   },
   "devDependencies": {
     "@fraqjs/plugin-mock": "workspace:^",

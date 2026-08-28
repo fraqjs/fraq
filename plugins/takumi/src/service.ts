@@ -1,10 +1,10 @@
 import { type Context, type Disposable, serviceToken } from '@fraqjs/fraq';
-import { type FontLoader, type ImageLoader, type ImagesInput, Renderer, type RenderOptions } from '@takumi-rs/core';
-import { fontFromUrl, type Node, prepareImages, type ReactElementLike } from '@takumi-rs/helpers';
-import { type EmojiType, extractEmojis } from '@takumi-rs/helpers/emoji';
-import { fromHtml } from '@takumi-rs/helpers/html';
-import { fromJsx } from '@takumi-rs/helpers/jsx';
 import type { ReactNode } from 'react';
+import { fontFromUrl, type Node, prepareImages, type ReactElementLike } from 'takumi-js/helpers';
+import { type EmojiType, extractEmojis } from 'takumi-js/helpers/emoji';
+import { fromHtml } from 'takumi-js/helpers/html';
+import { fromJsx } from 'takumi-js/helpers/jsx';
+import { type FontLoader, type ImageLoader, type ImagesInput, Renderer, type RenderOptions } from 'takumi-js/node';
 
 import fs from 'node:fs/promises';
 

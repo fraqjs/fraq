@@ -28,7 +28,7 @@ plugins:
 
 {/* prettier-ignore */}
 <Callout type="warning">
-`@fraqjs/plugin-takumi` 依赖 `@takumi-rs/core` 包。Takumi 是一个 Rust 项目，在 Node.js 环境下只支持如下平台：
+`@fraqjs/plugin-takumi` 通过 `takumi-js/node` 使用 Takumi 的原生 Node.js 后端。Takumi 是一个 Rust 项目，在 Node.js 环境下只支持如下平台：
 
 - Windows x64/arm64
 - macOS x64/arm64
@@ -214,9 +214,9 @@ npx takumi-preview src/templates/MyCard.tsx
 预览工具默认使用的渲染选项为 `{ devicePixelRatio: 1.5 }`。你可以通过在模板文件中导出一个名为 `previewRenderOptions` 的对象来覆盖默认选项：
 
 ```ts
-import type { RenderOptions } from '@takumi-rs/core';
+import type { RenderCallOptions } from '@fraqjs/plugin-takumi';
 
-export const previewRenderOptions: RenderOptions = {
+export const previewRenderOptions: RenderCallOptions = {
   width: 800,
   height: 600,
   devicePixelRatio: 1,
@@ -241,11 +241,11 @@ const img = await ctx.takumi.renderJsx(<img src={src} alt="Example" />, {
 });
 ```
 
-如果同一个模板需要使用多张远程图片，可以使用 `@takumi-rs/helpers` 提供的 `prepareImages` 来收集节点中的图片地址并获取资源。`fetchCache` 可以在多次渲染之间复用图片字节，避免重复请求同一个 URL。
+如果同一个模板需要使用多张远程图片，可以使用 `takumi-js` 提供的 `prepareImages` 来收集节点中的图片地址并获取资源。由于模板直接使用这些辅助 API，需要将 `takumi-js` 添加到模板所在项目的依赖中。`fetchCache` 可以在多次渲染之间复用图片字节，避免重复请求同一个 URL。
 
 ```tsx
-import { prepareImages } from '@takumi-rs/helpers';
-import { fromJsx } from '@takumi-rs/helpers/jsx';
+import { prepareImages } from 'takumi-js/helpers';
+import { fromJsx } from 'takumi-js/helpers/jsx';
 
 const element = (
   <div>
