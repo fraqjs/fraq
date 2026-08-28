@@ -1,5 +1,11 @@
 # @fraqjs/plugin-takumi
 
+## 1.0.1
+
+### Patch Changes
+
+- 614957a: 将 `@takumi-rs` 下的依赖统一成 `takumi-js`
+
 ## 1.0.0
 
 ### Major Changes

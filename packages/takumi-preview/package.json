@@ -1,7 +1,7 @@
 {
   "name": "@fraqjs/takumi-preview",
   "type": "module",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Takumi template previewer",
   "files": [
     "dist"

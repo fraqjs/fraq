@@ -1,5 +1,12 @@
 # @fraqjs/takumi-preview
 
+## 1.0.1
+
+### Patch Changes
+
+- Updated dependencies [614957a]
+  - @fraqjs/plugin-takumi@1.0.1
+
 ## 1.0.0
 
 ### Major Changes
