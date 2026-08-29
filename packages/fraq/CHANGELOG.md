@@ -1,5 +1,19 @@
 # @fraqjs/fraq
 
+## 1.1.0
+
+### Minor Changes
+
+- b832066: 将 `timeout` 和 `interval` 集成到 `@fraqjs/kernel`
+- 3a0704a: 将日志系统集成到 `@fraqjs/kernel`，并引入 `ctx.logBus` 作为事件总线
+
+### Patch Changes
+
+- Updated dependencies [c542817]
+- Updated dependencies [b832066]
+- Updated dependencies [3a0704a]
+  - @fraqjs/kernel@1.1.0
+
 ## 1.0.0
 
 ### Major Changes
