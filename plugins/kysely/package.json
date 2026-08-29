@@ -25,12 +25,13 @@
   "homepage": "https://fraq.dev/docs/plugins/kysely",
   "license": "MIT",
   "peerDependencies": {
-    "@fraqjs/fraq": "workspace:^"
+    "@fraqjs/kernel": "workspace:^"
   },
   "dependencies": {
     "kysely": "^0.29.5"
   },
   "devDependencies": {
+    "@fraqjs/fraq": "workspace:^",
     "@fraqjs/plugin-mock": "workspace:^"
   },
   "engines": {

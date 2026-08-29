@@ -1,10 +1,10 @@
-import { definePlugin } from '@fraqjs/fraq';
+import { defineCommonPlugin } from '@fraqjs/kernel';
 import { HonoService } from '@fraqjs/plugin-hono';
 
 import { WebuiGateway } from './gateway';
 import { WebuiGatewayService, type WebuiGatewayServiceOptions } from './service';
 
-export const WebuiGatewayPlugin = definePlugin({
+export const WebuiGatewayPlugin = defineCommonPlugin({
   name: 'webui-gateway',
   inject: {
     hono: HonoService,

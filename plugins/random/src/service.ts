@@ -1,4 +1,4 @@
-import { serviceToken } from '@fraqjs/fraq';
+import { serviceToken } from '@fraqjs/kernel';
 
 import { PCG32, type PCG32State } from './pcg32';
 

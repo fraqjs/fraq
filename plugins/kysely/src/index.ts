@@ -1,4 +1,4 @@
-import { definePlugin } from '@fraqjs/fraq';
+import { defineCommonPlugin } from '@fraqjs/kernel';
 import { Kysely, SqliteDialect } from 'kysely';
 
 import { NodeSqliteDatabaseAdapter } from './node-sqlite-adapter';
@@ -13,7 +13,7 @@ export interface KyselyPluginOptions {
   autoVacuum?: KyselyAutoVacuumOptions;
 }
 
-export const KyselyPlugin = definePlugin({
+export const KyselyPlugin = defineCommonPlugin({
   name: 'kysely',
   provides: [KyselyService],
   apply(ctx, options?: KyselyPluginOptions) {

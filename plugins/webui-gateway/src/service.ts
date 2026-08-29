@@ -1,4 +1,4 @@
-import { serviceToken } from '@fraqjs/fraq';
+import { serviceToken } from '@fraqjs/kernel';
 import type { Hono } from 'hono';
 
 import type { WebuiSession } from './authentication';

@@ -1,8 +1,8 @@
-import { definePlugin } from '@fraqjs/fraq';
+import { defineCommonPlugin } from '@fraqjs/kernel';
 
 import { HonoService, type HonoServiceOptions } from './service';
 
-export const HonoPlugin = definePlugin({
+export const HonoPlugin = defineCommonPlugin({
   name: 'hono',
   provides: [HonoService],
   apply(ctx, options?: HonoServiceOptions) {

@@ -251,9 +251,9 @@ importers:
 
   plugins/hono:
     dependencies:
-      '@fraqjs/fraq':
+      '@fraqjs/kernel':
         specifier: workspace:^
-        version: link:../../packages/fraq
+        version: link:../../packages/kernel
       '@hono/node-server':
         specifier: ^2.1.1
         version: 2.1.1(hono@4.13.3)
@@ -273,13 +273,16 @@ importers:
 
   plugins/kysely:
     dependencies:
-      '@fraqjs/fraq':
+      '@fraqjs/kernel':
         specifier: workspace:^
-        version: link:../../packages/fraq
+        version: link:../../packages/kernel
       kysely:
         specifier: ^0.29.5
         version: 0.29.5
     devDependencies:
+      '@fraqjs/fraq':
+        specifier: workspace:^
+        version: link:../../packages/fraq
       '@fraqjs/plugin-mock':
         specifier: workspace:^
         version: link:../mock
@@ -337,9 +340,9 @@ importers:
 
   plugins/random:
     dependencies:
-      '@fraqjs/fraq':
+      '@fraqjs/kernel':
         specifier: workspace:^
-        version: link:../../packages/fraq
+        version: link:../../packages/kernel
 
   plugins/takumi:
     dependencies:
@@ -365,22 +368,25 @@ importers:
 
   plugins/webui-gateway:
     dependencies:
-      '@fraqjs/fraq':
+      '@fraqjs/kernel':
         specifier: workspace:^
-        version: link:../../packages/fraq
+        version: link:../../packages/kernel
       '@fraqjs/plugin-hono':
         specifier: workspace:^
         version: link:../hono
       '@hono/node-server':
         specifier: ^2.1.1
-        version: 2.1.1(hono@4.13.5)
+        version: 2.1.1(hono@4.13.3)
       hono:
-        specifier: ^4.13.0
-        version: 4.13.5
+        specifier: 4.13.3
+        version: 4.13.3
     devDependencies:
       '@fontsource-variable/inter':
         specifier: ^5.3.0
         version: 5.3.0
+      '@fraqjs/fraq':
+        specifier: workspace:^
+        version: link:../../packages/fraq
       '@fraqjs/plugin-mock':
         specifier: workspace:^
         version: link:../mock

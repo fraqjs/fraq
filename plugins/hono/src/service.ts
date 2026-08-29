@@ -1,4 +1,4 @@
-import { type Disposable, serviceToken } from '@fraqjs/fraq';
+import { type Disposable, serviceToken } from '@fraqjs/kernel';
 import { type HttpBindings, type ServerType, serve, upgradeWebSocket } from '@hono/node-server';
 import { Hono } from 'hono';
 import { WebSocketServer } from 'ws';

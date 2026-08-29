@@ -1,4 +1,4 @@
-import { type Disposable, serviceToken } from '@fraqjs/fraq';
+import { type Disposable, serviceToken } from '@fraqjs/kernel';
 import { type Kysely, sql } from 'kysely';
 
 import { SchemaRegistry } from './schema';

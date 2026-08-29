@@ -1,8 +1,8 @@
-import { definePlugin } from '@fraqjs/fraq';
+import { defineCommonPlugin } from '@fraqjs/kernel';
 
 import { RandomService, type RandomServiceOptions } from './service';
 
-export const RandomPlugin = definePlugin({
+export const RandomPlugin = defineCommonPlugin({
   name: 'random',
   provides: [RandomService],
   apply(ctx, options?: RandomServiceOptions) {
