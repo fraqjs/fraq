@@ -8,6 +8,7 @@ import { type ContextState, LifecycleManager } from './lifecycle';
 import { PluginRegistry, type PluginRegistryOptions } from './plugins';
 import { ServiceRegistry, type ServiceResolutionScope } from './services';
 import { type SubsystemDefinition, SubsystemRegistry } from './subsystems';
+import { TimerRegistry } from './timers';
 
 export type { ContextState } from './lifecycle';
 export type { SubsystemCleanupResult, SubsystemDefinition, SubsystemHooks } from './subsystems';
@@ -18,6 +19,8 @@ export interface KernelContext<C extends object, ForkOptions> {
   readonly state: ContextState;
   readonly logger: Logger;
   readonly logBus: LogEmitter;
+  timeout(delayMs: number, callback: () => void | Promise<void>): NodeJS.Timeout;
+  interval(intervalMs: number, callback: () => void | Promise<void>): NodeJS.Timeout;
 
   install<T extends ParameterList>(plugin: PluginDefinition<C, T>, ...args: T): void;
 
@@ -169,6 +172,7 @@ export class ContextBuilder<RootOptions, ForkOptions, Subsystems = never, Builti
       private readonly services: ServiceRegistry<Context>;
       private readonly serviceScope: ServiceResolutionScope<Context>;
       private readonly subsystems = new SubsystemRegistry();
+      private readonly timers: TimerRegistry;
       private readonly systems: Subsystems;
       private readonly plugins: PluginRegistry<Context>;
       private readonly lifecycle: LifecycleManager<Context>;
@@ -191,6 +195,11 @@ export class ContextBuilder<RootOptions, ForkOptions, Subsystems = never, Builti
         this.services = new ServiceRegistry(parent?.services);
 
         const getState = () => this.lifecycle.state;
+        this.timers = this.subsystems.register({
+          name: 'timers',
+          create: () => new TimerRegistry(name, this.logger, getState),
+          suspend: (timers) => timers.clear(),
+        });
         this.systems = createSubsystems({
           name,
           path: this.path,
@@ -246,6 +255,14 @@ export class ContextBuilder<RootOptions, ForkOptions, Subsystems = never, Builti
 
       get state(): ContextState {
         return this.lifecycle.state;
+      }
+
+      timeout(delayMs: number, callback: () => void | Promise<void>): NodeJS.Timeout {
+        return this.timers.timeout(delayMs, callback);
+      }
+
+      interval(intervalMs: number, callback: () => void | Promise<void>): NodeJS.Timeout {
+        return this.timers.interval(intervalMs, callback);
       }
 
       install<T extends ParameterList>(plugin: PluginDefinition<Context, T>, ...args: T): void {

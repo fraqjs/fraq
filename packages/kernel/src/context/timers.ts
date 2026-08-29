@@ -1,6 +1,5 @@
-import type { ContextState } from '@fraqjs/kernel';
-
 import type { Logger } from '../logging';
+import type { ContextState } from './lifecycle';
 
 export class TimerRegistry {
   private readonly timers = new Set<NodeJS.Timeout>();
@@ -10,10 +9,6 @@ export class TimerRegistry {
     private readonly logger: Logger,
     private readonly getState: () => ContextState,
   ) {}
-
-  get hasTimers(): boolean {
-    return this.timers.size > 0;
-  }
 
   timeout(delayMs: number, callback: () => void | Promise<void>): NodeJS.Timeout {
     this.assertCanScheduleTimer();

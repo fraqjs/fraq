@@ -12,7 +12,6 @@ import type { Filter } from '../filter';
 import type { LogHandler } from '../logging';
 import { ApiHookRegistry } from './api-hooks';
 import { EventSourceRegistry } from './event-sources';
-import { TimerRegistry } from './timers';
 
 export interface ContextOptions {
   reconnect?: {
@@ -42,7 +41,6 @@ interface Subsystems {
   readonly detachParentEvents: (() => void) | undefined;
   readonly apiHooks: ApiHookRegistry;
   readonly eventSources: EventSourceRegistry;
-  readonly timers: TimerRegistry;
 }
 
 interface Builtins {
@@ -55,8 +53,6 @@ interface Builtins {
     <E extends ApiEndpointName>(endpoint: E, hook: ApiHook<E>): () => void;
     (hook: AnyApiHook): () => void;
   };
-  timeout(delayMs: number, callback: () => void | Promise<void>): NodeJS.Timeout;
-  interval(intervalMs: number, callback: () => void | Promise<void>): NodeJS.Timeout;
   createSession(selfId: number, message: IncomingMessage): Session;
 }
 
@@ -134,11 +130,6 @@ const ContextRuntime = defineContext<RootOptions, Filter>()
       create: () => new ApiHookRegistry(baseClient, parent?.systems.apiHooks, name, getState),
       stop: (registry) => registry.clear(),
     });
-    const timers = subsystem({
-      name: 'timers',
-      create: () => new TimerRegistry(name, logger, getState),
-      suspend: (registry) => registry.clear(),
-    });
     const eventSources = subsystem({
       name: 'eventSources',
       create: () =>
@@ -155,7 +146,6 @@ const ContextRuntime = defineContext<RootOptions, Filter>()
       detachParentEvents,
       apiHooks,
       eventSources,
-      timers,
     };
   })
   .builtins<Builtins>(({ logger, rootOptions, parent, systems, getState }) => {
@@ -185,8 +175,6 @@ const ContextRuntime = defineContext<RootOptions, Filter>()
       installEventSource: (eventSource) => systems.eventSources.install(eventSource),
       hookApi: (endpointOrHook: ApiEndpointName | AnyApiHook, hook?: ApiHook<ApiEndpointName>) =>
         systems.apiHooks.register(endpointOrHook, hook),
-      timeout: (delayMs, callback) => systems.timers.timeout(delayMs, callback),
-      interval: (intervalMs, callback) => systems.timers.interval(intervalMs, callback),
       createSession: (selfId, message) => createSession(systems.apiHooks.client, selfId, message),
     };
   })
