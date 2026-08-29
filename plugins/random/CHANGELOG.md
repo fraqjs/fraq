@@ -1,5 +1,18 @@
 # @fraqjs/plugin-random
 
+## 1.1.0
+
+### Minor Changes
+
+- c542817: 将 random、hono、webui-gateway 和 kysely 迁移为基于 `@fraqjs/kernel` 的 common plugin，并让通用插件上下文支持 `timeout` 与 `interval`
+
+### Patch Changes
+
+- Updated dependencies [c542817]
+- Updated dependencies [b832066]
+- Updated dependencies [3a0704a]
+  - @fraqjs/kernel@1.1.0
+
 ## 1.0.0
 
 ### Major Changes

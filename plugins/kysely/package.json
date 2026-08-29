@@ -1,7 +1,7 @@
 {
   "name": "@fraqjs/plugin-kysely",
   "type": "module",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "提供基于 Kysely 的 SQLite 数据库服务",
   "files": [
     "dist"

@@ -1,7 +1,7 @@
 {
   "name": "@fraqjs/plugin-random",
   "type": "module",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "提供基于 PCG32 算法的伪随机数生成器及其封装",
   "files": [
     "dist"
