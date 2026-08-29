@@ -108,6 +108,24 @@ test('assembles builtins while keeping subsystems internal', () => {
   assert.deepEqual(calls, ['wire:root']);
 });
 
+test('exposes a shared log emitter across context forks', () => {
+  const calls: string[] = [];
+  const context = Runtime.create({ calls, label: 'root' });
+  const child = context.fork('child');
+  const logs: string[] = [];
+
+  context.logBus.on('log', (message) => {
+    logs.push(`${message.module}:${message.message}`);
+  });
+
+  context.logger.info('root message');
+  child.logger.info('child message');
+
+  assert.deepEqual(logs, ['context:root:root message', 'context:child:child message']);
+  assert.notEqual(context.logger, child.logger);
+  assert.equal(context.logBus, child.logBus);
+});
+
 test('orders plugins by services and creates the plugin proxy during apply', async () => {
   const calls: string[] = [];
   const context = Runtime.create({ calls, label: 'root' });

@@ -1,4 +1,4 @@
-import type { LogHandler, LogLevel } from '@fraqjs/fraq';
+import type { LogHandler, LogLevel } from '@fraqjs/kernel';
 import chalk, { type ChalkInstance } from 'chalk';
 
 export interface ColoredLogHandlerOptions {

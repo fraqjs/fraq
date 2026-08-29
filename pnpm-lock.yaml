@@ -124,9 +124,9 @@ importers:
 
   packages/color-log:
     dependencies:
-      '@fraqjs/fraq':
+      '@fraqjs/kernel':
         specifier: workspace:^
-        version: link:../fraq
+        version: link:../kernel
       chalk:
         specifier: ^6.0.0
         version: 6.0.0
@@ -144,7 +144,11 @@ importers:
         specifier: workspace:^
         version: link:../../plugins/mock
 
-  packages/kernel: {}
+  packages/kernel:
+    dependencies:
+      mitt:
+        specifier: ^3.0.1
+        version: 3.0.1
 
   packages/takumi-preview:
     dependencies:
@@ -327,6 +331,9 @@ importers:
       '@fraqjs/fraq':
         specifier: workspace:^
         version: link:../../packages/fraq
+      '@fraqjs/kernel':
+        specifier: workspace:^
+        version: link:../../packages/kernel
 
   plugins/random:
     dependencies:

@@ -25,23 +25,27 @@ try {
 }
 ```
 
-## 配置 `logHandler`
+## 订阅日志
 
-默认情况下，Fraq 不会把日志直接输出到终端。你需要在创建 `Context` 时传入 `logHandler`，Fraq 会把所有日志消息交给这个函数：
+默认情况下，Fraq 不会把日志直接输出到终端。你可以通过 `ctx.logBus` 订阅所有日志：
 
 ```typescript
 import { Context } from '@fraqjs/fraq';
 
-const ctx = Context.fromUrl('<替换成你的 Milky 协议端地址>', {
-  logHandler(message) {
-    console.log(`[${message.level}] [${message.module}] ${message.message}`);
-  },
+const ctx = Context.fromUrl('<替换成你的 Milky 协议端地址>');
+
+ctx.logBus.on('log', (message) => {
+  console.log(`[${message.level}] [${message.module}] ${message.message}`);
 });
 
 ctx.logger.info('Bot is starting');
 
 ctx.start();
 ```
+
+`logBus` 在 root context 和所有子 context 之间共享。你也可以注册多个监听器，分别把日志输出到终端、文件或监控系统。
+
+旧版本的 `logHandler` 选项仍然可以使用，Fraq 会自动把它注册到 `logBus`，但新代码建议直接使用事件订阅。
 
 传给 `logHandler` 的日志消息是一个普通对象，包含这些字段：
 
@@ -64,31 +68,16 @@ Fraq 提供了一个官方的日志处理工具 `@fraqjs/color-log`，它可以�
 ```typescript
 import { createColoredLogHandler } from '@fraqjs/color-log';
 
-const ctx = Context.fromUrl('http://localhost:30001/', {
-  logHandler: createColoredLogHandler({
+const ctx = Context.fromUrl('http://localhost:30001/');
+ctx.logBus.on(
+  'log',
+  createColoredLogHandler({
     minLevel: 'info', // 只输出 info 及以上级别的日志
   }),
-});
+);
 ```
 
 你也可以传入一些其他配置项，例如日期时间格式、不同等级的日志颜色等。值得一提的是，`@fraqjs/color-log` 使用 [chalk](https://www.npmjs.com/package/chalk) 来实现日志着色，因此在配置项中你可以直接使用 chalk 支持的颜色和样式。
-
-### 使用多个日志处理器
-
-Fraq 提供了一个函数 `combineLogHandlers`，可以让你同时使用多个日志处理器：
-
-```typescript
-import { combineLogHandlers } from '@fraqjs/fraq';
-
-const ctx = Context.fromUrl('http://localhost:30001/', {
-  logHandler: combineLogHandlers(
-    createColoredLogHandler({ minLevel: 'info' }),
-    (message) => {
-      // 发送到远程服务器或者写入文件
-    },
-  ),
-});
-```
 
 ## 在插件中使用日志
 

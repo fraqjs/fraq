@@ -25,7 +25,8 @@
   "homepage": "https://fraq.dev/docs/plugins/mock",
   "license": "MIT",
   "peerDependencies": {
-    "@fraqjs/fraq": "workspace:^"
+    "@fraqjs/fraq": "workspace:^",
+    "@fraqjs/kernel": "workspace:^"
   },
   "engines": {
     "node": ">=22"

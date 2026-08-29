@@ -48,7 +48,7 @@ export function createPluginFactory<C extends object>() {
 
 export type CommonContext = Pick<
   KernelContext<any, never>,
-  'name' | 'provide' | 'resolve' | 'tryResolve' | 'isProvided'
+  'name' | 'logger' | 'logBus' | 'provide' | 'resolve' | 'tryResolve' | 'isProvided'
 >;
 
 export const defineCommonPlugin = createPluginFactory<CommonContext>();

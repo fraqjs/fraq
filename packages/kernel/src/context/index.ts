@@ -1,4 +1,7 @@
 /** biome-ignore-all lint/style/noNonNullAssertion: Safe enough since the builder is only used after the subsystems and builtins are defined. */
+import type { Emitter } from 'mitt';
+
+import { createLogEmitter, type LogEmitter, type LogEvents, Logger } from '../logging';
 import type { ParameterList, PluginDefinition } from '../plugin';
 import type { ScopedServiceFactory, ServiceClass, ServiceIdentifier, ServiceToken } from '../service';
 import { type ContextState, LifecycleManager } from './lifecycle';
@@ -13,6 +16,8 @@ export interface KernelContext<C extends object, ForkOptions> {
   readonly name: string;
   readonly path: readonly string[];
   readonly state: ContextState;
+  readonly logger: Logger;
+  readonly logBus: LogEmitter;
 
   install<T extends ParameterList>(plugin: PluginDefinition<C, T>, ...args: T): void;
 
@@ -58,6 +63,7 @@ interface ParentContext<Subsystems, Builtins extends object, ForkOptions> extend
 type SubsystemFactory<RootOptions, ForkOptions, Subsystems> = (assembly: {
   readonly name: string;
   readonly path: readonly string[];
+  readonly logger: Logger;
   readonly rootOptions: RootOptions | undefined;
   readonly forkOptions: ForkOptions | undefined;
   readonly parent: ParentSystems<Subsystems> | undefined;
@@ -68,6 +74,7 @@ type SubsystemFactory<RootOptions, ForkOptions, Subsystems> = (assembly: {
 type BuiltinFactory<RootOptions, ForkOptions, Subsystems, Builtins extends object> = (assembly: {
   readonly name: string;
   readonly path: readonly string[];
+  readonly logger: Logger;
   readonly rootOptions: RootOptions | undefined;
   readonly forkOptions: ForkOptions | undefined;
   readonly parent: ParentContext<Subsystems, Builtins, ForkOptions> | undefined;
@@ -156,6 +163,9 @@ export class ContextBuilder<RootOptions, ForkOptions, Subsystems = never, Builti
       readonly path: readonly string[];
 
       private readonly children = new Map<string, RuntimeContext>();
+      private readonly logEvents: Emitter<LogEvents>;
+      readonly logger: Logger;
+      readonly logBus: LogEmitter;
       private readonly services: ServiceRegistry<Context>;
       private readonly serviceScope: ServiceResolutionScope<Context>;
       private readonly subsystems = new SubsystemRegistry();
@@ -172,12 +182,19 @@ export class ContextBuilder<RootOptions, ForkOptions, Subsystems = never, Builti
       ) {
         this.name = name;
         this.path = Object.freeze([...(parent?.path ?? []), name]);
+        this.logEvents = parent?.logEvents ?? createLogEmitter();
+        this.logBus = parent?.logBus ?? {
+          on: (type, handler) => this.logEvents.on(type, handler),
+          off: (type, handler) => this.logEvents.off(type, handler),
+        };
+        this.logger = new Logger((message) => this.logEvents.emit('log', message), `context:${name}`);
         this.services = new ServiceRegistry(parent?.services);
 
         const getState = () => this.lifecycle.state;
         this.systems = createSubsystems({
           name,
           path: this.path,
+          logger: this.logger,
           rootOptions,
           forkOptions,
           parent: parent ? { systems: parent.systems } : undefined,
@@ -187,6 +204,7 @@ export class ContextBuilder<RootOptions, ForkOptions, Subsystems = never, Builti
         const builtins = createBuiltins({
           name,
           path: this.path,
+          logger: this.logger,
           rootOptions,
           forkOptions,
           parent: parent ? { context: parent as unknown as Context, systems: parent.systems } : undefined,
@@ -203,9 +221,13 @@ export class ContextBuilder<RootOptions, ForkOptions, Subsystems = never, Builti
         const context = this as unknown as Context;
         this.serviceScope = { key: this, value: { context, contextPath: this.path } };
         const registryOptions: PluginRegistryOptions<Context> = {
-          createContextProperties: pluginContextOptions.create
-            ? (_context, plugin) => pluginContextOptions.create?.({ context, systems: this.systems, plugin })
-            : undefined,
+          createContextProperties: (_context, plugin) => ({
+            ...(pluginContextOptions.create?.({ context, systems: this.systems, plugin }) ?? {}),
+            logger: new Logger(
+              (message) => this.logEvents.emit('log', message),
+              `plugin:${context.name ? `${context.name}/` : ''}${plugin.name}`,
+            ),
+          }),
           applying: pluginContextOptions.applying
             ? (_context, plugin) => pluginContextOptions.applying?.({ context, systems: this.systems, plugin })
             : undefined,

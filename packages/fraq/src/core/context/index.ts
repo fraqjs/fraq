@@ -9,7 +9,7 @@ import type { IncomingMessage, OutgoingSegment_ZodInput } from '../../protocol/t
 import type { Session } from '../../routing/command';
 import { defaultRouteActivationResolver, type RouteActivationResolver, Router } from '../../routing/router';
 import type { Filter } from '../filter';
-import { Logger, type LogHandler } from '../logging';
+import type { LogHandler } from '../logging';
 import { ApiHookRegistry } from './api-hooks';
 import { EventSourceRegistry } from './event-sources';
 import { TimerRegistry } from './timers';
@@ -19,6 +19,7 @@ export interface ContextOptions {
     initialDelayMs?: number;
     maxDelayMs?: number;
   };
+  /** @deprecated Subscribe to `context.logBus` instead. */
   logHandler?: LogHandler;
   routing?: {
     activationResolver?: RouteActivationResolver;
@@ -37,10 +38,8 @@ interface RootOptions {
 
 interface Subsystems {
   readonly baseClient: MilkyClient;
-  readonly logHandler: LogHandler | undefined;
   readonly eventBus: Emitter<EventMap>;
   readonly detachParentEvents: (() => void) | undefined;
-  readonly logger: Logger;
   readonly apiHooks: ApiHookRegistry;
   readonly eventSources: EventSourceRegistry;
   readonly timers: TimerRegistry;
@@ -48,7 +47,6 @@ interface Subsystems {
 
 interface Builtins {
   readonly router: Router;
-  readonly logger: Logger;
   readonly routeActivationResolver: RouteActivationResolver;
   readonly client: MilkyClient;
   on<K extends keyof EventMap>(type: K, handler: (event: EventMap[K]) => void | Promise<void>): () => void;
@@ -112,14 +110,12 @@ function createSession(client: MilkyClient, selfId: number, message: IncomingMes
 }
 
 const ContextRuntime = defineContext<RootOptions, Filter>()
-  .subsystems<Subsystems>(({ name, rootOptions, forkOptions, parent, getState, subsystem }) => {
+  .subsystems<Subsystems>(({ name, logger, rootOptions, forkOptions, parent, getState, subsystem }) => {
     const baseClient = rootOptions?.baseClient ?? parent?.systems.baseClient;
     if (!baseClient) {
       throw new Error(`Sub context "${name}" does not have a parent client.`);
     }
-    const logHandler = rootOptions?.options?.logHandler ?? parent?.systems.logHandler;
     const eventBus = mitt<EventMap>();
-    const logger = new Logger((message) => logHandler?.(message), `context:${name}`);
     let detachParentEvents: (() => void) | undefined;
     if (parent) {
       const parentEventForwarder = <K extends keyof EventMap>(type: K, event: EventMap[K]) => {
@@ -155,23 +151,20 @@ const ContextRuntime = defineContext<RootOptions, Filter>()
 
     return {
       baseClient,
-      logHandler,
       eventBus,
       detachParentEvents,
-      logger,
       apiHooks,
       eventSources,
       timers,
     };
   })
-  .builtins<Builtins>(({ rootOptions, parent, systems, getState }) => {
+  .builtins<Builtins>(({ logger, rootOptions, parent, systems, getState }) => {
     const routeActivationResolver =
       rootOptions?.options?.routing?.activationResolver ??
       parent?.context.routeActivationResolver ??
       defaultRouteActivationResolver;
     return {
       router: new Router().setActivationResolver(routeActivationResolver),
-      logger: systems.logger,
       routeActivationResolver,
       client: systems.apiHooks.client,
       on<K extends keyof EventMap>(type: K, handler: (event: EventMap[K]) => void | Promise<void>): () => void {
@@ -183,7 +176,7 @@ const ContextRuntime = defineContext<RootOptions, Filter>()
             }
             await handler(event);
           } catch (error) {
-            systems.logger.error(`Error handling event ${type}`, error);
+            logger.error(`Error handling event ${type}`, error);
           }
         };
         systems.eventBus.on(type, wrappedHandler);
@@ -198,14 +191,8 @@ const ContextRuntime = defineContext<RootOptions, Filter>()
     };
   })
   .plugins({
-    create({ context, systems, plugin }) {
-      return {
-        logger: new Logger(
-          (message) => systems.logHandler?.(message),
-          `plugin:${context.name ? `${context.name}/` : ''}${plugin.name}`,
-        ),
-        router: context.router.withMeta({ context: context.name, plugin: plugin.name }),
-      };
+    create({ context, plugin }) {
+      return { router: context.router.withMeta({ context: context.name, plugin: plugin.name }) };
     },
     applying({ context, plugin }) {
       let message = `Applying plugin ${plugin.name}`;
@@ -262,6 +249,9 @@ export const Context: ContextConstructor = Object.assign(ContextRuntime, {
   fromUrl(baseUrl: string | URL, options?: ContextOptions & ContextUrlOptions): Context {
     const client = createMilkyClient(baseUrl, { accessToken: options?.accessToken });
     const context = ContextRuntime.create({ baseClient: client, options });
+    if (options?.logHandler) {
+      context.logBus.on('log', options.logHandler);
+    }
     if (options?.installEventSource ?? true) {
       context.installEventSource(createMilkyWebSocketEventSource(baseUrl, { accessToken: options?.accessToken }));
     }
@@ -270,6 +260,9 @@ export const Context: ContextConstructor = Object.assign(ContextRuntime, {
 
   fromClient(client: MilkyClient, options?: ContextOptions): Context {
     const context = ContextRuntime.create({ baseClient: client, options });
+    if (options?.logHandler) {
+      context.logBus.on('log', options.logHandler);
+    }
     const eventSourceLike = client as Partial<MilkyEventSource>;
     if (typeof eventSourceLike.start === 'function') {
       context.installEventSource(eventSourceLike as MilkyEventSource);
