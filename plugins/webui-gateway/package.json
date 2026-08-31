@@ -30,7 +30,7 @@
   "peerDependencies": {
     "@fraqjs/kernel": "workspace:^",
     "@fraqjs/plugin-hono": "workspace:^",
-    "hono": "4.13.3"
+    "hono": "^4.13.5"
   },
   "dependencies": {
     "@hono/node-server": "^2.1.1"
