@@ -11,13 +11,13 @@ import {
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
+import { FraqLogo } from '@/components/fraq-logo';
 import { buttonVariants } from '@/components/ui/button';
 import { isAprilFools } from '@/lib/april-fools';
 import { cn } from '@/lib/cn';
 import { docsRoute, gitConfig } from '@/lib/shared';
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://fraq.dev'),
   title: 'Fraq',
   description: 'TypeScript Milky 聊天机器人框架',
 };
@@ -28,7 +28,7 @@ export default function HomePage() {
       <section className="mx-auto flex w-full max-w-5xl flex-col gap-10 px-6 py-16 md:py-24">
         <div className="max-w-3xl">
           <h1 className="text-5xl font-semibold tracking-normal text-fd-foreground md:text-7xl">
-            {isAprilFools() ? 'F8fq' : 'Fraq'}
+            {isAprilFools() ? 'F8fq' : <FraqLogo className="h-20 w-auto max-w-full md:h-24" />}
           </h1>
           <p className="mt-5 text-lg text-fd-muted-foreground md:text-xl">
             面向 Milky 协议的 TypeScript 聊天机器人框架

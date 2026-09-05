@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <title>Fraq</title>
+  <style>
+    svg { fill: #171717; }
+    @media (prefers-color-scheme: dark) { svg { fill: #ffffff; } }
+  </style>
+  <path d="M20 24H76L56 44H40V56H76V76H40V104H20Z"/>
+  <path d="M88 24H108L88 44H68Z"/>
+</svg>

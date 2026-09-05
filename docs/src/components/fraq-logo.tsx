@@ -1,0 +1,32 @@
+import type { SVGProps } from 'react';
+
+import { appName } from '@/lib/shared';
+
+export function FraqLogo(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="254"
+      height="101"
+      viewBox="20 24 254 101"
+      fill="currentColor"
+      role="img"
+      aria-label={appName}
+      {...props}
+    >
+      <path d="M20 24H76L56 44H40V56H76V76H40V104H20Z" />
+      <path d="M88 24H108L88 44H68Z" />
+      <g transform="translate(36 16)">
+        <path d="M64 34H77V42C83 34 91 31 103 33V46C88 43 78 49 78 63V88H64Z" />
+        <path
+          fillRule="evenodd"
+          d="M138 32C120 32 110 44 110 61C110 78 120 90 138 90C145 90 151 87 156 82V88H169V34H156V40C151 35 145 32 138 32ZM140 45C150 45 156 51 156 61C156 71 150 77 140 77C130 77 124 71 124 61C124 51 130 45 140 45Z"
+        />
+        <path
+          fillRule="evenodd"
+          d="M207 32C189 32 179 44 179 61C179 78 189 90 207 90C214 90 220 87 225 82V96L238 109V34H225V40C220 35 214 32 207 32ZM209 45C219 45 225 51 225 61C225 71 219 77 209 77C199 77 193 71 193 61C193 51 199 45 209 45Z"
+        />
+      </g>
+    </svg>
+  );
+}
