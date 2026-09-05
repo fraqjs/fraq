@@ -130,16 +130,12 @@ export namespace filter {
   export function or(...filters: Filter[]): Filter {
     const result: Filter = {};
     for (const key of eventKeys) {
-      result[key] = (event) => {
-        for (const filter of filters) {
+      result[key] = (event) =>
+        filters.some((filter) => {
           const predicate = filter[key];
-          // @ts-expect-error
-          if (predicate?.(event)) {
-            return true;
-          }
-        }
-        return false;
-      };
+          // @ts-expect-error The event and predicate share the same key, which the union loses.
+          return predicate?.(event);
+        });
     }
     return result;
   }
@@ -147,16 +143,12 @@ export namespace filter {
   export function and(...filters: Filter[]): Filter {
     const result: Filter = {};
     for (const key of eventKeys) {
-      result[key] = (event) => {
-        for (const filter of filters) {
+      result[key] = (event) =>
+        filters.every((filter) => {
           const predicate = filter[key];
-          // @ts-expect-error
-          if (!predicate?.(event)) {
-            return false;
-          }
-        }
-        return true;
-      };
+          // @ts-expect-error The event and predicate share the same key, which the union loses.
+          return Boolean(predicate?.(event));
+        });
     }
     return result;
   }

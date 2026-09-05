@@ -106,17 +106,6 @@ export class PluginRegistry<C extends object> {
     }
   }
 
-  private resolve<T extends object>(identifier: ServiceIdentifier<T>, installedPlugin: InstalledPlugin<C>): T {
-    return this.services.resolve(identifier, this.getPluginScope(installedPlugin));
-  }
-
-  private tryResolve<T extends object>(
-    identifier: ServiceIdentifier<T>,
-    installedPlugin: InstalledPlugin<C>,
-  ): T | undefined {
-    return this.services.tryResolve(identifier, this.getPluginScope(installedPlugin));
-  }
-
   private sortPlugins(): InstalledPlugin<C>[] {
     const providers = new Map<string, AnyPlugin<C>>();
     for (const { plugin } of this.plugins) {
@@ -182,9 +171,10 @@ export class PluginRegistry<C extends object> {
     const { plugin } = installedPlugin;
     const contextProperties = this.options.createContextProperties?.(this.context, plugin);
     const injections = new Map<string, object | undefined>();
-    const resolve = <T extends object>(identifier: ServiceIdentifier<T>) => this.resolve(identifier, installedPlugin);
+    const resolve = <T extends object>(identifier: ServiceIdentifier<T>) =>
+      this.services.resolve(identifier, this.getPluginScope(installedPlugin));
     const tryResolve = <T extends object>(identifier: ServiceIdentifier<T>) =>
-      this.tryResolve(identifier, installedPlugin);
+      this.services.tryResolve(identifier, this.getPluginScope(installedPlugin));
     const isProvided = (identifier: ServiceIdentifier) => this.services.isProvided(identifier);
 
     const proxy = new Proxy(this.context, {

@@ -5,7 +5,6 @@ import type {
   OptionalInjection,
   ParameterList,
 } from '@fraqjs/kernel';
-import { createPluginFactory } from '@fraqjs/kernel';
 
 import type { Context } from './context';
 
@@ -19,12 +18,10 @@ export type Plugin<
 
 export type PluginDefinition<T extends ParameterList> = KernelPluginDefinition<Context, T>;
 
-const defineContextPlugin = createPluginFactory<Context>();
-
 export function definePlugin<
   T extends ParameterList,
   I extends Injection | undefined,
   OI extends OptionalInjection | undefined,
 >(plugin: Plugin<T, I, OI>): PluginDefinition<T> {
-  return defineContextPlugin(plugin);
+  return plugin;
 }

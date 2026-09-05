@@ -1,16 +1,14 @@
 import type { ContextState } from '@fraqjs/kernel';
 
 import type { MilkyClient } from '../../protocol/client';
-import type { AnyApiCall, AnyApiHook, ApiEndpointName, ApiHook } from '../../protocol/endpoint';
+import type { AnyApiCall, AnyApiHook, AnyApiNext, ApiEndpointName, ApiHook } from '../../protocol/endpoint';
 
 type InternalApiCall = {
   endpoint: ApiEndpointName;
   params: unknown;
 };
 
-type InternalApiNext = (params?: unknown) => Promise<unknown>;
-
-type InternalApiHook = (params: unknown, next: InternalApiNext, call: InternalApiCall) => unknown | Promise<unknown>;
+type InternalApiHook = (params: unknown, next: AnyApiNext, call: InternalApiCall) => unknown | Promise<unknown>;
 
 type ApiHookEntry = {
   endpoint?: ApiEndpointName;
@@ -32,7 +30,14 @@ export class ApiHookRegistry {
     private readonly contextName: string,
     private readonly getState: () => ContextState,
   ) {
-    this.client = this.createHookClient();
+    this.client = new Proxy(this.baseClient, {
+      get: (target, prop, receiver) => {
+        if (typeof prop === 'string' && prop.includes('_')) {
+          return (params?: unknown) => this.callHookedApi(prop as ApiEndpointName, params);
+        }
+        return Reflect.get(target, prop, receiver);
+      },
+    }) as MilkyClient;
   }
 
   register<E extends ApiEndpointName>(endpointOrHook: E | AnyApiHook, hook?: ApiHook<E>): () => void {
@@ -47,10 +52,7 @@ export class ApiHookRegistry {
     let entry: ApiHookEntry;
     if (typeof endpointOrHook === 'function') {
       entry = {
-        hook: (params, next, call) => {
-          const apiCall = call as AnyApiCall;
-          return endpointOrHook(apiCall, (nextParams = params) => next(nextParams));
-        },
+        hook: (_params, next, call) => endpointOrHook(call as AnyApiCall, next),
       };
     } else {
       if (!hook) {
@@ -63,12 +65,7 @@ export class ApiHookRegistry {
     }
 
     this.entries.push(entry);
-    let disposed = false;
     return () => {
-      if (disposed) {
-        return;
-      }
-      disposed = true;
       const index = this.entries.indexOf(entry);
       if (index !== -1) {
         this.entries.splice(index, 1);
@@ -80,19 +77,18 @@ export class ApiHookRegistry {
     this.entries.length = 0;
   }
 
-  private createHookClient(): MilkyClient {
-    return new Proxy(this.baseClient, {
-      get: (target, prop, receiver) => {
-        if (typeof prop === 'string' && prop.includes('_')) {
-          return (params?: unknown) => this.callHookedApi(prop as ApiEndpointName, params);
-        }
-        return Reflect.get(target, prop, receiver);
-      },
-    }) as MilkyClient;
-  }
-
   private async callHookedApi(endpoint: ApiEndpointName, params?: unknown): Promise<unknown> {
-    const hooks = this.collectApiHooks(endpoint);
+    const hooks: InternalApiHook[] = [];
+    let registry: ApiHookRegistry | undefined = this;
+    while (registry) {
+      for (const entry of registry.entries.toReversed()) {
+        if (entry.endpoint === undefined || entry.endpoint === endpoint) {
+          hooks.push(entry.hook);
+        }
+      }
+      registry = registry.parent;
+    }
+
     const dispatch = async (index: number, currentParams: unknown): Promise<unknown> => {
       const hook = hooks[index];
       if (!hook) {
@@ -117,20 +113,6 @@ export class ApiHookRegistry {
     };
 
     return await dispatch(0, params);
-  }
-
-  private collectApiHooks(endpoint: ApiEndpointName): InternalApiHook[] {
-    const hooks: InternalApiHook[] = [];
-    let registry: ApiHookRegistry | undefined = this;
-    while (registry) {
-      for (const entry of registry.entries.toReversed()) {
-        if (entry.endpoint === undefined || entry.endpoint === endpoint) {
-          hooks.push(entry.hook);
-        }
-      }
-      registry = registry.parent;
-    }
-    return hooks;
   }
 
   private async callBaseApi(endpoint: ApiEndpointName, params: unknown): Promise<unknown> {

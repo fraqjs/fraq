@@ -214,3 +214,34 @@ test('creates contexts from URLs with the default client', () => {
   assert.equal(ctx instanceof Context, true);
   assert.equal((ctx.client as unknown as { baseUrl: string }).baseUrl, 'http://localhost:30001');
 });
+
+test('session replies prepend quote and mention without mutating the supplied segments', async () => {
+  const ctx = createMockContext();
+  const message = await ctx.mock.receiveGroup({ groupId: 123, userId: 456 }, []);
+  const segments: milky.OutgoingSegment_ZodInput[] = [{ type: 'text', data: { text: 'pong' } }];
+  Object.freeze(segments);
+  const session = ctx.createSession(10000, message);
+
+  await session.reply(segments, { withQuote: true, withMention: true });
+  await session.reply('hello');
+
+  assert.deepEqual(segments, [{ type: 'text', data: { text: 'pong' } }]);
+  assert.deepEqual(ctx.mock.apiCalls, [
+    {
+      endpoint: 'send_group_message',
+      params: {
+        group_id: 123,
+        message: [
+          { type: 'reply', data: { message_seq: message.message_seq } },
+          { type: 'mention', data: { user_id: 456 } },
+          ...segments,
+        ],
+      },
+    },
+    {
+      endpoint: 'send_group_message',
+      params: { group_id: 123, message: [{ type: 'text', data: { text: 'hello' } }] },
+    },
+  ]);
+  await ctx.stop();
+});

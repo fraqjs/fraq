@@ -111,3 +111,65 @@ test('child context API hooks run before parent context API hooks', async () => 
   assert.deepEqual(calls, ['child', 'parent']);
   assert.match(result.friend.nickname, /^child:parent:/);
 });
+
+test('global hooks preserve current params when next receives no replacement', async () => {
+  const ctx = createMockContext();
+  ctx.hookApi((_call, next) => next());
+  ctx.hookApi((_call, next) => next(undefined));
+  ctx.hookApi('get_friend_info', (params, next) => next({ ...params, user_id: 10002 }));
+
+  const result = await ctx.client.get_friend_info({ user_id: 10001 });
+
+  assert.equal(result.friend.user_id, 10002);
+  assert.deepEqual(ctx.mock.apiCalls, [{ endpoint: 'get_friend_info', params: { user_id: 10002 } }]);
+  await ctx.stop();
+});
+
+test('removing a hook twice or after context cleanup leaves other hooks intact', async () => {
+  const ctx = createMockContext();
+  const removeFirst = ctx.hookApi('get_friend_info', () => createFriendInfo(1, 'First'));
+  const removeSecond = ctx.hookApi('get_friend_info', () => createFriendInfo(2, 'Second'));
+
+  removeFirst();
+  removeFirst();
+  assert.equal((await ctx.client.get_friend_info({ user_id: 1 })).friend.nickname, 'Second');
+
+  await ctx.stop();
+  assert.doesNotThrow(() => {
+    removeFirst();
+    removeSecond();
+    removeSecond();
+  });
+});
+
+test('API calls snapshot hooks before dispatch and retain reverse registration order', async () => {
+  const ctx = createMockContext();
+  const calls: string[] = [];
+  const removeFirst = ctx.hookApi((_call, next) => {
+    calls.push('first');
+    return next();
+  });
+  ctx.hookApi((_call, next) => {
+    calls.push('second');
+    removeFirst();
+    return next();
+  });
+
+  await ctx.client.get_friend_info({ user_id: 1 });
+  await ctx.client.get_friend_info({ user_id: 1 });
+
+  assert.deepEqual(calls, ['second', 'first', 'second']);
+  await ctx.stop();
+});
+
+test('global hooks cannot call next more than once', async () => {
+  const ctx = createMockContext();
+  ctx.hookApi(async (_call, next) => {
+    await next();
+    return next();
+  });
+
+  await assert.rejects(ctx.client.get_friend_info({ user_id: 1 }), /called next\(\) multiple times/);
+  assert.equal(ctx.mock.apiCalls.length, 1);
+  await ctx.stop();
+});

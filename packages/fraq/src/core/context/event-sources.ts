@@ -3,7 +3,11 @@ import type { ContextState } from '@fraqjs/kernel';
 import type { MilkyEventSource, MilkyEventSubscription } from '../../protocol/event';
 import type { Event } from '../../protocol/types';
 import type { Logger } from '../logging';
-import type { ContextOptions } from './index';
+
+export interface ReconnectOptions {
+  initialDelayMs?: number;
+  maxDelayMs?: number;
+}
 
 const DEFAULT_INITIAL_RECONNECT_DELAY_MS = 1_000;
 const DEFAULT_MAX_RECONNECT_DELAY_MS = 30_000;
@@ -21,7 +25,7 @@ export class EventSourceRegistry {
   private readonly maxReconnectDelayMs: number;
 
   constructor(
-    options: ContextOptions['reconnect'],
+    options: ReconnectOptions | undefined,
     private readonly logger: Logger,
     private readonly getState: () => ContextState,
     private readonly emit: (event: Event) => void,
@@ -34,15 +38,16 @@ export class EventSourceRegistry {
     if (this.runtimes.has(eventSource)) {
       return;
     }
-    this.runtimes.set(eventSource, {});
+    const runtime: EventSourceRuntime = {};
+    this.runtimes.set(eventSource, runtime);
     if (this.getState() === 'started') {
-      this.startEventSource(eventSource);
+      runtime.task = this.runEventSource(eventSource, runtime);
     }
   }
 
   startAll(): void {
-    for (const eventSource of this.runtimes.keys()) {
-      this.startEventSource(eventSource);
+    for (const [eventSource, runtime] of this.runtimes) {
+      runtime.task = this.runEventSource(eventSource, runtime);
     }
   }
 
@@ -74,14 +79,6 @@ export class EventSourceRegistry {
       }
     }
     return errors;
-  }
-
-  private startEventSource(eventSource: MilkyEventSource): void {
-    const runtime = this.runtimes.get(eventSource);
-    if (!runtime) {
-      return;
-    }
-    runtime.task = this.runEventSource(eventSource, runtime);
   }
 
   private async runEventSource(eventSource: MilkyEventSource, runtime: EventSourceRuntime): Promise<void> {

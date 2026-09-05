@@ -11,13 +11,10 @@ import { defaultRouteActivationResolver, type RouteActivationResolver, Router } 
 import type { Filter } from '../filter';
 import type { LogHandler } from '../logging';
 import { ApiHookRegistry } from './api-hooks';
-import { EventSourceRegistry } from './event-sources';
+import { EventSourceRegistry, type ReconnectOptions } from './event-sources';
 
 export interface ContextOptions {
-  reconnect?: {
-    initialDelayMs?: number;
-    maxDelayMs?: number;
-  };
+  reconnect?: ReconnectOptions;
   /** @deprecated Subscribe to `context.logBus` instead. */
   logHandler?: LogHandler;
   routing?: {
@@ -61,31 +58,27 @@ function createSession(client: MilkyClient, selfId: number, message: IncomingMes
     selfId,
     raw: message,
     reply: async (textOrSegments, options) => {
-      const actualSegments: OutgoingSegment_ZodInput[] = [];
-      if (typeof textOrSegments === 'string') {
-        actualSegments.push({ type: 'text', data: { text: textOrSegments } });
-      } else {
-        actualSegments.push(...textOrSegments);
-      }
+      const segments: OutgoingSegment_ZodInput[] =
+        typeof textOrSegments === 'string' ? [{ type: 'text', data: { text: textOrSegments } }] : [...textOrSegments];
       if (options?.withMention && message.message_scene === 'group') {
-        actualSegments.unshift(seg.mention(message.sender_id));
+        segments.unshift(seg.mention(message.sender_id));
       }
       if (options?.withQuote) {
-        actualSegments.unshift(seg.reply(message.message_seq));
+        segments.unshift(seg.reply(message.message_seq));
       }
 
       switch (message.message_scene) {
         case 'friend': {
           const { message_seq } = await client.send_private_message({
             user_id: message.peer_id,
-            message: actualSegments,
+            message: segments,
           });
           return { messageSeq: message_seq };
         }
         case 'group': {
           const { message_seq } = await client.send_group_message({
             group_id: message.peer_id,
-            message: actualSegments,
+            message: segments,
           });
           return { messageSeq: message_seq };
         }

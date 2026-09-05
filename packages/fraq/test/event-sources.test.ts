@@ -112,6 +112,36 @@ test('installs event sources explicitly', async () => {
   assert.equal(received.length, 1);
 });
 
+test('event sources installed after startup start once and stop with the context', async () => {
+  const ctx = createMockContext();
+  let startCalls = 0;
+  let stopCalls = 0;
+  let resolveClosed!: () => void;
+  const closed = new Promise<void>((resolve) => {
+    resolveClosed = resolve;
+  });
+  const source = {
+    async start() {
+      startCalls += 1;
+      return {
+        closed,
+        stop() {
+          stopCalls += 1;
+          resolveClosed();
+        },
+      };
+    },
+  };
+
+  await ctx.start();
+  ctx.installEventSource(source);
+  ctx.installEventSource(source);
+  await ctx.stop();
+
+  assert.equal(startCalls, 1);
+  assert.equal(stopCalls, 1);
+});
+
 test('fromUrl installs the websocket event source by default and can opt out', async () => {
   const originalWebSocket = globalThis.WebSocket;
   const urls: string[] = [];
