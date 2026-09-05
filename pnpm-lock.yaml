@@ -4,6 +4,9 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+overrides:
+  hono: 4.13.5
+
 importers:
 
   .:
@@ -162,7 +165,7 @@ importers:
         specifier: ^15.0.0
         version: 15.0.0
       hono:
-        specifier: ^4.13.3
+        specifier: 4.13.5
         version: 4.13.5
       react:
         specifier: ^19.0.0
@@ -258,7 +261,7 @@ importers:
         specifier: ^2.1.1
         version: 2.1.1(hono@4.13.5)
       hono:
-        specifier: ^4.13.3
+        specifier: 4.13.5
         version: 4.13.5
       ws:
         specifier: ^8.21.3
@@ -309,8 +312,8 @@ importers:
         specifier: workspace:^
         version: link:../hono
       hono:
-        specifier: ^4.13.0
-        version: 4.13.3
+        specifier: 4.13.5
+        version: 4.13.5
     devDependencies:
       '@fraqjs/plugin-mock':
         specifier: workspace:^
@@ -378,7 +381,7 @@ importers:
         specifier: ^2.1.1
         version: 2.1.1(hono@4.13.5)
       hono:
-        specifier: ^4.13.5
+        specifier: 4.13.5
         version: 4.13.5
     devDependencies:
       '@fontsource-variable/inter':
@@ -1001,7 +1004,7 @@ packages:
     resolution: {integrity: sha512-ELuehkj5VCBdgEw9zs+ivkKwyzzUCSQuE96YmiPvn1ECBoZCczbFXJLeEGMTYjphP6gydh4pHMqEYPVMYUVgQg==}
     engines: {node: '>=20'}
     peerDependencies:
-      hono: ^4
+      hono: 4.13.5
 
   '@img/colour@1.1.0':
     resolution: {integrity: sha512-Td76q7j57o/tLVdgS746cYARfSyxk8iEfRxewL9h4OMzYhbW4TAcppl0mT4eyqXddh6L/jwoM75mo7ixa/pCeQ==}
@@ -3995,10 +3998,6 @@ packages:
 
   hastscript@9.0.1:
     resolution: {integrity: sha512-g7df9rMFX/SPi34tyGCyUBREQoKkapwdY/T04Qn9TDWfHhAYt4/I0gMVirzK5wEzeUqIjEB+LXC/ypb7Aqno5w==}
-
-  hono@4.13.3:
-    resolution: {integrity: sha512-r8AO2mYHoLxSHkgafNeC/BXyb2vWRxD3jem4Ts+ptav8oTG5FIRifAjuJEmZI4bSvvc2ns0GxmIYiZnHqN3mMw==}
-    engines: {node: '>=16.9.0'}
 
   hono@4.13.5:
     resolution: {integrity: sha512-O6+/eCYRkzzzy0rPWwKLiGBR1nFuUPZynnwjxN1MBA62NNqbT0wQEzQyK2gSO5yDIDB336sXQleAhOHrzlYyKw==}
@@ -9235,8 +9234,6 @@ snapshots:
       hast-util-parse-selector: 4.0.0
       property-information: 7.2.0
       space-separated-tokens: 2.0.2
-
-  hono@4.13.3: {}
 
   hono@4.13.5: {}
 

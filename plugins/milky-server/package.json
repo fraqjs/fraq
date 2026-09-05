@@ -27,7 +27,7 @@
   "peerDependencies": {
     "@fraqjs/fraq": "workspace:^",
     "@fraqjs/plugin-hono": "workspace:^",
-    "hono": "^4.13.0"
+    "hono": "^4.13.5"
   },
   "devDependencies": {
     "@fraqjs/plugin-mock": "workspace:^"
