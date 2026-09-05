@@ -1,0 +1,375 @@
+---
+title: 运行时内核 (Kernel)
+---
+
+在[上下文 (Context)](./context.mdx) 中，我们使用 `client`、`router` 和事件监听器来组装机器人。这些能力建立在 `@fraqjs/kernel` 提供的上下文运行时之上。Kernel 可以独立使用，适合为其他应用或框架构建具有类型约束的插件系统。
+
+Kernel 负责上下文树、插件依赖、服务作用域、生命周期、日志和定时器。Milky 客户端、消息事件、过滤器与命令路由则由 Fraq 在组装 Context 时加入。我们也可以像 Fraq 一样，在 Kernel 上定义自己的 Context。
+
+如果你只需要开发 Fraq 插件，可以直接阅读[开发插件](../plugin.mdx)。本篇面向需要组装或理解运行时的开发者，所有 Kernel API 均从 `@fraqjs/kernel` 导入。
+
+## 创建自己的 Context
+
+我们从一个简单的任务运行时开始。插件可以向它注册一个名为 `hello` 的任务，应用启动后调用 `ctx.run('hello')`，就会执行对应的处理函数。它不需要连接协议端，只需要保存任务并在合适的时候执行。
+
+下面的例子使用 Node.js 22 或更高版本。先安装 Kernel 和用于执行 TypeScript 的 `tsx`：
+
+```bash
+pnpm add @fraqjs/kernel
+pnpm add -D tsx
+```
+
+示例使用 ESM，请确认项目的 `package.json` 包含 `"type": "module"`。我们在 `tasks.ts` 中编写这个运行时，接下来的代码可以依次写在同一个文件中，直到启动并执行任务。
+
+和创建 Fraq 的 Context 一样，我们希望在创建任务运行时时传入一些配置，例如用 `label` 为它取一个便于辨认的标签。Kernel 通过 `defineContext` 来定义这样的 Context：
+
+```typescript
+import { defineContext } from '@fraqjs/kernel';
+
+interface RootOptions {
+  label: string;
+}
+
+interface ForkOptions {
+  label?: string;
+}
+
+const definition = defineContext<RootOptions, ForkOptions>();
+```
+
+这里的 `RootOptions` 是创建根 Context 时接受的配置，`ForkOptions` 则是通过 `fork()` 创建子 Context 时接受的配置。我们要求根 Context 提供标签，子级可以选择自己的标签，也可以继承父级的标签。
+
+`defineContext()` 返回的是一个构建器。它已经知道 Context 接受哪些配置，但还不知道任务应该保存在哪里，也不知道如何执行任务。我们接着把这些能力加上去。
+
+### 保存任务
+
+一个任务可以用函数表示，任务名称和函数之间的对应关系则可以保存在 `Map` 中。这个任务表属于 Context 的内部状态，我们通过 `subsystems()` 来创建它：
+
+```typescript
+type Task = () => void | Promise<void>;
+
+interface Subsystems {
+  label: string;
+  tasks: Map<string, Task>;
+}
+
+const builder = definition.subsystems<Subsystems>(
+  ({ rootOptions, forkOptions, parent, subsystem }) => {
+    const label = rootOptions?.label
+      ?? forkOptions?.label
+      ?? parent?.systems.label
+      ?? 'tasks';
+    const tasks = subsystem({
+      name: 'tasks',
+      create: () => new Map<string, Task>(),
+      stop: (tasks) => tasks.clear(),
+    });
+    return { label, tasks };
+  },
+);
+```
+
+每次创建 Context，Kernel 都会调用这个回调。我们先从配置中取得标签；如果是子 Context，且没有传入标签，就从 `parent.systems.label` 取得父级标签。显式传入的 `Subsystems` 类型让 TypeScript 能够确定这里的父级状态类型。
+
+随后，`subsystem()` 注册了一个名为 `tasks` 的子系统。它的 `create` 在创建 Context 时同步执行，返回一个新的任务表；`stop` 则在 Context 停止时清空这个表。这样，每个 Context 都有自己的任务集合，也有对应的清理方式。
+
+这里需要区分 `subsystems()` 返回的对象和通过 `subsystem()` 注册的资源。返回的 `{ label, tasks }` 会作为 `systems` 交给后续组装代码，但只有注册过的资源才会执行生命周期钩子。例如，`label` 只是一个字符串，不需要清理，也就不需要单独注册。子系统名称在每个 Context 内必须唯一，其中 `timers` 已由 Kernel 占用。其他钩子的用法见[启动、停止与资源释放](#启动停止与资源释放)。
+
+### 注册与执行任务
+
+有了任务表，我们就可以往里面添加任务，再按名称取出任务来执行。不过，插件不需要直接操作这个 `Map`，它只需要一个 `register()` 方法；应用则需要一个 `run()` 方法。我们通过 `builtins()` 把这两个方法暴露在 Context 上：
+
+```typescript
+interface Builtins {
+  readonly label: string;
+  register(name: string, task: Task): void;
+  run(name: string): Promise<void>;
+}
+
+const runtime = builder.builtins<Builtins>(({ systems, getState }) => ({
+  label: systems.label,
+  register(name: string, task: Task) {
+    if (getState() !== 'starting') {
+      throw new Error('Tasks must be registered during startup.');
+    }
+    if (systems.tasks.has(name)) {
+      throw new Error(`Task ${name} already exists.`);
+    }
+    systems.tasks.set(name, task);
+  },
+  async run(name: string) {
+    if (getState() !== 'started') {
+      throw new Error('The context has not started.');
+    }
+    const task = systems.tasks.get(name);
+    if (!task) {
+      throw new Error(`Task ${name} does not exist.`);
+    }
+    await task();
+  },
+}));
+```
+
+`builtins()` 的回调可以通过 `systems` 访问刚才创建的内部状态，它返回的属性和方法会加入 Context 实例。因此，插件可以调用 `ctx.register()`，却无法通过 `ctx.tasks` 直接改动任务表。
+
+示例规定任务只能在 `starting` 状态注册，并且只能在 `started` 状态执行。这是我们为任务运行时定义的规则，Kernel 通过 `getState()` 提供判断依据。组装回调执行时生命周期尚未初始化，因此应把 `getState()` 留给之后执行的方法或钩子使用。
+
+公开属性不能与 Kernel 已有成员重名，例如 `logger`、`install` 或 `start`。它们在 Context 类型中是只读的，但引用的对象仍可通过自己的方法改变状态。
+
+### 定义插件
+
+现在，Context 已经知道如何保存、注册和执行任务，可以调用 `build()` 得到 Context 类了。我们同时为这个类创建一个插件工厂，用它来定义 `hello` 任务：
+
+```typescript
+import { type ContextOf, createPluginFactory } from '@fraqjs/kernel';
+
+const TaskContext = runtime.build();
+
+type TaskContext = ContextOf<typeof TaskContext>;
+const definePlugin = createPluginFactory<TaskContext>();
+
+const HelloPlugin = definePlugin({
+  name: 'hello',
+  apply(ctx, greeting: string) {
+    ctx.register('hello', () => {
+      ctx.logger.info(`${greeting}, ${ctx.label}!`);
+    });
+  },
+});
+```
+
+`build()` 返回具有 `create()` 方法的 Context 类，`ContextOf` 取得其实例类型。`createPluginFactory<TaskContext>()` 将插件工厂绑定到这个类型，因此 `apply()` 中可以直接使用我们定义的 `register()` 和 `label`，以及 Kernel 自带的 `logger`。
+
+和 Fraq 的 `definePlugin` 一样，这个工厂会根据 `apply()` 的参数检查插件配置。上面的插件接受一个 `greeting` 字符串，在任务执行时把它与 Context 的标签一起写入日志。
+
+### 启动运行时
+
+我们可以通过 `TaskContext.create()` 创建实例，并安装刚才的插件。Kernel 默认不会把日志输出到终端，因此这里还需要订阅 `logBus`，才能看到任务输出的内容：
+
+```typescript
+const ctx = TaskContext.create({ label: 'worker' });
+ctx.logBus.on('log', ({ message }) => console.log(message));
+ctx.install(HelloPlugin, 'Hello');
+
+try {
+  await ctx.start();
+  await ctx.run('hello'); // 输出 Hello, worker!
+} finally {
+  await ctx.stop();
+}
+```
+
+调用 `install()` 时，Kernel 只会记下插件和参数，还不会执行 `apply()`。等到 `start()` 开始启动 Context，`HelloPlugin.apply()` 才会被调用，把 `hello` 放进任务表。这也解释了为什么前面的 `register()` 允许在 `starting` 状态下执行。
+
+当 `start()` 完成，Context 就进入了 `started` 状态，可以调用 `run('hello')`。任务执行完毕后，`finally` 中的 `stop()` 会清理资源，包括我们在子系统中定义的任务表；如果启动失败，也会进入这里执行清理。
+
+运行这个文件，会看到 `Hello, worker!`：
+
+```bash
+pnpm exec tsx tasks.ts
+```
+
+## 连接组件
+
+上面的应用自己订阅了日志。如果希望每次创建运行时都自动连接日志输出，并在停止时取消订阅，可以把这部分工作交给 `wire()`。它在每个 Context 创建时执行，能同时访问组装好的 Context 和内部状态，并且可以返回清理函数。
+
+在 `const TaskContext = runtime.build()` 之前加入下面的代码，再移除应用入口中的 `ctx.logBus.on()` 订阅：
+
+```typescript
+runtime.wire(({ context }) => {
+  if (context.path.length !== 1) {
+    return;
+  }
+  const handler = ({ message }: { message: string }) => {
+    console.log(message);
+  };
+  context.logBus.on('log', handler);
+  return () => context.logBus.off('log', handler);
+});
+```
+
+父子 Context 共用同一个 `logBus`，所以这里仅在根 Context 订阅一次。`wire()` 负责连接和解除连接；需要等插件准备好后才开始接收外部输入的资源，应在子系统的 `activate` 中启动。
+
+## 上下文树与配置继承
+
+假如我们希望把报表任务和其他任务分开管理，可以通过 `ctx.fork()` 创建一个子 Context，并在其中安装需要的插件。在应用入口的 `ctx.install(HelloPlugin, 'Hello')` 之后、`try` 之前加入：
+
+```typescript
+const reports = ctx.fork('reports', { label: 'report worker' });
+reports.install(HelloPlugin, 'Hello');
+
+const inherited = ctx.fork('inherited');
+console.log(reports.label); // report worker
+console.log(inherited.label); // worker
+console.log(reports.path); // ['root', 'reports']
+console.log(ctx.fork('reports') === reports); // true
+```
+
+`reports` 使用了自己的标签，而没有传入标签的 `inherited` 沿用了父级的 `worker`。这正是我们在 `subsystems()` 中写出的规则：先读当前配置，再读 `parent.systems.label`。
+
+创建新的子 Context 时，组装回调会重新执行，所以每个子级也会得到一个新的任务表。`inherited` 没有安装 `HelloPlugin`，因此不会拥有父级的 `hello` 任务。调用根 Context 的 `start()` 会启动这些子 Context，之后便可以执行 `reports.run('hello')`。
+
+可以看到，哪些配置需要继承、哪些状态需要重新创建，取决于框架自己的组装代码。Kernel 会在回调中提供以下信息，供我们决定这些行为：
+
+| 参数 | 根 Context | 子 Context |
+| --- | --- | --- |
+| `rootOptions` | `create()` 的参数 | `undefined` |
+| `forkOptions` | `undefined` | `fork()` 的第二个参数，未传时为 `undefined` |
+| `parent` | `undefined` | 父级的组装信息 |
+| `name` | `'root'` | `fork()` 的第一个参数 |
+| `path` | `['root']` | 父路径加上当前名称 |
+
+在 `subsystems()` 中，我们通过 `parent.systems` 访问父级内部状态；到了 `builtins()`，还可以通过 `parent.context` 访问父级公开能力。
+
+同一父级下，同名 `fork()` 会返回已有实例。再次传入非 `undefined` 的选项会抛出错误，即使选项内容相同也如此；取得已有子 Context 时应只传名称。
+
+Kernel 自带的服务查找遵循“当前 Context 优先，然后逐级向父级查找”的规则。子级可以提供相同 token 的服务来遮蔽父级服务，同级之间无法互相查找。业务事件是否向子级传播、任务表是否共享，则需要由框架自行实现。
+
+## 插件与服务
+
+### 复用通用插件
+
+前面的 `HelloPlugin` 会调用 `ctx.register()`，因此需要为任务运行时定义的插件工厂。如果一个插件只需要记录日志、设定计时任务，就不必依赖这个特定的 Context。我们可以用 `defineCommonPlugin()` 编写一个定期记录心跳的插件，把它和 `HelloPlugin` 放在一起：
+
+```typescript
+import { defineCommonPlugin } from '@fraqjs/kernel';
+
+const HeartbeatPlugin = defineCommonPlugin({
+  name: 'heartbeat',
+  apply() {},
+  start(ctx) {
+    ctx.interval(30_000, () => ctx.logger.debug('heartbeat'));
+  },
+});
+```
+
+在应用入口的 `try` 之前加入 `ctx.install(HeartbeatPlugin)`，这个插件就会随 Context 启动。它把定时器放在了可选的 `start()` 方法里：Kernel 会先完成插件的 `apply()`，再调用 `start()`。与 `apply()` 不同，`start()` 只接收插件上下文，不再接收安装时的配置参数。
+
+该插件每 30 秒记录一次日志。当前示例执行完任务就会停止，若要观察心跳，需要让应用保持运行。
+
+它的 `CommonContext` 类型包含名称、日志、定时器和服务访问方法，不包含特定框架的路由或客户端，也不包含 `fork()`、`install()` 和启停方法。Kernel 定时器的签名为 `timeout(delayMs, callback)` 和 `interval(intervalMs, callback)`，停止时会自动清除，异步回调的错误会交给 logger。
+
+### 声明与解析服务
+
+随着插件增多，我们可能还希望知道一次操作来自哪个 Context、哪个插件。这类能力可以通过服务提供。例如，下面的 `AuditService` 保存使用者的身份，由 `AuditPlugin` 注册到 Context 中。我们把它放在 `HelloPlugin` 定义之后、创建 `ctx` 之前：
+
+```typescript
+import { serviceToken } from '@fraqjs/kernel';
+
+class AuditService {
+  static readonly token = serviceToken<AuditService>('tasks/AuditService');
+
+  constructor(readonly owner: string) {}
+}
+
+const AuditPlugin = definePlugin({
+  name: 'audit',
+  provides: [AuditService],
+  apply(ctx) {
+    ctx.provide(AuditService, (scope) => new AuditService(
+      `${scope.contextPath.join('/')}:${scope.plugin ?? 'context'}`,
+    ));
+  },
+});
+```
+
+`AuditService.token` 标识了这个服务，身份由 `token.key` 字符串决定。`provides` 告诉 Kernel 插件将提供什么服务，`ctx.provide()` 则实际注册提供者；如果只声明而未提供，启动会失败。在应用入口的 `try` 之前调用 `ctx.install(AuditPlugin)`，它就会参与启动。
+
+这里传给 `provide()` 的是一个同步工厂。第一次解析服务时，Kernel 会把使用者的 `contextPath` 和插件名称交给工厂，然后缓存返回的实例。直接在根 Context 上调用 `ctx.resolve(AuditService)`，得到的 `owner` 是 `root:context`；从某个插件解析时，末尾则是该插件的名称。如果所有使用者都应共享一个实例，也可以直接传入 `provide(Service, instance)`。
+
+每次插件安装都有独立的解析作用域，即使插件名称相同；直接在 Context 上解析则使用该 Context 自己的作用域。同一作用域内重复解析同一提供者会复用实例，注入与插件内的 `ctx.resolve()` 也使用同一作用域。
+
+工厂收到的 `scope.context` 是发起解析的上下文，插件作用域中则是传给该插件的上下文代理。子 Context 继承父级工厂时，仍会按子级的解析作用域创建实例，并由子级负责释放。服务作用域和释放方式还可参考[将服务绑定到作用域](../plugin.mdx#将服务绑定到作用域)。
+
+当另一个插件需要这个服务时，还应该用 `inject` 声明依赖，让 Kernel 知道必须先执行 `AuditPlugin`。直接调用 `ctx.resolve()` 不会声明启动顺序。`inject` 使用服务类声明必需依赖，`optionalInject` 则使用 token 声明可选依赖，具体写法见[依赖注入](../plugin.mdx#依赖注入)。
+
+Kernel 在每个 Context 内对插件排序，优先满足必需依赖，并尽量先执行已安装的可选依赖提供者。必需依赖缺失或形成无法解析的循环会报错，可选依赖缺失则注入 `undefined`；可选依赖之间的循环不会阻止排序。对于按需查找的服务，还可以使用 `tryResolve()` 在未提供时取得 `undefined`，或使用 `isProvided()` 只检查提供者是否存在，后者不会创建服务实例。
+
+### 定制插件上下文
+
+服务工厂可以知道正在为哪个插件创建实例，框架的公开能力有时也需要区分使用者。例如，我们希望 `HelloPlugin` 看到的标签带上插件名称，同时保留应用本身的标签，就可以通过 `plugins()` 定制传给插件的上下文。在 `const TaskContext = runtime.build()` 之前加入：
+
+```typescript
+runtime.plugins({
+  create({ context, plugin }) {
+    return { label: `${context.label}/${plugin.name}` };
+  },
+  applying({ context, plugin }) {
+    context.logger.debug(`Applying ${plugin.name}`);
+  },
+  starting({ context, plugin }) {
+    context.logger.debug(`Starting ${plugin.name}`);
+  },
+});
+```
+
+`create()` 在首次创建某次插件安装的上下文代理时执行，返回值只影响该插件看到的属性，不改变原 Context。上例中 `HelloPlugin` 看到的 `ctx.label` 是 `worker/hello`，应用持有的 `ctx.label` 仍为 `worker`。Kernel 还会自动为插件提供专属 logger。
+
+`applying()` 在插件 `apply()` 前调用；`starting()` 仅在插件定义了 `start()` 时、于该方法执行前调用。这三个组装回调都是同步的，异步初始化应放在插件或子系统的生命周期钩子中。
+
+插件定制属性优先于同名注入属性，应避免名称冲突。`create()` 的返回值也不会自动扩展插件工厂的 Context 类型；适合用它包装已在 `builtins()` 中声明的能力，例如 Fraq 为插件提供带元信息的 Router。
+
+## 启动、停止与资源释放
+
+前面的任务表在 `stop` 中清空，心跳插件在 `start()` 中创建定时器，日志订阅则由 `wire()` 返回的函数解除。它们都依赖 Context 的生命周期。对于需要连接网络或接收事件的框架，还需要明确这些操作和插件初始化之间的先后关系。
+
+### 启动顺序
+
+调用一个尚未启动的 Context 的 `start()` 时，Kernel 对其子树分三个阶段执行：
+
+1. 从父到子递归处理：将当前 Context 设为 `starting`，按注册顺序执行其子系统 `start`，再按依赖顺序执行其插件 `apply`，然后处理子 Context。
+2. 等整棵子树的上述阶段完成后，按同样的 Context 顺序执行插件 `start`，每个 Context 内仍遵循插件依赖顺序。
+3. 按同样的 Context 顺序，先将当前 Context 设为 `started`，再按注册顺序执行其子系统 `activate`。
+
+因此，子系统 `start` 适合准备插件初始化所需的内部资源，`activate` 适合开始接收外部输入。父级 `activate` 执行时，子级的插件 `start` 已全部完成，但子级可能还没有进入 `started` 或执行 `activate`。
+
+| 子系统钩子 | 时机 | 常见职责 |
+| --- | --- | --- |
+| `start` | 当前 Context 的插件 `apply` 之前 | 准备内部资源 |
+| `activate` | 子树内全部插件 `start` 完成之后 | 开始接收外部输入 |
+| `suspend` | 当前 Context 开始停止时 | 同步阻止新任务或事件进入 |
+| `deactivate` | 子 Context 停止之后 | 异步关闭输入源 |
+| `stop` | 当前 Context 的服务释放之后 | 清理剩余内部资源 |
+
+`suspend` 是同步钩子，其余钩子可以返回 Promise。启动钩子按子系统注册顺序执行，停止钩子按反向顺序执行。
+
+### 停止顺序
+
+调用 `stop()` 时，当前 Context 先进入 `stopping`，再依次执行：
+
+1. 反向执行当前 Context 的子系统 `suspend`，Kernel 定时器也在这一阶段清除。
+2. 按子 Context 创建顺序的反向顺序，逐个等待子 Context 停止。
+3. 反向执行当前 Context 的子系统 `deactivate`。
+4. 执行 `wire()` 返回的清理函数。
+5. 按服务实例被记录顺序的反向顺序，调用实例的 `dispose()`。
+6. 反向执行当前 Context 的子系统 `stop`，最终进入 `stopped`。
+
+服务可以提供同步或异步的 `dispose()`。仅实现 `Symbol.dispose` 而未提供 `dispose()` 的服务会在实例校验时被拒绝。Kernel 的插件没有 `stop` 钩子，也不会把 `apply()` 返回的函数作为清理函数；插件持有的资源应通过可释放服务管理，框架内部资源则通过子系统钩子或 `wire()` 清理。
+
+清理步骤发生错误时，Kernel 会收集错误并继续执行后续清理。一个错误会被原样抛出，多个错误会作为 `AggregateError` 抛出；Context 最终仍会进入 `stopped`。子系统的 `deactivate` 和 `stop` 也可以返回错误数组，由 Kernel 一并收集。
+
+### 状态与失败处理
+
+Context 的状态为 `idle`、`starting`、`started`、`stopping` 和 `stopped`。正常流程为 `idle → starting → started → stopping → stopped`，尚未启动的 Context 也可以直接停止。
+
+重复启动已启动的 Context、重复停止已停止的 Context 都会直接完成。同一 Context 正在启动或停止时，再次调用相应方法会等待已有操作；启动中调用 `stop()` 会先等待启动，若启动失败，这次 `stop()` 也会随之抛出。停止中不能启动，停止后不能重新启动。
+
+启动失败时，本次参与启动的 Context 会恢复到 `idle`，但已经执行的插件、创建的服务和激活的资源不会自动回滚。因此，不应把重新调用 `start()` 当作无副作用的重试。应用应捕获启动错误并调用 `stop()` 清理，然后创建新的 Context；开篇示例的 `try/finally` 就覆盖了这一情形。
+
+应在启动前完成插件安装和上下文树的组装。`install()` 不会立即运行新插件，`fork()` 也不会自动启动新子级；对已经启动的父级再次调用 `start()` 会直接返回，不会补跑这些初始化步骤。
+
+日志的订阅、格式化和插件日志来源见[记录日志](../logging.mdx)。Kernel 提供日志事件，具体输出方式由订阅者决定。
+
+## Fraq 如何使用 Kernel
+
+Fraq 的 Context 就是一次具体的组装，其[实现源码](https://github.com/fraqjs/fraq/blob/main/packages/fraq/src/core/context/index.ts)与本篇示例遵循相同结构：
+
+| 组装位置 | Fraq 的实现 |
+| --- | --- |
+| `subsystems()` | 保存协议客户端与事件总线，注册 `apiHooks`、`eventSources`，连接父子事件流并应用过滤器 |
+| `builtins()` | 暴露 `router`、`client`、`on()`、`hookApi()`、`installEventSource()` 和 `createSession()` 等能力 |
+| `plugins()` | 为每个插件包装带元信息的 Router，并记录插件加载日志 |
+| `wire()` | 将消息事件交给 Router，停止时解除消息监听与父级事件订阅 |
+| Context 创建入口 | 在运行时之上提供 `fromUrl()`、`fromClient()`，处理 Milky 客户端和事件源的创建 |
+
+这种组织方式让 Kernel 统一管理上下文、依赖与生命周期，而具体框架把自己的状态、公开 API 和连接规则放在对应的组装阶段中。回到[上下文 (Context)](./context.mdx)和[命令路由 (Router)](./router.mdx)，就可以继续了解 Fraq 在这层运行时上提供的机器人能力。

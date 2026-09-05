@@ -2,7 +2,8 @@
   "title": "深入了解",
   "pages": [
     "context",
-    "router"
+    "router",
+    "kernel"
   ],
   "defaultOpen": false
 }
