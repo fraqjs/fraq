@@ -97,37 +97,6 @@ test('sub contexts can override parent services without affecting parent', () =>
   assert.equal(child.resolve(AlphaService), childAlpha);
 });
 
-test('sorts plugins by service dependencies', async () => {
-  const ctx = createMockContext();
-  const calls: string[] = [];
-
-  const BetaPlugin = definePlugin({
-    name: 'beta',
-    inject: { alpha: AlphaService },
-    provides: [BetaService],
-    apply(ctx) {
-      calls.push('beta');
-      ctx.provide(BetaService, new BetaService(ctx.alpha));
-    },
-  });
-  const AlphaPlugin = definePlugin({
-    name: 'alpha',
-    provides: [AlphaService],
-    apply(ctx) {
-      calls.push('alpha');
-      ctx.provide(AlphaService, new AlphaService());
-    },
-  });
-
-  ctx.install(BetaPlugin);
-  ctx.install(AlphaPlugin);
-
-  await ctx.start();
-
-  assert.deepEqual(calls, ['alpha', 'beta']);
-  assert.equal(ctx.resolve(BetaService).alpha, ctx.resolve(AlphaService));
-});
-
 test('injects existing services onto plugin context proxies', async () => {
   const ctx = createMockContext();
   const alpha = new AlphaService();
@@ -188,36 +157,6 @@ test('uses injected services to order and apply plugin dependencies', async () =
   assert.equal(injectedAlpha, ctx.resolve(AlphaService));
 });
 
-test('orders plugins by optional injections when providers are installed', async () => {
-  const ctx = createMockContext();
-  const calls: string[] = [];
-
-  ctx.install(
-    definePlugin({
-      name: 'alpha-consumer',
-      optionalInject: { alpha: AlphaService.token },
-      apply(ctx) {
-        calls.push('consumer');
-        assert.ok(ctx.alpha);
-      },
-    }),
-  );
-  ctx.install(
-    definePlugin({
-      name: 'alpha-provider',
-      provides: [AlphaService],
-      apply(ctx) {
-        calls.push('alpha');
-        ctx.provide(AlphaService, new AlphaService());
-      },
-    }),
-  );
-
-  await ctx.start();
-
-  assert.deepEqual(calls, ['alpha', 'consumer']);
-});
-
 test('does not require optional injections without installed providers', async () => {
   const ctx = createMockContext();
   const calls: string[] = [];
@@ -270,27 +209,6 @@ test('uses optional injections to order plugins when providers are installed', a
 
   assert.deepEqual(calls, ['alpha', 'consumer']);
   assert.equal(injectedAlpha, ctx.resolve(AlphaService));
-});
-
-test('injects undefined for optional services without installed providers', async () => {
-  const ctx = createMockContext();
-  let injectedAlpha: AlphaService | undefined = new AlphaService();
-
-  ctx.install(
-    definePlugin({
-      name: 'alpha-consumer',
-      optionalInject: {
-        alpha: AlphaService.token,
-      },
-      apply(ctx) {
-        injectedAlpha = ctx.alpha;
-      },
-    }),
-  );
-
-  await ctx.start();
-
-  assert.equal(injectedAlpha, undefined);
 });
 
 test('breaks cycles between optional service dependencies', async () => {

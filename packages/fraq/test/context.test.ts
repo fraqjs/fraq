@@ -37,26 +37,6 @@ test('fork filters reject events without an explicit predicate', async () => {
   assert.equal(receivedRecallEvents, 0);
 });
 
-test('fork filters pass events when the predicate accepts them', async () => {
-  const ctx = createMockContext();
-  const child = ctx.fork(
-    'child',
-    filter.define({
-      message_receive: () => true,
-    }),
-  );
-  let receivedMessageEvents = 0;
-
-  child.on('message_receive', () => {
-    receivedMessageEvents += 1;
-  });
-
-  await ctx.start();
-  await ctx.mock.receiveFriend({ userId: 1 }, []);
-
-  assert.equal(receivedMessageEvents, 1);
-});
-
 test('plugin context registers routes with plugin metadata', async () => {
   const ctx = createMockContext();
   const descriptors: RouteDescriptor[] = [];

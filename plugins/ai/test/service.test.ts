@@ -6,20 +6,6 @@ import { mockImageModel, mockLanguageModel, mockToolCallModel } from './util/moc
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-test('AiService exposes the configured model', () => {
-  const model = mockLanguageModel('hello');
-  const service = new AiService({
-    languageModels: {
-      'test/model': model,
-    },
-    imageModels: {},
-    aliases: {},
-    defaultModel: 'test/model',
-  });
-
-  assert.equal(service.model(), model);
-});
-
 test('AiService resolves models by name and alias', () => {
   const primary = mockLanguageModel('primary');
   const fallback = mockLanguageModel('fallback');
@@ -108,21 +94,6 @@ test('AiService constructor rejects an invalid default model', () => {
   );
 });
 
-test('the exposed model works with the raw generateText function', async () => {
-  const service = new AiService({
-    languageModels: {
-      'test/model': mockLanguageModel('hello from the model'),
-    },
-    imageModels: {},
-    aliases: {},
-    defaultModel: 'test/model',
-  });
-
-  const result = await ai.generateText({ model: service.model(), prompt: 'hi' });
-
-  assert.equal(result.text, 'hello from the model');
-});
-
 test('the exposed model works with the raw streamText function', async () => {
   const service = new AiService({
     languageModels: {
@@ -141,38 +112,6 @@ test('the exposed model works with the raw streamText function', async () => {
   }
 
   assert.equal(collected, 'streamed text');
-});
-
-test('the exposed model supports tool calling with full type inference', async () => {
-  const service = new AiService({
-    languageModels: {
-      'test/model': mockToolCallModel('weather', { city: 'Tokyo' }),
-    },
-    imageModels: {},
-    aliases: {},
-    defaultModel: 'test/model',
-  });
-
-  const result = await ai.generateText({
-    model: service.model(),
-    prompt: 'What is the weather in Tokyo?',
-    tools: {
-      weather: ai.tool({
-        description: 'Get the weather for a city',
-        inputSchema: ai.jsonSchema<{ city: string }>({
-          type: 'object',
-          properties: { city: { type: 'string' } },
-          required: ['city'],
-          additionalProperties: false,
-        }),
-        execute: async ({ city }) => `sunny in ${city}`,
-      }),
-    },
-  });
-
-  assert.equal(result.toolCalls[0]?.toolName, 'weather');
-  assert.deepEqual(result.toolCalls[0]?.input, { city: 'Tokyo' });
-  assert.equal(result.toolResults[0]?.output, 'sunny in Tokyo');
 });
 
 test('AiService creates tools from the selected Milky endpoint metadata', async () => {
@@ -361,20 +300,6 @@ test('AiService rejects an alias pointing to an image model when accessed via mo
   });
 
   assert.throws(() => service.model('art'), /Model not found: art/);
-});
-
-test('the exposed image model works with the raw generateImage function', async () => {
-  const service = new AiService({
-    languageModels: {},
-    imageModels: {
-      'test/dall-e': mockImageModel('aGVsbG8='),
-    },
-    aliases: {},
-  });
-
-  const result = await ai.generateImage({ model: service.image(), prompt: 'a cat' });
-
-  assert.equal(result.image.base64, 'aGVsbG8=');
 });
 
 test('AiService constructor accepts a defaultImage alias', () => {

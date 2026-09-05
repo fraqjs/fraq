@@ -22,17 +22,19 @@ test('filter combinations preserve empty-input and missing-predicate behavior', 
   assert.equal(filter.and(accept, accept).bot_offline?.(event), true);
 });
 
-test('filter combinations evaluate in order and short-circuit', () => {
+test('filter combinations call unbound predicates in order and short-circuit', () => {
   const calls: string[] = [];
   const accept = filter.define({
-    bot_offline(received) {
+    bot_offline(this: unknown, received) {
+      assert.equal(this, undefined);
       assert.equal(received, event);
       calls.push('accept');
       return true;
     },
   });
   const reject = filter.define({
-    bot_offline() {
+    bot_offline(this: unknown) {
+      assert.equal(this, undefined);
       calls.push('reject');
       return false;
     },
@@ -43,16 +45,4 @@ test('filter combinations evaluate in order and short-circuit', () => {
   calls.length = 0;
   assert.equal(filter.and(accept, reject, accept).bot_offline?.(event), false);
   assert.deepEqual(calls, ['accept', 'reject']);
-});
-
-test('filter combinations call predicates without binding the filter as this', () => {
-  const accept = filter.define({
-    bot_offline(this: unknown) {
-      assert.equal(this, undefined);
-      return true;
-    },
-  });
-
-  assert.equal(filter.or(accept).bot_offline?.(event), true);
-  assert.equal(filter.and(accept).bot_offline?.(event), true);
 });

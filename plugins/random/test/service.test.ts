@@ -142,17 +142,6 @@ test('clone preserves the current generator state', () => {
   );
 });
 
-test('exportState captures the current pcg32 state', () => {
-  const random = new RandomService({ seed: 2024 });
-
-  random.uint32();
-
-  const state = random.exportState();
-  const clone = random.clone();
-
-  assert.deepEqual(state, clone.exportState());
-});
-
 test('fromState resumes the exported generator state', () => {
   const original = new RandomService({ seed: 4242, sequence: 7 });
 

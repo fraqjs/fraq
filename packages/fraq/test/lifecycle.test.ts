@@ -266,18 +266,23 @@ test('stops child context timers before waiting for the parent event stream to s
   assert.equal(calls, 0);
 });
 
-test('removes completed timeouts from context timer tracking', async () => {
+test('stopping clears pending timeouts but does not revisit completed timeouts', async (t) => {
   const ctx = createMockContext();
-  let calls = 0;
+  t.after(() => ctx.stop());
+  let completed!: NodeJS.Timeout;
 
   await ctx.start();
-  ctx.timeout(0, () => {
-    calls += 1;
+  await new Promise<void>((resolve) => {
+    completed = ctx.timeout(0, resolve);
   });
-  await flushTimers();
+  const pending = ctx.timeout(60_000, () => {});
+  const clearTimer = t.mock.method(globalThis, 'clearTimeout');
+
   await ctx.stop();
 
-  assert.equal(calls, 1);
+  const cleared = clearTimer.mock.calls.map((call) => call.arguments[0]);
+  assert.equal(cleared.includes(completed), false);
+  assert.equal(cleared.includes(pending), true);
 });
 
 test('logs timer callback errors', async () => {

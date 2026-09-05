@@ -560,23 +560,6 @@ test('activation resolver receives descriptor for raw patterns without literals 
   assert.deepEqual(descriptors, [{ type: 'rawPattern', path: ['teleport'] }]);
 });
 
-test('top-level raw patterns without literals still ignore activation', async () => {
-  const router = new Router();
-  let resolverCalled = false;
-
-  router.setActivationResolver(() => {
-    resolverCalled = true;
-    return [];
-  });
-  router.rawPattern({
-    pattern: { content: param.greedy() },
-    execute() {},
-  });
-
-  assert.equal(await dispatch(router, inmsg`anything`), true);
-  assert.equal(resolverCalled, false);
-});
-
 test('dispatches raw patterns registered with the builder syntax', async () => {
   const router = new Router();
   let captured = '';
@@ -798,42 +781,29 @@ test('raw pattern catch-all captures a mixed message', async () => {
   assert.deepEqual(captured, [inseg.text('hello '), target]);
 });
 
-test('builder sets description, aliases, and hidden on the command', () => {
-  const router = new Router();
+test('builder preserves command metadata with optional hiding', () => {
+  for (const hidden of [false, true]) {
+    const router = new Router();
+    const builder = router.command('info').describe('Shows information about the bot').alias('i', 'about');
+    if (hidden) {
+      builder.hide();
+    }
+    const command = builder.execute(() => {});
 
-  const command = router
-    .command('info')
-    .describe('Shows information about the bot')
-    .alias('i', 'about')
-    .hide()
-    .execute(() => {});
-
-  assert.equal(command.name, 'info');
-  assert.equal(command.description, 'Shows information about the bot');
-  assert.deepEqual(command.aliases, ['i', 'about']);
-  assert.equal(command.hidden, true);
+    assert.equal(command.name, 'info');
+    assert.equal(command.description, 'Shows information about the bot');
+    assert.deepEqual(command.aliases, ['i', 'about']);
+    assert.equal(command.hidden, hidden ? true : undefined);
+  }
 });
 
-test('builder sets description and aliases without hide', () => {
-  const router = new Router();
-
-  const command = router
-    .command('ping')
-    .describe('Responds with pong')
-    .alias('p')
-    .execute(() => {});
-
-  assert.equal(command.description, 'Responds with pong');
-  assert.deepEqual(command.aliases, ['p']);
-  assert.equal(command.hidden, undefined);
-});
-
-test('dispatches a command via its alias', async () => {
+test('preserves object command metadata and dispatches by alias', async () => {
   const router = new Router();
   let called = false;
 
   router.command({
     name: 'help',
+    description: 'Shows help',
     aliases: ['h', '?'],
     pattern: {},
     execute() {
@@ -841,7 +811,14 @@ test('dispatches a command via its alias', async () => {
     },
   });
 
-  assert.equal(await dispatch(router, inmsg`h`), true);
+  const raw = message(inmsg`h`);
+  const match = router.match(session(raw), raw);
+  assert.equal(match?.type, 'command');
+  assert.equal(match.command.description, 'Shows help');
+  assert.deepEqual(match.command.aliases, ['h', '?']);
+  assert.equal(called, false);
+
+  assert.equal(await router.dispatch(session(raw), raw), true);
   assert.equal(called, true);
 });
 
@@ -915,18 +892,19 @@ test('match returns the matched command and params for alias dispatch', () => {
   router.command({
     name: 'greet',
     aliases: ['g'],
-    pattern: {},
+    pattern: { name: param.str() },
     execute() {},
   });
 
-  const raw = message(inmsg`g`);
+  const raw = message(inmsg`g world`);
   const match = router.match(session(raw), raw);
 
   assert.equal(match?.type, 'command');
   assert.equal(match.command.name, 'greet');
+  assert.deepEqual(match.params, { name: 'world' });
 });
 
-test('aliasesOf returns aliases for a registered command', () => {
+test('aliasesOf handles registered commands, missing aliases, and unknown names', () => {
   const router = new Router();
 
   router.command({
@@ -935,42 +913,14 @@ test('aliasesOf returns aliases for a registered command', () => {
     pattern: {},
     execute() {},
   });
+  router.command('ping').execute(() => {});
 
   assert.deepEqual(router.aliasesOf('help'), ['h', '?']);
-});
-
-test('aliasesOf returns empty array for command without aliases', () => {
-  const router = new Router();
-
-  router.command({
-    name: 'ping',
-    pattern: {},
-    execute() {},
-  });
-
   assert.deepEqual(router.aliasesOf('ping'), []);
-});
-
-test('aliasesOf returns empty array for unknown command', () => {
-  const router = new Router();
-
   assert.deepEqual(router.aliasesOf('nonexistent'), []);
 });
 
-test('aliasesOf does not search inside groups', () => {
-  const router = new Router();
-
-  router.group('admin').command({
-    name: 'ban',
-    aliases: ['block'],
-    pattern: { userId: param.num() },
-    execute() {},
-  });
-
-  assert.deepEqual(router.aliasesOf('ban'), []);
-});
-
-test('aliasesOf works on group router directly', () => {
+test('aliasesOf only searches the queried router level', () => {
   const router = new Router();
   const admin = router.group('admin');
 
@@ -981,6 +931,7 @@ test('aliasesOf works on group router directly', () => {
     execute() {},
   });
 
+  assert.deepEqual(router.aliasesOf('ban'), []);
   assert.deepEqual(admin.aliasesOf('ban'), ['block']);
 });
 
@@ -1082,74 +1033,30 @@ test('removes alias from existing command when new alias conflicts', () => {
   }
 });
 
-test('hidden commands are not listed in branches', () => {
-  const router = new Router();
+test('hidden commands stay dispatchable but unlisted with either registration syntax', async () => {
+  for (const syntax of ['object', 'builder']) {
+    const router = new Router();
+    let calls = 0;
+    const execute = () => {
+      calls += 1;
+    };
 
-  router.command({ name: 'visible', pattern: {}, execute() {} });
-  router.command({ name: 'hidden', pattern: {}, hidden: true, execute() {} });
+    router.command('visible').execute(() => {});
+    if (syntax === 'object') {
+      router.command({ name: 'secret', pattern: {}, hidden: true, execute });
+    } else {
+      router.command('secret').hide().execute(execute);
+    }
 
-  const raw = message(inmsg`anything`);
-  const branches = router.branches(session(raw));
+    const raw = message(inmsg`anything`);
+    const names = router
+      .branches(session(raw))
+      .flatMap((branch) => (branch.type === 'command' ? [branch.command.name] : []));
 
-  const names = branches
-    .filter((b) => b.type === 'command')
-    .map((b) => (b as { type: 'command'; command: { name: string } }).command.name);
-
-  assert.deepEqual(names, ['visible']);
-});
-
-test('hidden commands still dispatch', async () => {
-  const router = new Router();
-  let called = false;
-
-  router.command({
-    name: 'secret',
-    hidden: true,
-    pattern: {},
-    execute() {
-      called = true;
-    },
-  });
-
-  assert.equal(await dispatch(router, inmsg`secret`), true);
-  assert.equal(called, true);
-});
-
-test('hidden command via builder is not listed in branches', () => {
-  const router = new Router();
-
-  router.command('show').execute(() => {});
-  router
-    .command('hide')
-    .hide()
-    .execute(() => {});
-
-  const raw = message(inmsg`anything`);
-  const branches = router.branches(session(raw));
-
-  const names = branches
-    .filter((b) => b.type === 'command')
-    .map((b) => (b as { type: 'command'; command: { name: string } }).command.name);
-
-  assert.deepEqual(names, ['show']);
-});
-
-test('command via object literal supports description and aliases fields', () => {
-  const router = new Router();
-  let called = false;
-
-  router.command({
-    name: 'greet',
-    description: 'Sends a greeting',
-    aliases: ['g', 'hello'],
-    pattern: {},
-    execute() {
-      called = true;
-    },
-  });
-
-  assert.equal(router.aliasesOf('greet').length, 2);
-  assert.equal(called, false);
+    assert.deepEqual(names, ['visible'], syntax);
+    assert.equal(await dispatch(router, inmsg`secret`), true, syntax);
+    assert.equal(calls, 1, syntax);
+  }
 });
 
 test('rejects catch-all parameters before the end of a pattern', () => {
