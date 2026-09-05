@@ -18,3 +18,5 @@ minimumReleaseAgeExclude:
 allowBuilds:
   esbuild: true
   sharp: true
+
+ignoreWorkspaceCycles: true
