@@ -1,5 +1,11 @@
 # @fraqjs/plugin-webui-gateway
 
+## 1.1.1
+
+### Patch Changes
+
+- 2da83a7: 修复 peerDependencies 中对 Hono 版本的声明
+
 ## 1.1.0
 
 ### Minor Changes
