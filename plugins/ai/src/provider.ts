@@ -45,7 +45,7 @@ export async function resolveModels(name: string, config: ProviderConfig): Promi
       provider = (await import('@ai-sdk/deepseek')).createDeepSeek(options);
       break;
     case '@ai-sdk/google':
-      provider = (await import('@ai-sdk/google')).createGoogleGenerativeAI(options);
+      provider = (await import('@ai-sdk/google')).createGoogle(options);
       break;
     case '@ai-sdk/moonshotai':
       provider = (await import('@ai-sdk/moonshotai')).createMoonshotAI(options);
