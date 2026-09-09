@@ -1,5 +1,13 @@
 # @fraqjs/plugin-ai
 
+## 1.0.1
+
+### Patch Changes
+
+- 25062e0: 更新内置 Provider 的版本
+- Updated dependencies [e696d63]
+  - @fraqjs/fraq@1.1.1
+
 ## 1.0.0
 
 ### Major Changes
