@@ -1,5 +1,12 @@
 # @fraqjs/fraq
 
+## 1.1.1
+
+### Patch Changes
+
+- e696d63: 优化命令 tokenizer 和 router
+- @fraqjs/kernel@1.1.1
+
 ## 1.1.0
 
 ### Minor Changes
