@@ -250,11 +250,9 @@ export class Router {
 
   private matchPath(path: string[], tokenizer: Tokenizer): boolean {
     for (const name of path) {
-      const token = tokenizer.peek();
-      if (typeof token !== 'string' || token !== name) {
+      if (!tokenizer.consumeTextToken(name)) {
         return false;
       }
-      tokenizer.next();
     }
 
     return true;
@@ -266,12 +264,13 @@ export class Router {
     path: string[],
     activation: RouteActivation,
   ): RouteMatchResult | undefined {
-    const token = tokenizer.peek();
-    if (typeof token !== 'string' || (token !== command.name && !command.aliases?.includes(token))) {
+    if (
+      !tokenizer.consumeTextToken(command.name) &&
+      !command.aliases?.some((alias) => tokenizer.consumeTextToken(alias))
+    ) {
       return undefined;
     }
 
-    tokenizer.next();
     const params = this.capturePattern(command.pattern, tokenizer);
     if (params === undefined || tokenizer.hasNext()) {
       return undefined;

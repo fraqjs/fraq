@@ -79,12 +79,7 @@ export class Tokenizer {
       return false;
     }
 
-    const segment = this.segments[position.offset];
-    if (segment?.type !== 'text') {
-      return false;
-    }
-
-    return this.findTextTokenStart(segment.data.text, position.subOffset ?? 0) < segment.data.text.length;
+    return this.segments[position.offset].type === 'text';
   }
 
   greedy(): string {
@@ -98,12 +93,7 @@ export class Tokenizer {
       throw new Error('Greedy token is not available');
     }
 
-    const tokenStart = this.findTextTokenStart(segment.data.text, position.subOffset ?? 0);
-    if (tokenStart >= segment.data.text.length) {
-      throw new Error('Greedy token is not available');
-    }
-
-    const token = segment.data.text.slice(tokenStart);
+    const token = segment.data.text.slice(position.subOffset ?? 0);
     this.offset = position.offset + 1;
     this.subOffset = undefined;
 
@@ -121,23 +111,16 @@ export class Tokenizer {
     }
 
     const segment = this.segments[position.offset];
-    const segments: IncomingSegment[] = [];
+    const segments = this.segments.slice(position.offset);
 
     if (segment.type === 'text') {
-      const textStart = this.findTextTokenStart(segment.data.text, position.subOffset ?? 0);
-      const text = segment.data.text.slice(textStart);
-      if (text.length > 0) {
-        segments.push({
-          ...segment,
-          data: {
-            ...segment.data,
-            text,
-          },
-        });
-      }
-      segments.push(...this.segments.slice(position.offset + 1));
-    } else {
-      segments.push(...this.segments.slice(position.offset));
+      segments[0] = {
+        ...segment,
+        data: {
+          ...segment.data,
+          text: segment.data.text.slice(position.subOffset ?? 0),
+        },
+      };
     }
 
     this.offset = this.segments.length;
@@ -156,6 +139,51 @@ export class Tokenizer {
     return false;
   }
 
+  consumeTextToken(expected: string): boolean {
+    if (expected.length === 0) {
+      return false;
+    }
+
+    const position = this.findNextPosition();
+    if (position === undefined) {
+      return false;
+    }
+
+    const segment = this.segments[position.offset];
+    if (segment.type !== 'text') {
+      return false;
+    }
+
+    const text = segment.data.text;
+    const tokenStart = position.subOffset ?? 0;
+    if (!text.startsWith(expected, tokenStart)) {
+      return false;
+    }
+
+    const tokenEnd = tokenStart + expected.length;
+    if (tokenEnd < text.length && !WHITESPACE_CHARS.has(text[tokenEnd])) {
+      return false;
+    }
+
+    // A name containing separators cannot represent a single token.
+    for (let offset = tokenStart; offset < tokenEnd; offset++) {
+      if (WHITESPACE_CHARS.has(text[offset])) {
+        return false;
+      }
+    }
+
+    const nextSubOffset = this.findTextTokenStart(text, tokenEnd);
+    if (nextSubOffset < text.length) {
+      this.offset = position.offset;
+      this.subOffset = nextSubOffset;
+    } else {
+      this.offset = position.offset + 1;
+      this.subOffset = undefined;
+    }
+
+    return true;
+  }
+
   consumeTextPrefix(prefix: string): boolean {
     if (prefix.length === 0) {
       return false;
@@ -171,7 +199,7 @@ export class Tokenizer {
       return false;
     }
 
-    const prefixStart = this.findTextTokenStart(segment.data.text, position.subOffset ?? 0);
+    const prefixStart = position.subOffset ?? 0;
     if (!segment.data.text.startsWith(prefix, prefixStart)) {
       return false;
     }

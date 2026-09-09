@@ -108,6 +108,46 @@ test('does not dispatch a command when trailing tokens remain', async () => {
   assert.equal(called, false);
 });
 
+test('command names, aliases and group names require complete text tokens', async () => {
+  const router = new Router().setActivationResolver(() => [{ type: 'prefix', prefix: '/' }]);
+  router
+    .group('admin')
+    .command('ping')
+    .alias('p')
+    .execute(() => {});
+
+  for (const input of ['/administrator ping', '/admin pingpong', '/admin pong', '/admin p\u2003']) {
+    assert.equal(await dispatch(router, [inseg.text(input)]), false);
+  }
+  for (const input of ['/admin ping', '/admin p', '/admin\u3000p\u00A0']) {
+    assert.equal(await dispatch(router, [inseg.text(input)]), true);
+  }
+  assert.equal(await dispatch(router, [inseg.text('/admin pin'), inseg.text('g')]), false);
+  assert.equal(await dispatch(router, [inseg.text('/admin'), inseg.text('ping')]), true);
+});
+
+test('empty names and names containing separators remain unmatchable', async () => {
+  for (const name of ['', 'two words', 'two\twords']) {
+    const commandRouter = new Router();
+    commandRouter.command(name).execute(() => {});
+    assert.equal(await dispatch(commandRouter, [inseg.text(name)]), false);
+
+    const aliasRouter = new Router();
+    aliasRouter
+      .command('ping')
+      .alias(name)
+      .execute(() => {});
+    assert.equal(await dispatch(aliasRouter, [inseg.text(name)]), false);
+
+    const groupRouter = new Router();
+    groupRouter
+      .group(name)
+      .command('ping')
+      .execute(() => {});
+    assert.equal(await dispatch(groupRouter, [inseg.text(`${name} ping`)]), false);
+  }
+});
+
 test('greedy command parameter captures the remaining text', async () => {
   const router = new Router();
   let captured = '';
