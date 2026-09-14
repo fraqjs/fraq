@@ -60,3 +60,55 @@ test('returns the generated application exit code', async () => {
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test('recognizes only the versioned readiness message and preserves later exit codes', async () => {
+  const { spawnAppProcess } = await import('../src/app/runner');
+  const root = await mkdtemp(path.join(os.tmpdir(), 'fraq-ready-'));
+  const script = path.join(root, 'ready.cjs');
+  await writeFile(
+    script,
+    `
+    process.send({ type: 'fraq:ready', version: 0 });
+    setTimeout(() => process.send({ type: 'fraq:ready', version: 1 }), 30);
+    setTimeout(() => process.exit(9), 60);
+  `,
+  );
+  const originalCwd = process.cwd();
+  await mkdir(path.join(root, 'app'));
+  try {
+    process.chdir(root);
+    const child = spawnAppProcess(script);
+    await child.ready;
+    assert.equal(await child.exit, 9);
+  } finally {
+    process.chdir(originalCwd);
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('rejects readiness on early exit and times out a hung startup', async () => {
+  const { spawnAppProcess } = await import('../src/app/runner');
+  const root = await mkdtemp(path.join(os.tmpdir(), 'fraq-unready-'));
+  const script = path.join(root, 'startup.cjs');
+  const originalCwd = process.cwd();
+  await mkdir(path.join(root, 'app'));
+  try {
+    process.chdir(root);
+    await writeFile(script, 'process.exit(3);');
+    const failed = spawnAppProcess(script);
+    await assert.rejects(failed.ready, /before becoming ready/);
+    assert.equal(await failed.exit, 3);
+
+    await writeFile(script, 'setInterval(() => {}, 1000);');
+    const hung = spawnAppProcess(script, 100);
+    try {
+      await assert.rejects(hung.ready, /within 100ms/);
+    } finally {
+      hung.kill('SIGKILL');
+      await hung.exit;
+    }
+  } finally {
+    process.chdir(originalCwd);
+    await rm(root, { recursive: true, force: true });
+  }
+});

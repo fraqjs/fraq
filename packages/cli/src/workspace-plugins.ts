@@ -70,13 +70,14 @@ export function resolveWorkspacePluginPath(
 export function getWorkspacePluginDependency(
   config: Pick<DependencyConfig, 'workspacePlugins'>,
   pluginName: string,
+  appPath = getAppPath(),
 ): string | undefined {
   const pluginPath = resolveWorkspacePluginPath(config, pluginName);
   if (pluginPath === undefined) {
     return undefined;
   }
 
-  const relativePath = path.relative(getAppPath(), pluginPath).split(path.sep).join('/');
+  const relativePath = path.relative(appPath, pluginPath).split(path.sep).join('/');
   return `file:${relativePath.startsWith('.') ? relativePath : `./${relativePath}`}`;
 }
 

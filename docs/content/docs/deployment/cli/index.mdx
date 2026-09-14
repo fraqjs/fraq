@@ -43,17 +43,17 @@ Fraq 会按照 `pnpm -> yarn -> npm` 的顺序查找可用的包管理器，并�
 {/* prettier-ignore */}
 ```
 > fraq wizard
-Fraq CLI v0.10.0
+Fraq CLI v1.0.0
  
 ✔ Project name: my-fraq-app
-✔ Fraq version to use: 0.17.0
+✔ Fraq version to use: 1.0.0
 ✔ Milky server address: localhost
 ✔ Milky server port: 30001
  
 Fraq CLI is going to create my-fraq-app/fraq.yml with the following content:
  
 configVersion: 1
-fraqVersion: 0.17.0
+fraqVersion: 1.0.0
 milky:
   url: http://localhost:30001/
  
@@ -71,7 +71,7 @@ to start your Fraq application.
 
 随后，你可以 `cd` 到指定的项目目录下，查看和修改生成的 `fraq.yml` 配置文件。
 
-你可以在命令行中执行 `fraq start` 来启动。Fraq CLI 会在当前目录的 `app` 子目录下创建一个默认的 Fraq 机器人项目，并且自动安装依赖。安装完成后，Fraq CLI 会启动 Fraq 机器人，并且在命令行中打印出启动日志。如果你安装了 `pnpm`，日志可能形如：
+你可以在命令行中执行 `fraq start` 来启动。Fraq CLI 会在当前目录的 `app` 下创建运行目录，并且自动安装依赖。安装完成后，Fraq CLI 会启动 Fraq 机器人，并且在命令行中打印出启动日志。如果你安装了 `pnpm`，日志可能形如：
 
 {/* prettier-ignore */}
 <Callout>
@@ -79,23 +79,26 @@ YAML 是一种表达力较强但也较为复杂的配置文件格式。你可以
 </Callout>
 {/* prettier-ignore-end */}
 
+{/* prettier-ignore */}
 ```
 > fraq start
-Fraq CLI v0.10.0
-
+Fraq CLI v1.0.0
+ 
 Syncing lockfile versions...
 Successfully synced lockfile versions.
-
+ 
 Installing application dependencies with pnpm...
 ✓ Lockfile passes supply-chain policies (verified 8h ago)
 Lockfile is up to date, resolution step is skipped
 Already up to date
 Done in 279ms using pnpm v11.7.0
-
+ 
 Starting the Fraq application...
 2026/07/21 00:29:39 DEBUG context:root Connecting websocket (attempt=1)
 2026/07/21 00:29:39  INFO context:root websocket connected
 ```
+
+{/* prettier-ignore-end */}
 
 你可以随时使用 `Ctrl + C` 来停止 Fraq 机器人。
 
@@ -209,7 +212,7 @@ plugins: ${{ tree:config/plugins.yml }}
 
 支持以下引用类型：
 
-- `${{ env:NAME }}` 读取环境变量。环境变量不存在时，Fraq CLI 会停止并报告错误。
+- `${{ env:NAME }}` 读取环境变量。环境变量不存在时，Fraq CLI 会报告错误。
 - `${{ text:path }}` 以 UTF-8 读取文本文件。Fraq CLI 会移除文件末尾的一个 `LF` 或 `CRLF` 换行符，并保留其他空白。
 - `${{ tree:path }}` 解析 `.yml`、`.yaml` 或 `.json` 文件，保留其中对象、数组、数字、布尔值和 `null` 等原生类型。
 
@@ -225,7 +228,7 @@ example: $${{ env:NAME }} # 解析结果为字面量 `${{ env:NAME }}`
 
 ## Watch 模式
 
-`fraq start` 命令支持 `--watch` 参数，它会在启动 Fraq 机器人后，持续观察 `fraq.yml` 配置文件和工作区插件的有效入口点文件的变化。一旦这些文件发生变化，Fraq CLI 会自动重新加载配置或刷新本地依赖，并重启 Fraq 机器人。
+`fraq start` 命令支持 `--watch` 参数。CLI 会持续观察主配置（`fraq.yml`、`fraq.yaml` 或 `fraq.json`）、`versions.yml`、加载配置时访问的引用文件，以及工作区插件的有效入口点文件。有效配置变化时会重新加载并重启 Fraq；本地入口点变化时还会刷新工作区依赖。第一次启动失败时，CLI 会报告错误并以非零状态退出；如果本次 Watch 会话已成功启动过 Fraq，后续重载失败时会保留当前进程或回退，并继续监听修复。
 
 ```bash
 fraq start --watch

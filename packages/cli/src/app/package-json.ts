@@ -1,6 +1,9 @@
 import type { Config } from '../config';
 import { normalizePluginName } from '../dependency';
+import { getAppPath } from '../paths';
 import { getNpmPluginVersions, getWorkspacePluginDependency } from '../workspace-plugins';
+
+import path from 'node:path';
 
 interface PackageJson {
   name: string;
@@ -9,7 +12,7 @@ interface PackageJson {
   dependencies: Record<string, string>;
 }
 
-export function generateAppPackageJson(config: Config): PackageJson {
+export function generateAppPackageJson(config: Config, appPath?: string): PackageJson {
   const packageJson: PackageJson = {
     name: 'fraq-app',
     private: true,
@@ -23,11 +26,15 @@ export function generateAppPackageJson(config: Config): PackageJson {
   }
   if (config.additionalDependencies) {
     for (const [dependency, version] of Object.entries(config.additionalDependencies)) {
-      packageJson.dependencies[dependency] = version;
+      const local = /^(file:|link:)(.+)$/.exec(version);
+      packageJson.dependencies[dependency] =
+        appPath && local?.[2]
+          ? `${local[1]}${path.resolve(getAppPath(), local[2]).split(path.sep).join('/')}`
+          : version;
     }
   }
   for (const pluginName of Object.keys(config.workspacePlugins ?? {})) {
-    const dependency = getWorkspacePluginDependency(config, pluginName);
+    const dependency = getWorkspacePluginDependency(config, pluginName, appPath);
     if (dependency !== undefined) {
       packageJson.dependencies[normalizePluginName(pluginName)] = dependency;
     }

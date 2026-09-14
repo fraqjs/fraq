@@ -6,7 +6,7 @@ title: 版本锁定与更新
 
 ## 版本 lock 文件
 
-`versions.yml` 是 Fraq CLI 生成的版本 lock 文件，位于项目根目录，记录了所有已安装插件的确切版本：
+`versions.yml` 是 Fraq CLI 生成的版本 lock 文件，位于项目根目录，记录了目标配置中 npm 插件的版本：
 
 ```yaml
 retrieve: 0.1.2
@@ -24,8 +24,8 @@ versions:
 
 `fraq start` 在启动前会检查版本配置：
 
-- 如果某个插件既没有在 `versions.yml` 中记录，也没有在 `fraq.yml` 的 `versions` 字段中声明，Fraq CLI 会停止，并提示你运行 `fraq lock` 来补全版本。
-- 如果 `fraq.yml` 中声明的版本与 `versions.yml` 记录的不一致，Fraq CLI 会停止并列出冲突的插件和两处声明的版本，你需要统一两处声明后再启动。
+- 如果某个插件既没有在 `versions.yml` 中记录，也没有在 `fraq.yml` 的 `versions` 字段中声明，则配置检查失败，并提示你运行 `fraq lock` 来补全版本。
+- 如果 `fraq.yml` 中声明的版本与 `versions.yml` 记录的不一致，则配置检查失败，并列出冲突的插件和两处声明的版本，你需要统一两处声明后再应用配置。
 - 通过 [`workspacePlugins`](./index#测试工作区插件) 指向本地包的插件不需要版本声明，也不会出现在版本 lock 文件中。
 
 ## 补全版本

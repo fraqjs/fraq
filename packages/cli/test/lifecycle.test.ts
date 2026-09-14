@@ -1,353 +1,311 @@
-import { AppLifecycle, type PreparedApp } from '../src/app/lifecycle';
-import type { RunningProcess } from '../src/app/runner';
+import { AppLifecycle, type AppLifecycleOptions } from '../src/app/lifecycle';
+import type { RunningAppProcess } from '../src/app/runner';
+import { dependencyFingerprint, type Runtime, type RuntimeOptions, type RuntimeStore } from '../src/app/runtimes';
+import { buildStartScript } from '../src/app/start-script';
 import type { Config } from '../src/config';
-import type { ConfigSourceRegistry } from '../src/config/sources';
 
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import test from 'node:test';
+import test, { type TestContext } from 'node:test';
 
-function createConfig(options: { url?: string; fraqVersion?: string } = {}): Config {
+function createConfig(url = 'http://localhost:3000'): Config {
   return {
     configVersion: 1,
-    fraqVersion: options.fraqVersion ?? '1.0.0',
-    milky: {
-      url: options.url ?? 'http://localhost:3000',
-      connectEvent: true,
-    },
-    logging: {
-      minLevel: 'info',
-    },
+    fraqVersion: '1.0.0',
+    milky: { url, connectEvent: true },
+    logging: { minLevel: 'info' },
     versions: {},
   };
 }
 
-test('serializes reloads and installs only when effective dependencies change', async (t) => {
-  t.mock.method(console, 'log', () => {});
-  t.mock.method(console, 'error', () => {});
+const packageManager = {
+  name: 'pnpm' as const,
+  installed: true,
+  commandPath: '/test/pnpm',
+  allCommandPaths: ['/test/pnpm'],
+};
+const configPath = path.resolve('fraq.yml');
+const entryPoint = path.resolve('plugin/dist/index.mjs');
 
-  const rootConfigPath = path.resolve('fraq.yml');
-  const versionsPath = path.resolve('versions.yml');
-  const firstReferencePath = path.resolve('first.yml');
-  const failedReferencePath = path.resolve('missing.yml');
-  const secondReferencePath = path.resolve('second.yml');
-  const watchedFileSets: Set<string>[] = [];
-  let notifyChange = (_changedFiles: ReadonlySet<string>) => {};
-  let watcherCloseCount = 0;
-  let currentConfig = createConfig();
-  let currentReference = firstReferencePath;
-  let prepareError: Error | undefined;
-  let writeCount = 0;
-  let installCount = 0;
-  let installResult = 0;
-  const spawnedProcesses: Array<RunningProcess & { signals: NodeJS.Signals[] }> = [];
-
-  const createSources = (options: {
-    files: Iterable<string>;
-    onChange: (files: ReadonlySet<string>) => void;
-  }): ConfigSourceRegistry => {
-    notifyChange = options.onChange;
-    watchedFileSets.push(new Set(options.files));
-    return {
-      update(files) {
-        watchedFileSets.push(new Set(files));
-      },
-      async close() {
-        watcherCloseCount += 1;
-      },
-    };
+function runtime(config = createConfig()): Runtime {
+  return {
+    directory: '/test/runtime',
+    entryPoint: `/test/runtime/${new URL(config.milky.url).port}.mjs`,
+    startScript: buildStartScript(config),
+    fingerprint: dependencyFingerprint(config, packageManager),
   };
+}
 
-  const lifecycle = AppLifecycle.create({
-    initialFiles: (function* () {
-      yield rootConfigPath;
-      yield versionsPath;
-    })(),
-    async prepare(accessedFiles): Promise<PreparedApp> {
-      accessedFiles.add(rootConfigPath);
-      accessedFiles.add(currentReference);
-      if (prepareError) {
-        throw prepareError;
-      }
-      return {
-        config: currentConfig,
-        packageManager: {
-          name: 'pnpm',
-          installed: true,
-          commandPath: '/test/pnpm',
-          allCommandPaths: ['/test/pnpm'],
-        },
-      };
-    },
-    dependencies: {
-      createSources,
-      async install() {
-        installCount += 1;
-        return installResult;
-      },
-      spawn() {
-        let resolveExit!: (exitCode: number) => void;
-        const signals: NodeJS.Signals[] = [];
-        const appProcess: RunningProcess & { signals: NodeJS.Signals[] } = {
-          exit: new Promise((resolve) => {
-            resolveExit = resolve;
-          }),
-          signals,
-          kill(signal) {
-            signals.push(signal);
-            resolveExit(0);
-            return true;
-          },
-        };
-        spawnedProcesses.push(appProcess);
-        return appProcess;
-      },
-      writeFiles() {
-        writeCount += 1;
-      },
-    },
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (error: Error) => void;
+  const promise = new Promise<T>((yes, no) => {
+    resolve = yes;
+    reject = no;
   });
+  return { promise, resolve, reject };
+}
 
-  assert.deepEqual(watchedFileSets[0], new Set([rootConfigPath, versionsPath]));
-  await lifecycle.start();
-  assert.equal(writeCount, 1);
-  assert.equal(installCount, 1);
-  assert.equal(spawnedProcesses.length, 1);
-  assert.deepEqual(watchedFileSets.at(-1), new Set([rootConfigPath, versionsPath, firstReferencePath]));
-
-  await lifecycle.reconcile();
-  assert.equal(writeCount, 1);
-  assert.equal(installCount, 1);
-  assert.equal(spawnedProcesses.length, 1);
-
-  currentConfig = createConfig({ url: 'http://localhost:4000' });
-  await lifecycle.reconcile();
-  assert.equal(writeCount, 2);
-  assert.equal(installCount, 1);
-  assert.equal(spawnedProcesses.length, 2);
-  assert.deepEqual(spawnedProcesses[0]?.signals, ['SIGTERM']);
-
-  prepareError = new Error('invalid referenced config');
-  currentReference = failedReferencePath;
-  await lifecycle.reconcile();
-  assert.equal(spawnedProcesses.length, 2);
-  assert.deepEqual(
-    watchedFileSets.at(-1),
-    new Set([rootConfigPath, versionsPath, firstReferencePath, failedReferencePath]),
-  );
-
-  prepareError = undefined;
-  currentReference = secondReferencePath;
-  currentConfig = createConfig({ url: 'http://localhost:5000', fraqVersion: '2.0.0' });
-  installResult = 1;
-  await lifecycle.reconcile();
-  assert.equal(writeCount, 3);
-  assert.equal(installCount, 2);
-  assert.equal(spawnedProcesses.length, 2);
-
-  currentConfig = createConfig({ url: 'http://localhost:5000' });
-  installResult = 0;
-  notifyChange(new Set([rootConfigPath]));
-  await lifecycle.reconcile();
-  assert.equal(writeCount, 4);
-  assert.equal(installCount, 3);
-  assert.equal(spawnedProcesses.length, 3);
-  assert.deepEqual(watchedFileSets.at(-1), new Set([rootConfigPath, versionsPath, secondReferencePath]));
-
-  await lifecycle.shutdown();
-  assert.equal(watcherCloseCount, 1);
-  assert.deepEqual(spawnedProcesses[2]?.signals, ['SIGTERM']);
-});
-
-test('refreshes dependencies and restarts when a runtime entry point changes', async (t) => {
+function harness(t: TestContext) {
   t.mock.method(console, 'log', () => {});
   t.mock.method(console, 'error', () => {});
-
-  const rootConfigPath = path.resolve('fraq.yml');
-  const entryPointPath = path.resolve('plugin/dist/index.mjs');
-  let notifyChange = (_changedFiles: ReadonlySet<string>) => {};
-  let installCount = 0;
-  const spawnedProcesses: Array<RunningProcess & { signals: NodeJS.Signals[] }> = [];
-
-  const lifecycle = AppLifecycle.create({
-    initialFiles: [rootConfigPath],
-    async prepare(accessedFiles): Promise<PreparedApp> {
-      accessedFiles.add(rootConfigPath);
-      accessedFiles.add(entryPointPath);
-      return {
-        config: createConfig(),
-        packageManager: {
-          name: 'pnpm',
-          installed: true,
-          commandPath: '/test/pnpm',
-          allCommandPaths: ['/test/pnpm'],
-        },
-        restartFiles: [entryPointPath],
-      };
+  const state = {
+    config: createConfig(),
+    prepareError: undefined as Error | undefined,
+    stageError: undefined as Error | undefined,
+    reference: path.resolve('reference.yml'),
+    staged: [] as RuntimeOptions[],
+    watched: [] as Set<string>[],
+    beforeStage: undefined as (() => Promise<void>) | undefined,
+    ready: (() => Promise.resolve()) as () => Promise<void>,
+    killExits: true,
+    prepareCount: 0,
+    closeCount: 0,
+  };
+  let notifyChange = (_files: ReadonlySet<string>) => {};
+  const processes: Array<RunningAppProcess & { signals: NodeJS.Signals[]; entry: string; finish(code: number): void }> =
+    [];
+  const store: RuntimeStore = {
+    async prepare(config, _pm, options) {
+      state.staged.push(options);
+      await state.beforeStage?.();
+      if (state.stageError) {
+        throw state.stageError;
+      }
+      return runtime(config);
+    },
+    close() {},
+  };
+  const lifecycleOptions: AppLifecycleOptions = {
+    initialFiles: [configPath],
+    async prepare(accessedFiles) {
+      state.prepareCount++;
+      accessedFiles.add(state.reference);
+      if (state.prepareError) {
+        throw state.prepareError;
+      }
+      return { config: state.config, packageManager, restartFiles: [entryPoint] };
     },
     dependencies: {
       createSources(options) {
         notifyChange = options.onChange;
         return {
-          update() {},
-          async close() {},
-        };
-      },
-      async install() {
-        installCount += 1;
-        return 0;
-      },
-      spawn() {
-        let resolveExit!: (exitCode: number) => void;
-        const signals: NodeJS.Signals[] = [];
-        const appProcess: RunningProcess & { signals: NodeJS.Signals[] } = {
-          exit: new Promise((resolve) => {
-            resolveExit = resolve;
-          }),
-          signals,
-          kill(signal) {
-            signals.push(signal);
-            resolveExit(0);
-            return true;
+          update(files) {
+            state.watched.push(new Set(files));
           },
-        };
-        spawnedProcesses.push(appProcess);
-        return appProcess;
-      },
-      writeFiles() {},
-    },
-  });
-
-  await lifecycle.start();
-  assert.equal(installCount, 1);
-  assert.equal(spawnedProcesses.length, 1);
-
-  notifyChange(new Set([rootConfigPath]));
-  await lifecycle.reconcile();
-  assert.equal(spawnedProcesses.length, 1);
-
-  notifyChange(new Set([entryPointPath]));
-  await lifecycle.reconcile();
-  assert.equal(installCount, 2);
-  assert.equal(spawnedProcesses.length, 2);
-  assert.deepEqual(spawnedProcesses[0]?.signals, ['SIGTERM']);
-
-  await lifecycle.shutdown();
-});
-
-test('shuts down once and escalates a repeated signal to SIGKILL', async (t) => {
-  t.mock.method(console, 'log', () => {});
-  t.mock.method(console, 'error', () => {});
-
-  let closeCount = 0;
-  const signals: NodeJS.Signals[] = [];
-  let resolveExit!: (exitCode: number) => void;
-  const exit = new Promise<number>((resolve) => {
-    resolveExit = resolve;
-  });
-  const lifecycle = AppLifecycle.create({
-    initialFiles: [path.resolve('fraq.yml')],
-    async prepare(): Promise<PreparedApp> {
-      return {
-        config: createConfig(),
-        packageManager: {
-          name: 'pnpm',
-          installed: true,
-          commandPath: '/test/pnpm',
-          allCommandPaths: ['/test/pnpm'],
-        },
-      };
-    },
-    dependencies: {
-      createSources() {
-        return {
-          update() {},
           async close() {
-            closeCount += 1;
+            state.closeCount++;
           },
         };
       },
-      async install() {
-        return 0;
-      },
-      spawn() {
-        return {
-          exit,
-          kill(signal) {
-            signals.push(signal);
-            if (signal === 'SIGKILL') {
-              resolveExit(137);
+      createRuntimes: () => store,
+      spawn(entry = '') {
+        const exit = deferred<number>();
+        const stopped = deferred<void>();
+        const ready = Promise.race([state.ready(), stopped.promise]);
+        const appProcess = {
+          exit: exit.promise,
+          ready,
+          entry,
+          signals: [] as NodeJS.Signals[],
+          finish: exit.resolve,
+          kill(signal: NodeJS.Signals) {
+            this.signals.push(signal);
+            if (state.killExits || signal === 'SIGKILL') {
+              stopped.reject(new Error('Process stopped before readiness'));
+              exit.resolve(signal === 'SIGKILL' ? 137 : 0);
             }
             return true;
           },
         };
+        processes.push(appProcess);
+        return appProcess;
       },
-      writeFiles() {},
     },
-  });
+  };
+  const lifecycle = AppLifecycle.create(lifecycleOptions);
+  t.after(() => lifecycle.shutdown('SIGKILL'));
+  return { state, processes, lifecycle, notify: (files: string[]) => notifyChange(new Set(files)) };
+}
 
+test('keeps the current process on validation or installation failure and watches failed references', async (t) => {
+  const { state, processes, lifecycle } = harness(t);
   await lifecycle.start();
-  const gracefulShutdown = lifecycle.shutdown('SIGTERM');
-  assert.deepEqual(signals, ['SIGTERM']);
+  await lifecycle.reconcile();
+  assert.equal(state.staged.length, 1);
 
-  const forcedShutdown = lifecycle.shutdown('SIGKILL');
-  await Promise.all([gracefulShutdown, forcedShutdown]);
+  state.prepareError = new Error('invalid referenced config');
+  state.reference = path.resolve('missing.yml');
+  await lifecycle.reconcile();
+  assert.equal(processes.length, 1);
+  assert.deepEqual(processes[0]?.signals, []);
+  assert.ok(state.watched.at(-1)?.has(state.reference));
+  assert.ok(state.watched.at(-1)?.has(path.resolve('reference.yml')));
 
-  assert.deepEqual(signals, ['SIGTERM', 'SIGKILL']);
-  assert.equal(closeCount, 1);
+  state.prepareError = undefined;
+  state.config = createConfig('http://localhost:4000');
+  state.stageError = new Error('package manager install failed');
+  await lifecycle.reconcile();
+  assert.deepEqual(processes[0]?.signals, []);
+
+  state.stageError = undefined;
+  await lifecycle.reconcile();
+  assert.equal(processes.length, 2);
+  assert.deepEqual(processes[0]?.signals, ['SIGTERM']);
 });
 
-test('does not prepare the application when shutdown races with initial startup', async (t) => {
-  t.mock.method(console, 'log', () => {});
-  t.mock.method(console, 'error', () => {});
+test('remembers only ready runtimes and rolls back a failed candidate once', async (t) => {
+  const { state, processes, lifecycle } = harness(t);
+  await lifecycle.start();
+  const successful = runtime();
+  state.config = createConfig('http://localhost:4000');
+  const candidateReady = deferred<void>();
+  const candidateSpawned = deferred<void>();
+  let attempts = 0;
+  state.ready = () => {
+    if (attempts++ === 0) {
+      candidateSpawned.resolve();
+      return candidateReady.promise;
+    }
+    return Promise.resolve();
+  };
+  const reload = lifecycle.reconcile();
+  await candidateSpawned.promise;
+  candidateReady.reject(new Error('plugin failed to start'));
+  await reload;
+  assert.equal(processes.length, 3);
+  assert.equal(processes[2]?.entry, successful?.entryPoint);
+  assert.deepEqual(processes[1]?.signals, ['SIGTERM']);
+});
 
-  let prepareCount = 0;
-  let closeCount = 0;
-  let spawnCount = 0;
-  const lifecycle = AppLifecycle.create({
-    initialFiles: [path.resolve('fraq.yml')],
-    async prepare(): Promise<PreparedApp> {
-      prepareCount += 1;
-      return {
-        config: createConfig(),
-        packageManager: {
-          name: 'pnpm',
-          installed: true,
-          commandPath: '/test/pnpm',
-          allCommandPaths: ['/test/pnpm'],
-        },
-      };
-    },
-    dependencies: {
-      createSources() {
-        return {
-          update() {},
-          async close() {
-            closeCount += 1;
-          },
-        };
-      },
-      async install() {
-        return 0;
-      },
-      spawn() {
-        spawnCount += 1;
-        return {
-          exit: Promise.resolve(0),
-          kill() {
-            return true;
-          },
-        };
-      },
-      writeFiles() {},
-    },
+test('stops retrying if the session fallback also fails', async (t) => {
+  const { state, processes, lifecycle } = harness(t);
+  await lifecycle.start();
+  state.config = createConfig('http://localhost:4000');
+  state.ready = () => Promise.reject(new Error('startup failed'));
+  await lifecycle.reconcile();
+  assert.equal(processes.length, 3);
+  assert.equal(processes[2]?.entry, runtime().entryPoint);
+});
+
+for (const phase of ['configuration', 'installation', 'readiness'] as const) {
+  test(`first watch startup exits on ${phase} failure and ignores queued repairs`, async (t) => {
+    const { state, processes, lifecycle, notify } = harness(t);
+    const error = new Error('first startup failed');
+    if (phase === 'configuration') state.prepareError = error;
+    if (phase === 'installation') state.stageError = error;
+    if (phase === 'readiness') state.ready = () => Promise.reject(error);
+    await lifecycle.start();
+    assert.equal(await lifecycle.waitForExit(), 1);
+    assert.equal(processes.length, phase === 'readiness' ? 1 : 0);
+    const prepareCount = state.prepareCount;
+    state.prepareError = undefined;
+    state.stageError = undefined;
+    state.ready = () => Promise.resolve();
+    notify([configPath]);
+    await lifecycle.reconcile();
+    assert.equal(state.prepareCount, prepareCount);
   });
+}
 
+test('refreshes a workspace installation on entry changes and serializes newer configurations', async (t) => {
+  const { state, processes, lifecycle, notify } = harness(t);
+  await lifecycle.start();
+  notify([entryPoint]);
+  await lifecycle.reconcile();
+  assert.equal(state.staged.at(-1)?.refresh, true);
+  assert.equal(processes.length, 2);
+
+  const staging = deferred<void>();
+  const release = deferred<void>();
+  state.beforeStage = () => {
+    state.beforeStage = undefined;
+    staging.resolve();
+    return release.promise;
+  };
+  state.config = createConfig('http://localhost:4000');
+  const reload = lifecycle.reconcile();
+  await staging.promise;
+  state.config = createConfig('http://localhost:5000');
+  notify([configPath]);
+  release.resolve();
+  await reload;
+  assert.equal(processes.length, 3);
+  assert.equal(processes[2]?.entry, runtime(state.config).entryPoint);
+});
+
+test('shuts down once and escalates a repeated signal to SIGKILL', async (t) => {
+  const { state, processes, lifecycle } = harness(t);
+  state.killExits = false;
+  await lifecycle.start();
+  const graceful = lifecycle.shutdown('SIGTERM');
+  assert.deepEqual(processes[0]?.signals, ['SIGTERM']);
+  await Promise.all([graceful, lifecycle.shutdown('SIGKILL')]);
+  assert.deepEqual(processes[0]?.signals, ['SIGTERM', 'SIGKILL']);
+  assert.equal(state.closeCount, 1);
+});
+
+test('shutdown during readiness does not roll back', async (t) => {
+  const { state, processes, lifecycle } = harness(t);
+  const spawned = deferred<void>();
+  state.ready = () => {
+    spawned.resolve();
+    return new Promise(() => {});
+  };
   const startup = lifecycle.start();
-  const shutdown = lifecycle.shutdown();
-  await Promise.all([startup, shutdown]);
+  await spawned.promise;
+  await Promise.all([startup, lifecycle.shutdown()]);
+  assert.equal(processes.length, 1);
+});
 
-  assert.equal(prepareCount, 0);
-  assert.equal(spawnCount, 0);
-  assert.equal(closeCount, 1);
+test('does not prepare when shutdown races with initial startup', async (t) => {
+  const { state, processes, lifecycle } = harness(t);
+  await Promise.all([lifecycle.start(), lifecycle.shutdown()]);
+  assert.equal(state.prepareCount, 0);
+  assert.equal(processes.length, 0);
+  assert.equal(state.closeCount, 1);
+});
+
+test('watch does not roll back an application that exits after readiness', async (t) => {
+  const { processes, lifecycle } = harness(t);
+  await lifecycle.start();
+  processes[0]?.finish(1);
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(processes.length, 1);
+});
+
+test('workspace changes received during readiness trigger another refresh', async (t) => {
+  const { state, processes, lifecycle, notify } = harness(t);
+  await lifecycle.start();
+  const spawned = deferred<void>();
+  const ready = deferred<void>();
+  state.ready = () => {
+    state.ready = () => Promise.resolve();
+    spawned.resolve();
+    return ready.promise;
+  };
+  notify([entryPoint]);
+  const reload = lifecycle.reconcile();
+  await spawned.promise;
+  notify([entryPoint]);
+  ready.resolve();
+  await reload;
+  assert.equal(processes.length, 3);
+  assert.equal(state.staged.at(-1)?.refresh, true);
+});
+
+test('rolls back to the latest successful reload within the same session', async (t) => {
+  const { state, processes, lifecycle } = harness(t);
+  await lifecycle.start();
+  state.config = createConfig('http://localhost:4000');
+  await lifecycle.reconcile();
+  const successful = runtime(state.config);
+  state.config = createConfig('http://localhost:5000');
+  state.ready = () => {
+    state.ready = () => Promise.resolve();
+    return Promise.reject(new Error('candidate failed'));
+  };
+  await lifecycle.reconcile();
+  assert.equal(processes.length, 4);
+  assert.equal(processes[3]?.entry, successful.entryPoint);
 });

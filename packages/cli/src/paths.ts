@@ -1,4 +1,3 @@
-import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 
 export function getAppPath(): string {
@@ -15,8 +14,4 @@ export function getVersionsPath(): string {
 
 export function getPackageJsonCachePath(): string {
   return path.resolve(getCachePath(), 'package-json');
-}
-
-export function ensureAppPaths(): void {
-  mkdirSync(getAppPath(), { recursive: true });
 }

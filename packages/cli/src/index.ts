@@ -12,7 +12,7 @@ import { startWatchedApp } from './app/lifecycle';
 import type { Config, DependencyConfig } from './config';
 import { loadConfig } from './config';
 import type { FileAccessHandler } from './config/references';
-import { findConfigPath } from './config/shared';
+import { getConfigPaths } from './config/shared';
 import type { ConfigV1 } from './config/v1';
 import { getPluginDependencyDiagnostic, normalizePluginName } from './dependency';
 import { getLatestPackageJson } from './package-jsons';
@@ -151,24 +151,28 @@ async function ensurePackageManager(
   return { ...packageManager, commandPath: packageManager.commandPath };
 }
 
-async function start(runInstall: boolean = true): Promise<void> {
-  const config = await ensureConfigWithVersions({ resolveAllReferences: true });
-  const diagnostic = await getPluginDependencyDiagnostic(config);
-  if (diagnostic.status === 'missing') {
-    console.error(chalk.red('There are issues with the plugin dependencies:'));
-    for (const issue of diagnostic.message) {
-      console.error(chalk.red(`- ${issue}`));
+async function start(runInstall = true, frozenLockfile = false): Promise<void> {
+  try {
+    if (!frozenLockfile) {
+      await lock({ recoverable: true });
     }
-    console.error(chalk.red('Please resolve the above issues before proceeding.'));
+    const config = await ensureConfigWithVersions({ resolveAllReferences: true, recoverable: true });
+    const diagnostic = await getPluginDependencyDiagnostic(config);
+    if (diagnostic.status === 'missing') {
+      throw new Error(`There are issues with the plugin dependencies:\n${diagnostic.message.join('\n')}`);
+    }
+    const exitCode = await startApp({
+      config,
+      pmInfo: await ensurePackageManager(config, { recoverable: true }),
+      runInstall,
+    });
+    process.exit(exitCode);
+  } catch (error) {
+    console.error(
+      chalk.red(`Failed to start the Fraq application:\n${error instanceof Error ? error.message : String(error)}`),
+    );
     process.exit(1);
   }
-
-  const exitCode = await startApp({
-    config: config,
-    pmInfo: await ensurePackageManager(config),
-    runInstall: runInstall,
-  });
-  process.exit(exitCode);
 }
 
 async function lock(
@@ -195,10 +199,9 @@ async function lock(
 }
 
 async function watch(): Promise<void> {
-  const configPath = findConfigPath();
   const versionsPath = getVersionsPath();
   const exitCode = await startWatchedApp({
-    initialFiles: [configPath, versionsPath],
+    initialFiles: [...getConfigPaths(), versionsPath],
     prepare: async (accessedFiles) => {
       const onFileAccess = (filePath: string) => accessedFiles.add(filePath);
       await lock({ onFileAccess, recoverable: true, silent: true });
@@ -233,9 +236,9 @@ async function watch(): Promise<void> {
 }
 
 async function installOnly() {
-  const config = await ensureConfigWithVersions();
+  const config = await ensureConfigWithVersions({ resolveAllReferences: true });
   const pmInfo = await ensurePackageManager(config);
-  const exitCode = await startInstall(pmInfo);
+  const exitCode = await startInstall(config, pmInfo);
   process.exit(exitCode);
 }
 
@@ -386,11 +389,7 @@ const cli = c.subcommands({
           await watch();
           return;
         }
-        if (!frozenLockfile) {
-          await lock();
-          console.log();
-        }
-        await start(!noInstall);
+        await start(!noInstall, frozenLockfile);
       },
     }),
     lock: c.command({

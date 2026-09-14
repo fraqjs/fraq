@@ -14,10 +14,12 @@ export function zSingleOrArray<T>(schema: z.ZodType<T>): z.ZodType<T[]> {
   return z.union([schema, z.array(schema)]).transform((value) => (Array.isArray(value) ? value : [value]));
 }
 
+export function getConfigPaths(): string[] {
+  return ['fraq.yml', 'fraq.yaml', 'fraq.json'].map((candidate) => path.resolve(process.cwd(), candidate));
+}
+
 export function findConfigPath(): string {
-  const configCandidates = ['fraq.yml', 'fraq.yaml', 'fraq.json'];
-  for (const candidate of configCandidates) {
-    const configPath = path.resolve(process.cwd(), candidate);
+  for (const configPath of getConfigPaths()) {
     if (existsSync(configPath)) {
       return configPath;
     }

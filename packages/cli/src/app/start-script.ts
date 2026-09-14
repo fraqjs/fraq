@@ -108,6 +108,9 @@ for (const signal of terminationSignals) {
 }
 
 await ctx.start();
+if (process.send && process.connected) {
+  process.send({ type: 'fraq:ready', version: 1 });
+}
     `.trim(),
   );
 

@@ -4,6 +4,7 @@ import type { PackageManagerInfo } from '../package-manager';
 import { getAppPath } from '../paths';
 
 import { constants as osConstants } from 'node:os';
+import path from 'node:path';
 
 const terminationSignals: readonly NodeJS.Signals[] =
   process.platform === 'win32' ? ['SIGINT', 'SIGTERM', 'SIGBREAK'] : ['SIGINT', 'SIGTERM', 'SIGHUP', 'SIGQUIT'];
@@ -11,6 +12,10 @@ const terminationSignals: readonly NodeJS.Signals[] =
 export interface RunningProcess {
   readonly exit: Promise<number>;
   kill(signal: NodeJS.Signals): boolean;
+}
+
+export interface RunningAppProcess extends RunningProcess {
+  readonly ready: Promise<void>;
 }
 
 function toRunningProcess(child: ResultPromise): RunningProcess {
@@ -52,8 +57,10 @@ async function waitForProcessExit(child: RunningProcess): Promise<number> {
   }
 }
 
-export function installAppDependencies(packageManager: PackageManagerInfo & { commandPath: string }): Promise<number> {
-  const appPath = getAppPath();
+export function installAppDependencies(
+  packageManager: PackageManagerInfo & { commandPath: string },
+  appPath = getAppPath(),
+): Promise<number> {
   const options = {
     cwd: appPath,
     env:
@@ -86,20 +93,67 @@ export function installAppDependencies(packageManager: PackageManagerInfo & { co
   );
 }
 
-export function spawnAppProcess(): RunningProcess {
-  return toRunningProcess(
-    execaNode('index.js', {
-      cwd: getAppPath(),
-      env: process.env,
-      forceKillAfterDelay: 5_000,
-      killDescendants: true,
-      nodeOptions: [],
-      reject: false,
-      stdio: 'inherit',
+export function spawnAppProcess(
+  entryPoint = path.join(getAppPath(), 'index.js'),
+  startupTimeoutMs = 60_000,
+): RunningAppProcess {
+  const child = execaNode(entryPoint, {
+    cwd: getAppPath(),
+    env: process.env,
+    forceKillAfterDelay: 5_000,
+    killDescendants: true,
+    nodeOptions: [],
+    reject: false,
+    stdio: 'inherit',
+    ipc: true,
+  });
+  const running = toRunningProcess(child);
+  let timeout: NodeJS.Timeout;
+  const ready = Promise.race([
+    child
+      .getOneMessage({
+        reference: false,
+        filter: (message) =>
+          message !== null &&
+          typeof message === 'object' &&
+          'type' in message &&
+          message.type === 'fraq:ready' &&
+          'version' in message &&
+          message.version === 1,
+      })
+      .then(
+        () => {},
+        (error: unknown) => {
+          throw new Error('Fraq application exited or disconnected before becoming ready.', { cause: error });
+        },
+      ),
+    running.exit.then((exitCode) => {
+      throw new Error(`Fraq application exited before becoming ready (code ${exitCode}).`);
     }),
-  );
+    new Promise<never>((_resolve, reject) => {
+      timeout = setTimeout(() => {
+        reject(new Error(`Fraq application did not become ready within ${startupTimeoutMs}ms.`));
+      }, startupTimeoutMs);
+    }),
+  ]).finally(() => clearTimeout(timeout));
+  // A caller may be waiting for exit rather than readiness.
+  void ready.catch(() => {});
+  return { ...running, ready };
 }
 
 export function startAppProcess(): Promise<number> {
-  return waitForProcessExit(spawnAppProcess());
+  return waitForProcessExit(
+    toRunningProcess(
+      execaNode('index.js', {
+        cwd: getAppPath(),
+        env: process.env,
+        forceKillAfterDelay: 5_000,
+        killDescendants: true,
+        nodeOptions: [],
+        reject: false,
+        stdio: 'inherit',
+        ipc: false,
+      }),
+    ),
+  );
 }
