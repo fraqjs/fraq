@@ -134,3 +134,17 @@ export async function detectPackageManager(name: PackageManagerName): Promise<Pa
     error: errors.length > 0 ? errors.join('\n') : undefined,
   };
 }
+
+export async function selectPackageManager(
+  name?: PackageManagerName,
+): Promise<PackageManagerInfo & { commandPath: string }> {
+  for (const candidate of name ? [name] : (['pnpm', 'yarn', 'npm'] as const)) {
+    const result = await detectPackageManager(candidate);
+    if (result.installed && result.commandPath) return { ...result, commandPath: result.commandPath };
+  }
+  throw new Error(
+    name
+      ? `Specified package manager '${name}' is not found in the system PATH.`
+      : "No package manager found in the system PATH. Please install one of 'pnpm', 'yarn', or 'npm', or specify a package manager in the configuration.",
+  );
+}

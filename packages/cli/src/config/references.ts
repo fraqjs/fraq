@@ -228,6 +228,7 @@ function parseStructuredFile(
   resolveAllReferences: boolean,
   onFileAccess?: FileAccessHandler,
   source?: ValueLocation,
+  contentOverride?: string,
 ): unknown {
   const resolvedPath = path.resolve(filePath);
   onFileAccess?.(resolvedPath);
@@ -263,7 +264,7 @@ function parseStructuredFile(
 
   let content: string;
   try {
-    content = readFileSync(resolvedPath, 'utf-8');
+    content = contentOverride ?? readFileSync(resolvedPath, 'utf-8');
   } catch (error) {
     throw referenceError(
       `Failed to read structured file ${JSON.stringify(resolvedPath)}: ${describeError(error)}`,
@@ -292,4 +293,8 @@ export function parseConfigReferences(
   onFileAccess?: FileAccessHandler,
 ): unknown {
   return parseStructuredFile(filePath, [], resolveAllReferences, onFileAccess);
+}
+
+export function parseConfigText(content: string, filePath: string): unknown {
+  return parseStructuredFile(filePath, [], true, undefined, undefined, content);
 }

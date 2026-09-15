@@ -1,0 +1,19 @@
+{
+  "name": "@fraqjs/cli-protocol",
+  "version": "1.0.1",
+  "type": "module",
+  "description": "Shared protocol for Fraq CLI integrations",
+  "files": [
+    "dist"
+  ],
+  "main": "src/index.ts",
+  "publishConfig": {
+    "main": "dist/index.mjs",
+    "typings": "dist/index.d.mts"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "prepack": "pnpm build"
+  },
+  "license": "MIT"
+}

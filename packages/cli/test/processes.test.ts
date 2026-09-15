@@ -1,4 +1,4 @@
-import { installAppDependencies, startAppProcess } from '../src/app/runner';
+import { ProcessRegistry } from '../src/app/processes';
 
 import assert from 'node:assert/strict';
 import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
@@ -31,7 +31,7 @@ test('installs with a package manager path containing spaces and preserves argum
 
   try {
     process.chdir(root);
-    const exitCode = await installAppDependencies({
+    const exitCode = await new ProcessRegistry().install({
       name: 'npm',
       installed: true,
       commandPath,
@@ -54,7 +54,7 @@ test('returns the generated application exit code', async () => {
 
   try {
     process.chdir(root);
-    assert.equal(await startAppProcess(), 7);
+    assert.equal(await new ProcessRegistry().run(), 7);
   } finally {
     process.chdir(originalCwd);
     await rm(root, { recursive: true, force: true });
@@ -62,7 +62,7 @@ test('returns the generated application exit code', async () => {
 });
 
 test('recognizes only the versioned readiness message and preserves later exit codes', async () => {
-  const { spawnAppProcess } = await import('../src/app/runner');
+  const { spawnAppProcess } = await import('../src/app/processes');
   const root = await mkdtemp(path.join(os.tmpdir(), 'fraq-ready-'));
   const script = path.join(root, 'ready.cjs');
   await writeFile(
@@ -87,7 +87,7 @@ test('recognizes only the versioned readiness message and preserves later exit c
 });
 
 test('rejects readiness on early exit and times out a hung startup', async () => {
-  const { spawnAppProcess } = await import('../src/app/runner');
+  const { spawnAppProcess } = await import('../src/app/processes');
   const root = await mkdtemp(path.join(os.tmpdir(), 'fraq-unready-'));
   const script = path.join(root, 'startup.cjs');
   const originalCwd = process.cwd();
@@ -111,4 +111,93 @@ test('rejects readiness on early exit and times out a hung startup', async () =>
     process.chdir(originalCwd);
     await rm(root, { recursive: true, force: true });
   }
+});
+
+test('tees real child output into the bounded log cache while serving control IPC', async () => {
+  const { spawnAppProcess } = await import('../src/app/processes');
+  const { LogRegistry } = await import('../src/app/logs');
+  const originalCwd = process.cwd();
+  const root = await mkdtemp(path.join(os.tmpdir(), 'fraq-control-runner-'));
+  const script = path.join(root, 'child.cjs');
+  await mkdir(path.join(root, 'app'));
+  await writeFile(
+    script,
+    `
+    console.log('app output');
+    process.send({ type: 'fraq:control:request', version: 1, id: 'hello', method: 'hello' });
+    process.on('message', (message) => {
+      if (message.type !== 'fraq:control:response') return;
+      console.log('protocol ' + message.result.version);
+      process.send({ type: 'fraq:ready', version: 1 });
+      process.stderr.write('unterminated error');
+      setTimeout(() => process.exit(0), 10);
+    });
+  `,
+  );
+  try {
+    process.chdir(root);
+    const logs = new LogRegistry();
+    const child = spawnAppProcess(script, 1000, {
+      logs,
+      onRequest: async (request) => ({
+        type: 'fraq:control:response',
+        version: 1,
+        id: request.id,
+        result: { version: 1 },
+      }),
+    });
+    await child.ready;
+    assert.equal(await child.exit, 0);
+    assert.deepEqual(
+      logs
+        .read()
+        .entries.filter((line) => line.stream === 'stdout')
+        .map((line) => line.text),
+      ['app output', 'protocol 1'],
+    );
+    assert.equal(logs.read().entries.find((line) => line.stream === 'stderr')?.text, 'unterminated error');
+  } finally {
+    process.chdir(originalCwd);
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('terminates installation and application processes together and refuses new work during shutdown', async () => {
+  const createChild = () => {
+    let finish!: (code: number) => void;
+    const signals: NodeJS.Signals[] = [];
+    return {
+      exit: new Promise<number>((resolve) => {
+        finish = resolve;
+      }),
+      ready: Promise.resolve(),
+      signals,
+      kill(signal: NodeJS.Signals) {
+        signals.push(signal);
+        if (signal === 'SIGKILL') finish(137);
+        return true;
+      },
+    };
+  };
+  const app = createChild();
+  const install = createChild();
+  let unexpectedExits = 0;
+  const processes = new ProcessRegistry({ spawn: () => app, install: () => install }, undefined, undefined, () => {
+    unexpectedExits++;
+  });
+  await processes.launch('/test/index.mjs');
+  const installing = processes.install({ name: 'npm', installed: true, commandPath: '/test/npm', allCommandPaths: [] });
+  processes.shutdown('SIGTERM');
+  const closing = processes.close();
+  assert.deepEqual(app.signals, ['SIGTERM']);
+  assert.deepEqual(install.signals, ['SIGTERM']);
+  await assert.rejects(processes.launch('/test/other.mjs'), /stopping/);
+  processes.shutdown('SIGKILL');
+  processes.shutdown('SIGKILL');
+  await closing;
+  assert.equal(await installing, 137);
+  assert.deepEqual(app.signals, ['SIGTERM', 'SIGKILL']);
+  assert.deepEqual(install.signals, ['SIGTERM', 'SIGKILL']);
+  assert.equal(unexpectedExits, 0);
+  assert.equal(processes.running, false);
 });

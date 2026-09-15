@@ -3,8 +3,9 @@
   "changelog": "@changesets/cli/changelog",
   "commit": false,
   "fixed": [
-    ["@fraqjs/plugin-takumi", "@fraqjs/takumi-preview"],
-    ["@fraqjs/color-log", "@fraqjs/fraq", "@fraqjs/kernel"]
+    ["@fraqjs/color-log", "@fraqjs/fraq", "@fraqjs/kernel"],
+    ["@fraqjs/cli", "@fraqjs/plugin-cli-integration", "@fraqjs/cli-protocol"],
+    ["@fraqjs/plugin-takumi", "@fraqjs/takumi-preview"]
   ],
   "linked": [],
   "access": "public",

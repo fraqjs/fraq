@@ -1,0 +1,14 @@
+import tailwindcss from '@tailwindcss/vite';
+import react from '@vitejs/plugin-react';
+import { defineConfig } from 'vite';
+
+import { fileURLToPath, URL } from 'node:url';
+
+export default defineConfig({
+  root: 'webui',
+  base: '/webui/cli-integration/',
+  plugins: [react(), tailwindcss()],
+  resolve: { alias: { '@': fileURLToPath(new URL('./webui/src', import.meta.url)) } },
+  build: { outDir: '../dist/webui', emptyOutDir: false },
+  server: { proxy: { '/webui/cli-integration/api': 'http://127.0.0.1:4649', '/webui/auth': 'http://127.0.0.1:4649' } },
+});

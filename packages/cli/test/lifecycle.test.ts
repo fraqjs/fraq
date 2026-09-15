@@ -1,5 +1,5 @@
-import { AppLifecycle, type AppLifecycleOptions } from '../src/app/lifecycle';
-import type { RunningAppProcess } from '../src/app/runner';
+import { AppLifecycle, type AppLifecycleOptions } from '../src/app';
+import type { RunningAppProcess } from '../src/app/processes';
 import { dependencyFingerprint, type Runtime, type RuntimeOptions, type RuntimeStore } from '../src/app/runtimes';
 import { buildStartScript } from '../src/app/start-script';
 import type { Config } from '../src/config';
@@ -171,6 +171,7 @@ test('remembers only ready runtimes and rolls back a failed candidate once', asy
   };
   const reload = lifecycle.reconcile();
   await candidateSpawned.promise;
+  assert.equal(lifecycle.status().state, 'restarting');
   candidateReady.reject(new Error('plugin failed to start'));
   await reload;
   assert.equal(processes.length, 3);
@@ -308,4 +309,139 @@ test('rolls back to the latest successful reload within the same session', async
   await lifecycle.reconcile();
   assert.equal(processes.length, 4);
   assert.equal(processes[3]?.entry, successful.entryPoint);
+});
+
+test('coalesces explicit restarts and watcher changes and reports fallback status', async (t) => {
+  const { state, processes, lifecycle, notify } = harness(t);
+  await lifecycle.start();
+  assert.equal(lifecycle.status().generation, 1);
+  lifecycle.restart();
+  lifecycle.restart();
+  state.config = createConfig('http://localhost:4000');
+  notify([configPath]);
+  await lifecycle.reconcile();
+  assert.equal(processes.length, 2);
+  assert.equal(lifecycle.status().generation, 2);
+  assert.equal(lifecycle.status().busy, false);
+  lifecycle.restart();
+  await lifecycle.reconcile();
+  assert.equal(processes.length, 3);
+  assert.equal(state.staged.at(-1)?.refresh, false);
+  state.prepareError = new Error('invalid config');
+  await lifecycle.reconcile();
+  assert.equal(lifecycle.status().fallback, true);
+  assert.equal(lifecycle.status().error, 'invalid config');
+  assert.equal(lifecycle.status().state, 'running');
+});
+
+test('keeps stopped status when a ready application exits before promotion completes', async (t) => {
+  const { state, processes, lifecycle } = harness(t);
+  state.ready = () => {
+    queueMicrotask(() => processes.at(-1)?.finish(0));
+    return Promise.resolve();
+  };
+  await lifecycle.start();
+  assert.equal(lifecycle.status().generation, 1);
+  assert.equal(lifecycle.status().state, 'stopped');
+});
+
+test('closes control before waiting for shutdown and releases runtimes only after process exit', async (t) => {
+  t.mock.method(console, 'log', () => {});
+  t.mock.method(console, 'error', () => {});
+  let request: NonNullable<Parameters<typeof import('../src/app/processes').spawnAppProcess>[2]>['onRequest'];
+  let finish!: (code: number) => void;
+  let processExited = false;
+  let runtimeClosed = false;
+  const exit = new Promise<number>((resolve) => {
+    finish = resolve;
+  });
+  const session = AppLifecycle.create({
+    initialFiles: [configPath],
+    prepare: async () => ({ config: createConfig(), packageManager }),
+    dependencies: {
+      createSources: () => ({ update() {}, async close() {} }),
+      createRuntimes: () => ({
+        prepare: async () => runtime(),
+        close() {
+          assert.equal(processExited, true);
+          runtimeClosed = true;
+        },
+      }),
+      spawn(_entry, _timeout, options) {
+        request = options?.onRequest;
+        return {
+          exit,
+          ready: Promise.resolve(),
+          kill() {
+            return true;
+          },
+        };
+      },
+    },
+  });
+  const initialListeners = process.listenerCount('SIGTERM');
+  await session.start();
+  assert.equal(process.listenerCount('SIGTERM'), initialListeners + 1);
+  const shutdown = session.shutdown();
+  assert.ok(request);
+  assert.equal(
+    (await request({ type: 'fraq:control:request', version: 1, id: 'status', method: 'status', input: undefined }))
+      .error?.code,
+    'unavailable',
+  );
+  assert.equal(runtimeClosed, false);
+  assert.equal(process.listenerCount('SIGTERM'), initialListeners + 1);
+  processExited = true;
+  finish(0);
+  await shutdown;
+  assert.equal(runtimeClosed, true);
+  assert.equal(process.listenerCount('SIGTERM'), initialListeners);
+});
+
+test('kernel shutdown cancels an ongoing install before any application is spawned', async (t) => {
+  const { mkdtempSync, readdirSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  t.mock.method(console, 'log', () => {});
+  t.mock.method(console, 'error', () => {});
+  const root = mkdtempSync(path.join(tmpdir(), 'fraq-install-shutdown-'));
+  const cwd = process.cwd();
+  process.chdir(root);
+  const installing = deferred<void>();
+  const exited = deferred<number>();
+  const signals: NodeJS.Signals[] = [];
+  let spawned = false;
+  const session = AppLifecycle.create({
+    initialFiles: [],
+    prepare: async () => ({ config: createConfig(), packageManager }),
+    dependencies: {
+      createSources: () => ({ update() {}, async close() {} }),
+      install() {
+        installing.resolve();
+        return {
+          exit: exited.promise,
+          kill(signal) {
+            signals.push(signal);
+            exited.resolve(143);
+            return true;
+          },
+        };
+      },
+      spawn() {
+        spawned = true;
+        throw new Error('Must not spawn during shutdown.');
+      },
+    },
+  });
+  try {
+    const startup = session.start();
+    await installing.promise;
+    await Promise.all([startup, session.shutdown()]);
+    assert.deepEqual(signals, ['SIGTERM']);
+    assert.equal(spawned, false);
+    assert.deepEqual(readdirSync(path.join(root, 'app', 'runtimes')), []);
+  } finally {
+    await session.shutdown('SIGKILL');
+    process.chdir(cwd);
+    rmSync(root, { recursive: true, force: true });
+  }
 });

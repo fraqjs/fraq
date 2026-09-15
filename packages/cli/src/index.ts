@@ -7,163 +7,30 @@ import YAML from 'yaml';
 import type z from 'zod';
 
 import pkg from '../package.json';
-import { startApp, startInstall } from './app';
-import { startWatchedApp } from './app/lifecycle';
-import type { Config, DependencyConfig } from './config';
-import { loadConfig } from './config';
-import type { FileAccessHandler } from './config/references';
+import { prepareApp, startApp, startInstall, startWatchedApp, syncVersions } from './app';
+import { loadProjectConfig } from './config';
 import { getConfigPaths } from './config/shared';
 import type { ConfigV1 } from './config/v1';
-import { getPluginDependencyDiagnostic, normalizePluginName } from './dependency';
 import { getLatestPackageJson } from './package-jsons';
-import { detectPackageManager, type PackageManagerInfo } from './package-manager';
+import { selectPackageManager } from './package-manager';
 import { getVersionsPath } from './paths';
-import {
-  applyVersionUpdates,
-  checkOutdatedVersions,
-  checkVersionsCompleteness,
-  checkVersionsConsistency,
-  completeAndSyncVersions,
-  readVersions,
-} from './versions';
-import { getNpmPluginVersions, getWorkspacePluginEntryPoint } from './workspace-plugins';
+import { applyVersionUpdates, checkOutdatedVersions } from './versions';
+import { getNpmPluginVersions } from './workspace-plugins';
 
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { isDeepStrictEqual } from 'node:util';
 
 function printBanner() {
   console.log(chalk.bold(chalk.cyan(`Fraq CLI ${chalk.green(`v${pkg.version}`)}`)));
   console.log();
 }
 
-interface EnsureConfigOptions {
-  resolveAllReferences?: boolean;
-  onFileAccess?: FileAccessHandler;
-  recoverable?: boolean;
-}
-
-function reportOrThrow(message: string, recoverable: boolean): never {
-  if (recoverable) {
-    throw new Error(message);
-  }
-  console.error(chalk.red(message));
-  process.exit(1);
-}
-
-async function ensureConfigWithVersions(options: EnsureConfigOptions & { resolveAllReferences: true }): Promise<Config>;
-async function ensureConfigWithVersions(
-  options?: EnsureConfigOptions & { resolveAllReferences?: false },
-): Promise<DependencyConfig>;
-async function ensureConfigWithVersions(options: EnsureConfigOptions = {}): Promise<Config | DependencyConfig> {
-  const config = options.resolveAllReferences
-    ? await loadConfig({
-        resolveAllReferences: true,
-        onFileAccess: options.onFileAccess,
-        throwOnValidationError: options.recoverable,
-      })
-    : await loadConfig({
-        onFileAccess: options.onFileAccess,
-        throwOnValidationError: options.recoverable,
-      });
-  const lockfileVersions = readVersions();
-  config.versions = { ...lockfileVersions, ...config.versions };
-
-  const completeness = checkVersionsCompleteness(config, config.versions);
-  if (completeness.status === 'missing') {
-    if (options.recoverable) {
-      reportOrThrow(
-        `The following plugin versions are missing:\n${completeness.missingPlugins.map((plugin) => `- ${plugin}`).join('\n')}`,
-        true,
-      );
-    }
-    console.log(chalk.red('The following plugin versions are missing:'));
-    for (const missingPlugin of completeness.missingPlugins) {
-      console.log(chalk.red(`- ${missingPlugin}`));
-    }
-    console.log();
-    console.log('Please complete the versions in the `versions` section of your configuration file.');
-    console.log(
-      `Alternatively, you can run ${chalk.cyan('fraq lock')} to automatically complete the versions for you.`,
-    );
-    process.exit(1);
-  }
-
-  const consistency = checkVersionsConsistency(
-    config.versions,
-    lockfileVersions,
-    new Set(Object.keys(config.workspacePlugins ?? {})),
-  );
-  if (consistency.status === 'inconsistent') {
-    if (options.recoverable) {
-      reportOrThrow(
-        `The following plugin versions are inconsistent with the lockfile:\n${consistency.inconsistentPlugins
-          .map((plugin) => `- ${plugin.name}: configured ${plugin.configured}, lockfile ${plugin.lockfile}`)
-          .join('\n')}`,
-        true,
-      );
-    }
-    console.log(chalk.red('The following plugin versions are inconsistent with the lockfile:'));
-    for (const inconsistentPlugin of consistency.inconsistentPlugins) {
-      console.log(chalk.red(`- ${inconsistentPlugin.name}`));
-      console.log(chalk.red(`  Configured version: ${chalk.yellow(inconsistentPlugin.configured)}`));
-      console.log(chalk.red(`  Lockfile version: ${chalk.yellow(inconsistentPlugin.lockfile)}`));
-    }
-    console.log();
-    console.log('Please resolve the above conflicts in your configuration file or lockfile.');
-    console.log(`Alternatively, you can run ${chalk.cyan('fraq lock')} to sync the lockfile automatically.`);
-    process.exit(1);
-  }
-
-  return config;
-}
-
-async function ensurePackageManager(
-  config: Pick<DependencyConfig, 'packageManager'>,
-  options: { recoverable?: boolean } = {},
-): Promise<PackageManagerInfo & { commandPath: string }> {
-  let packageManager: PackageManagerInfo | undefined;
-  if (config.packageManager) {
-    const result = await detectPackageManager(config.packageManager);
-    if (!result.installed || !result.commandPath) {
-      reportOrThrow(
-        `Specified package manager '${config.packageManager}' is not found in the system PATH.`,
-        options.recoverable ?? false,
-      );
-    }
-    packageManager = result;
-  } else {
-    // Try along pnpm -> yarn -> npm
-    for (const name of ['pnpm', 'yarn', 'npm'] as const) {
-      const result = await detectPackageManager(name);
-      if (result.installed && result.commandPath) {
-        packageManager = result;
-        break;
-      }
-    }
-  }
-  if (!packageManager?.commandPath) {
-    reportOrThrow(
-      "No package manager found in the system PATH. Please install one of 'pnpm', 'yarn', or 'npm', or specify a package manager in the configuration.",
-      options.recoverable ?? false,
-    );
-  }
-  return { ...packageManager, commandPath: packageManager.commandPath };
-}
-
 async function start(runInstall = true, frozenLockfile = false): Promise<void> {
   try {
-    if (!frozenLockfile) {
-      await lock({ recoverable: true });
-    }
-    const config = await ensureConfigWithVersions({ resolveAllReferences: true, recoverable: true });
-    const diagnostic = await getPluginDependencyDiagnostic(config);
-    if (diagnostic.status === 'missing') {
-      throw new Error(`There are issues with the plugin dependencies:\n${diagnostic.message.join('\n')}`);
-    }
+    const prepared = await prepareApp({ frozenLockfile });
     const exitCode = await startApp({
-      config,
-      pmInfo: await ensurePackageManager(config, { recoverable: true }),
+      config: prepared.config,
+      pmInfo: prepared.packageManager,
       runInstall,
     });
     process.exit(exitCode);
@@ -175,75 +42,23 @@ async function start(runInstall = true, frozenLockfile = false): Promise<void> {
   }
 }
 
-async function lock(
-  options: { onFileAccess?: FileAccessHandler; recoverable?: boolean; silent?: boolean } = {},
-): Promise<boolean> {
-  if (!options.silent) {
-    console.log(chalk.cyan('Syncing lockfile versions...'));
-  }
-  const config = await loadConfig({
-    onFileAccess: options.onFileAccess,
-    throwOnValidationError: options.recoverable,
-  });
-  const lockfileVersions = readVersions();
-  config.versions = { ...lockfileVersions, ...config.versions };
-  const completedVersions = await completeAndSyncVersions(config, config.versions);
-  const changed = !isDeepStrictEqual(lockfileVersions, completedVersions);
-  if (changed) {
-    writeFileSync(getVersionsPath(), YAML.stringify(completedVersions));
-  }
-  if (!options.silent) {
-    console.log(chalk.green('Successfully synced lockfile versions.'));
-  }
-  return changed;
-}
-
 async function watch(): Promise<void> {
-  const versionsPath = getVersionsPath();
   const exitCode = await startWatchedApp({
-    initialFiles: [...getConfigPaths(), versionsPath],
-    prepare: async (accessedFiles) => {
-      const onFileAccess = (filePath: string) => accessedFiles.add(filePath);
-      await lock({ onFileAccess, recoverable: true, silent: true });
-      const config = await ensureConfigWithVersions({
-        resolveAllReferences: true,
-        onFileAccess,
-        recoverable: true,
-      });
-      const diagnostic = await getPluginDependencyDiagnostic(config, { onFileAccess });
-      if (diagnostic.status === 'missing') {
-        throw new Error(`There are issues with the plugin dependencies:\n${diagnostic.message.join('\n')}`);
-      }
-      const restartFiles = new Set<string>();
-      for (const pluginName of Object.keys(config.workspacePlugins ?? {})) {
-        const entryPoint = getWorkspacePluginEntryPoint(
-          config,
-          pluginName,
-          normalizePluginName(pluginName),
-          onFileAccess,
-        );
-        accessedFiles.add(entryPoint);
-        restartFiles.add(entryPoint);
-      }
-      return {
-        config,
-        packageManager: await ensurePackageManager(config, { recoverable: true }),
-        restartFiles,
-      };
-    },
+    initialFiles: [...getConfigPaths(), getVersionsPath()],
+    prepare: (files) => prepareApp({ watch: true }, files),
   });
   process.exit(exitCode);
 }
 
 async function installOnly() {
-  const config = await ensureConfigWithVersions({ resolveAllReferences: true });
-  const pmInfo = await ensurePackageManager(config);
+  const config = await loadProjectConfig({ resolveAllReferences: true });
+  const pmInfo = await selectPackageManager(config.packageManager);
   const exitCode = await startInstall(config, pmInfo);
   process.exit(exitCode);
 }
 
 async function outdated() {
-  const config = await ensureConfigWithVersions();
+  const config = await loadProjectConfig();
   const outdated = await checkOutdatedVersions(config.fraqVersion, getNpmPluginVersions(config));
   if (outdated.outdated.length === 0 && outdated.errors.length === 0) {
     console.log(chalk.green('All versions are up to date.'));
@@ -264,7 +79,7 @@ async function outdated() {
 }
 
 async function update() {
-  const config = await ensureConfigWithVersions();
+  const config = await loadProjectConfig();
   const result = await checkOutdatedVersions(config.fraqVersion, getNpmPluginVersions(config));
   if (result.errors.length > 0) {
     console.log(chalk.red('Failed to check the following versions:'));
@@ -398,7 +213,7 @@ const cli = c.subcommands({
       args: {},
       handler: async () => {
         printBanner();
-        await lock();
+        await syncVersions();
       },
     }),
     install: c.command({
@@ -452,4 +267,7 @@ const cli = c.subcommands({
   },
 });
 
-c.run(cli, process.argv.slice(2));
+c.run(cli, process.argv.slice(2)).catch((error: unknown) => {
+  console.error(chalk.red(error instanceof Error ? error.message : String(error)));
+  process.exitCode = 1;
+});

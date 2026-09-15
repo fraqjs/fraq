@@ -1,0 +1,23 @@
+---
+title: '@fraqjs/plugin-cli-integration'
+---
+
+<NpmBadge packageName="@fraqjs/plugin-cli-integration" />
+
+`@fraqjs/plugin-cli-integration` 提供了通过 WebUI 管理 Fraq CLI 的能力。
+
+## 安装与配置
+
+将插件添加到 `fraq.yml` 的 `plugins` 字段下：
+
+```yaml
+plugins:
+  # 本插件依赖 fraqjs/hono 和 fraqjs/webui-gateway，因此需要一并安装
+  fraqjs/hono:
+    # 在这里传入 HonoPlugin 的配置选项
+  fraqjs/webui-gateway:
+    # 在这里传入 WebuiGatewayPlugin 的配置选项
+  fraqjs/cli-integration:
+```
+
+仅在使用 `fraq start --watch` 时有效；普通 `fraq start` 或自行编写启动脚本时，插件将跳过加载。

@@ -99,7 +99,10 @@
       }
     },
     {
-      "includes": ["plugins/webui-gateway/webui/**/*.css"],
+      "includes": [
+        "plugins/webui-gateway/webui/**/*.css",
+        "plugins/cli-integration/webui/**/*.css"
+      ],
       "css": {
         "parser": {
           "tailwindDirectives": true

@@ -3,8 +3,8 @@ import chalk from 'chalk';
 import type { Config } from '../config';
 import type { PackageManagerInfo } from '../package-manager';
 import { getAppPath } from '../paths';
+import type { LogRegistry } from './logs';
 import { generateAppPackageJson } from './package-json';
-import { installAppDependencies } from './runner';
 import { buildStartScript } from './start-script';
 
 import { randomUUID } from 'node:crypto';
@@ -46,7 +46,12 @@ export class RuntimeRegistry implements RuntimeStore {
 
   constructor(
     private readonly appPath = getAppPath(),
-    private readonly install = installAppDependencies,
+    private readonly install: (
+      packageManager: PackageManagerInfo & { commandPath: string },
+      directory: string,
+      logs?: LogRegistry,
+    ) => Promise<number>,
+    private readonly logs?: LogRegistry,
   ) {}
 
   async prepare(
@@ -69,8 +74,10 @@ export class RuntimeRegistry implements RuntimeStore {
       if (!reusable) {
         const packageJson = generateAppPackageJson(config, directory);
         writeFileSync(path.join(directory, 'package.json'), `${JSON.stringify(packageJson, null, 2)}\n`);
-        console.log(chalk.cyan(`Installing application dependencies with ${packageManager.name}...`));
-        const result = await this.install(packageManager, directory);
+        const message = chalk.cyan(`Installing application dependencies with ${packageManager.name}...`);
+        if (this.logs) this.logs.message(message);
+        else console.log(message);
+        const result = await this.install(packageManager, directory, this.logs);
         if (result !== 0) {
           throw new Error(`Package manager install failed with exit code ${result}.`);
         }

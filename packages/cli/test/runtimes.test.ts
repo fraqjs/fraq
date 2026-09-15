@@ -1,5 +1,5 @@
-import { AppLifecycle } from '../src/app/lifecycle';
-import { spawnAppProcess } from '../src/app/runner';
+import { AppLifecycle } from '../src/app';
+import { spawnAppProcess } from '../src/app/processes';
 import { RuntimeRegistry } from '../src/app/runtimes';
 import type { Config } from '../src/config';
 import { loadConfig } from '../src/config';

@@ -1,18 +1,16 @@
-import { type ContextState, defineContext } from '@fraqjs/kernel';
+import { type AppStatus, ControlError } from '@fraqjs/cli-protocol';
+import type { ContextState } from '@fraqjs/kernel';
 import chalk from 'chalk';
 
 import type { Config } from '../config';
-import { type ConfigSourceRegistry, createConfigSourceRegistry } from '../config/sources';
+import type { ConfigSourceRegistry } from '../config/sources';
 import type { PackageManagerInfo } from '../package-manager';
-import { type RunningAppProcess, spawnAppProcess } from './runner';
-import { dependencyFingerprint, type Runtime, RuntimeRegistry, type RuntimeStore } from './runtimes';
+import type { LogRegistry } from './logs';
+import type { ProcessRegistry } from './processes';
+import { dependencyFingerprint, type Runtime, type RuntimeStore } from './runtimes';
 import { buildStartScript } from './start-script';
 
-import { constants as osConstants } from 'node:os';
 import path from 'node:path';
-
-const terminationSignals: readonly NodeJS.Signals[] =
-  process.platform === 'win32' ? ['SIGINT', 'SIGTERM', 'SIGBREAK'] : ['SIGINT', 'SIGTERM', 'SIGHUP', 'SIGQUIT'];
 
 export interface PreparedApp {
   config: Config;
@@ -25,48 +23,27 @@ export interface WatchAppOptions {
   prepare: (accessedFiles: Set<string>) => Promise<PreparedApp>;
 }
 
-interface LifecycleDependencies {
-  createSources: typeof createConfigSourceRegistry;
-  spawn: typeof spawnAppProcess;
-  createRuntimes: () => RuntimeStore;
-}
-
-export interface AppLifecycleOptions extends WatchAppOptions {
-  dependencies?: Partial<LifecycleDependencies>;
-}
-
-interface AppLifecycleSystems {
-  application: ApplicationManager;
-  sources: ConfigSourceRegistry;
-}
-
-interface AppLifecycleBuiltins {
-  reconcile(): Promise<void>;
-  shutdown(signal?: NodeJS.Signals): Promise<void>;
-  waitForExit(): Promise<number>;
-}
-
 function describeError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-class ApplicationManager {
+export class LifecycleManager {
   private readonly initialFiles: Set<string>;
   private watchedFiles: Set<string>;
-  private sources?: ConfigSourceRegistry;
-  private currentProcess?: RunningAppProcess;
-  private expectedExit?: RunningAppProcess;
-  private activeStop?: { process: RunningAppProcess; promise: Promise<void> };
   private restartFiles = new Set<string>();
   private workspaceRevision = 0;
   private appliedWorkspaceRevision = 0;
   private dirty = false;
   private startupFailed = false;
+  private restartRequested = false;
+  private restartTimer?: NodeJS.Timeout;
+  private statusState: AppStatus['state'] = 'starting';
+  private fallback = false;
+  private lastError: string | null = null;
+  private generation = 0;
   private activeReconcile?: Promise<void>;
   private stopSignal?: NodeJS.Signals;
-  private suspendedProcess?: Promise<void>;
   private stopContext?: () => Promise<void>;
-  private readonly runtimes: RuntimeStore;
   private lastSuccessful?: Runtime;
   private resolveExit!: (code: number) => void;
   private readonly exit = new Promise<number>((resolve) => {
@@ -75,21 +52,42 @@ class ApplicationManager {
 
   constructor(
     private readonly options: WatchAppOptions,
-    private readonly dependencies: LifecycleDependencies,
+    private readonly runtimes: RuntimeStore,
+    private readonly processes: ProcessRegistry,
+    private readonly sources: ConfigSourceRegistry,
     private readonly getState: () => ContextState,
+    private readonly logs: LogRegistry,
   ) {
     this.initialFiles = new Set(options.initialFiles);
-    this.runtimes = dependencies.createRuntimes();
     this.watchedFiles = new Set(this.initialFiles);
+  }
+
+  status(): AppStatus {
+    return {
+      session: this.logs.session,
+      state: this.statusState,
+      fallback: this.fallback,
+      error: this.lastError,
+      generation: this.generation,
+      busy: this.activeReconcile !== undefined || this.restartTimer !== undefined || this.restartRequested,
+    };
+  }
+
+  restart(): void {
+    if (this.stopSignal || this.startupFailed || !this.lastSuccessful) {
+      throw new ControlError('unavailable', '当前应用无法重启。');
+    }
+    if (this.statusState === 'restarting' || this.restartRequested) return;
+    this.restartRequested = true;
+    this.logs.message('Restart requested from WebUI.');
+    this.restartTimer = setTimeout(() => {
+      this.restartTimer = undefined;
+      void this.reconcile();
+    }, 150);
   }
 
   waitForExit(): Promise<number> {
     return this.exit;
-  }
-
-  attachSources(sources: ConfigSourceRegistry): void {
-    this.sources = sources;
-    sources.update(this.watchedFiles);
   }
 
   bindStop(stopContext: () => Promise<void>): void {
@@ -123,9 +121,8 @@ class ApplicationManager {
 
   shutdown(signal: NodeJS.Signals = 'SIGTERM'): Promise<void> {
     this.stopSignal = signal;
-    if (signal === 'SIGKILL' && this.getState() === 'stopping') {
-      this.currentProcess?.kill(signal);
-    }
+    this.suspend();
+    this.processes.shutdown(signal);
     if (!this.stopContext) {
       return Promise.reject(new Error('App lifecycle has not been wired.'));
     }
@@ -134,69 +131,40 @@ class ApplicationManager {
 
   suspend(): void {
     this.dirty = false;
-    this.suspendedProcess = this.stopCurrentProcess(this.stopSignal ?? 'SIGTERM');
+    this.stopSignal ??= 'SIGTERM';
+    this.statusState = 'stopped';
+    if (this.restartTimer) clearTimeout(this.restartTimer);
+    this.restartTimer = undefined;
+    this.restartRequested = false;
   }
 
   async deactivate(): Promise<void> {
     await this.activeReconcile;
-    await this.suspendedProcess;
-    this.runtimes.close();
   }
 
   private updateSources(accessedFiles: Set<string>, successful: boolean): void {
     this.watchedFiles = successful
       ? new Set([...this.initialFiles, ...accessedFiles])
       : new Set([...this.watchedFiles, ...accessedFiles]);
-    this.sources?.update(this.watchedFiles);
+    this.sources.update(this.watchedFiles);
   }
 
-  private async stopCurrentProcess(signal: NodeJS.Signals = 'SIGTERM'): Promise<void> {
-    const appProcess = this.currentProcess;
-    if (!appProcess) {
-      return;
-    }
-    if (this.activeStop?.process === appProcess) {
-      if (signal === 'SIGKILL') {
-        appProcess.kill(signal);
-      }
-      return this.activeStop.promise;
-    }
-    this.expectedExit = appProcess;
-    appProcess.kill(signal);
-    const stopPromise = appProcess.exit.then(() => {
-      if (this.currentProcess === appProcess) {
-        this.currentProcess = undefined;
-      }
-      if (this.expectedExit === appProcess) {
-        this.expectedExit = undefined;
-      }
-      if (this.activeStop?.process === appProcess) {
-        this.activeStop = undefined;
-      }
-    });
-    this.activeStop = { process: appProcess, promise: stopPromise };
-    return stopPromise;
+  applicationExited(exitCode: number): void {
+    if (this.stopSignal || this.getState() !== 'started') return;
+    this.statusState = 'stopped';
+    this.logs.error(chalk.red(`Fraq application exited with code ${exitCode}; waiting for a configuration change.`));
   }
 
   // Readiness is a protocol boundary: the process is not a successful runtime until
   // ctx.start() has completed, and shutdown must also interrupt this wait.
   private async launch(runtime: Runtime): Promise<boolean> {
-    const appProcess = this.dependencies.spawn(runtime.entryPoint);
-    this.currentProcess = appProcess;
-    await appProcess.ready;
+    await this.processes.launch(runtime.entryPoint);
     if (this.stopSignal !== undefined || this.getState() !== 'started') {
       return false;
     }
     this.lastSuccessful = runtime;
-    void appProcess.exit.then((exitCode) => {
-      if (this.currentProcess !== appProcess) {
-        return;
-      }
-      this.currentProcess = undefined;
-      if (this.getState() === 'started' && this.expectedExit !== appProcess) {
-        console.error(chalk.red(`Fraq application exited with code ${exitCode}; waiting for a configuration change.`));
-      }
-    });
+    this.statusState = this.processes.running ? 'running' : 'stopped';
+    this.generation++;
     return true;
   }
 
@@ -219,11 +187,14 @@ class ApplicationManager {
         const workspaceChanged = this.workspaceRevision !== this.appliedWorkspaceRevision;
         const dependenciesChanged = workspaceChanged || nextDependencies !== this.lastSuccessful?.fingerprint;
         const applicationChanged = workspaceChanged || nextStartScript !== this.lastSuccessful?.startScript;
-        if (this.currentProcess && !dependenciesChanged && !applicationChanged) {
+        if (this.processes.running && !dependenciesChanged && !applicationChanged && !this.restartRequested) {
           this.updateSources(accessedFiles, true);
+          this.lastError = null;
+          this.fallback = false;
           continue;
         }
 
+        this.statusState = this.lastSuccessful ? 'restarting' : 'starting';
         // Candidate installs use a separate directory while the current process stays alive.
         const revision = this.workspaceRevision;
         const runtime = await this.runtimes.prepare(prepared.config, prepared.packageManager, {
@@ -232,43 +203,57 @@ class ApplicationManager {
         if (this.stopSignal !== undefined || this.getState() !== 'started' || this.dirty) {
           continue;
         }
-        const restarting = this.currentProcess !== undefined;
-        await this.stopCurrentProcess();
+        this.restartRequested = false;
+        if (this.restartTimer) clearTimeout(this.restartTimer);
+        this.restartTimer = undefined;
+        const restarting = this.processes.running;
+        await this.processes.stopApplication();
         if (this.stopSignal !== undefined || this.getState() !== 'started') {
           break;
         }
-        console.log(chalk.cyan(restarting ? 'Restarting the Fraq application...' : 'Starting the Fraq application...'));
+        this.logs.message(
+          chalk.cyan(restarting ? 'Restarting the Fraq application...' : 'Starting the Fraq application...'),
+        );
         launching = true;
         if (!(await this.launch(runtime))) {
           break;
         }
         this.appliedWorkspaceRevision = revision;
+        this.lastError = null;
+        this.fallback = false;
         this.updateSources(accessedFiles, true);
       } catch (error) {
+        this.restartRequested = false;
+        if (this.restartTimer) clearTimeout(this.restartTimer);
+        this.restartTimer = undefined;
+        this.lastError = describeError(error);
         this.updateSources(accessedFiles, false);
         if (this.stopSignal !== undefined || this.getState() !== 'started') {
           break;
         }
-        console.error(chalk.red(`Failed to apply the Fraq configuration:\n${describeError(error)}`));
+        this.logs.error(chalk.red(`Failed to apply the Fraq configuration:\n${describeError(error)}`));
         if (launching) {
-          await this.stopCurrentProcess();
+          await this.processes.stopApplication();
         }
         if (this.stopSignal !== undefined || this.getState() !== 'started') {
           break;
         }
         if (!this.lastSuccessful) {
           this.startupFailed = true;
+          this.statusState = 'stopped';
           this.dirty = false;
           this.resolveExit(1);
           break;
         }
-        if (this.currentProcess) {
-          console.error(
+        this.fallback = true;
+        if (this.processes.running) {
+          this.statusState = 'running';
+          this.logs.error(
             chalk.yellow('Keeping the current successful runtime; configuration files have not been reverted.'),
           );
           continue;
         }
-        console.error(
+        this.logs.error(
           chalk.yellow('Falling back to the last successful runtime; configuration files have not been reverted.'),
         );
         try {
@@ -276,102 +261,16 @@ class ApplicationManager {
             continue;
           }
         } catch (fallbackError) {
-          console.error(
+          this.logs.error(
             chalk.red(`The last successful runtime also failed to start:\n${describeError(fallbackError)}`),
           );
-          await this.stopCurrentProcess();
+          await this.processes.stopApplication();
+          this.statusState = 'stopped';
+          this.lastError += `\n回退失败: ${describeError(fallbackError)}`;
         }
         if (this.stopSignal === undefined) {
-          console.error(chalk.yellow('No running application; waiting for a configuration change.'));
+          this.logs.error(chalk.yellow('No running application; waiting for a configuration change.'));
         }
-      }
-    }
-  }
-}
-
-export const AppLifecycle = defineContext<AppLifecycleOptions>()
-  .subsystems<AppLifecycleSystems>(({ rootOptions, getState, subsystem }) => {
-    if (!rootOptions) {
-      throw new Error('App lifecycle requires root options.');
-    }
-    const dependencies: LifecycleDependencies = {
-      createSources: createConfigSourceRegistry,
-      spawn: spawnAppProcess,
-      createRuntimes: () => new RuntimeRegistry(),
-      ...rootOptions.dependencies,
-    };
-    const watch: WatchAppOptions = {
-      initialFiles: new Set(rootOptions.initialFiles),
-      prepare: rootOptions.prepare,
-    };
-    const application = subsystem({
-      name: 'application',
-      create: () => new ApplicationManager(watch, dependencies, getState),
-      activate: (manager) => manager.reconcile(),
-      suspend: (manager) => manager.suspend(),
-      deactivate: (manager) => manager.deactivate(),
-    });
-    const sources = subsystem({
-      name: 'sources',
-      create: () =>
-        dependencies.createSources({
-          files: watch.initialFiles,
-          onChange: (changedFiles) => application.filesChanged(changedFiles),
-          onError: (error) => {
-            console.error(chalk.red(`Configuration watcher failed: ${describeError(error)}`));
-          },
-        }),
-      deactivate: (registry) => registry.close(),
-    });
-    return { application, sources };
-  })
-  .builtins<AppLifecycleBuiltins>(({ systems }) => ({
-    reconcile: () => systems.application.reconcile(),
-    waitForExit: () => systems.application.waitForExit(),
-    shutdown: (signal) => systems.application.shutdown(signal),
-  }))
-  .wire(({ context, systems }) => {
-    systems.application.attachSources(systems.sources);
-    systems.application.bindStop(() => context.stop());
-  })
-  .build();
-
-export async function startWatchedApp(options: WatchAppOptions): Promise<number> {
-  const lifecycle = AppLifecycle.create(options);
-  let receivedSignal: NodeJS.Signals | undefined;
-  let resolveSignal!: (signal: NodeJS.Signals) => void;
-  const signalReceived = new Promise<NodeJS.Signals>((resolve) => {
-    resolveSignal = resolve;
-  });
-  const signalHandlers = new Map<NodeJS.Signals, () => void>();
-
-  for (const signal of terminationSignals) {
-    const handler = () => {
-      if (receivedSignal === undefined) {
-        receivedSignal = signal;
-        resolveSignal(signal);
-        void lifecycle.shutdown(signal);
-      } else {
-        void lifecycle.shutdown('SIGKILL');
-      }
-    };
-    signalHandlers.set(signal, handler);
-    process.on(signal, handler);
-  }
-
-  try {
-    await lifecycle.start();
-    const result = await Promise.race([
-      lifecycle.waitForExit(),
-      signalReceived.then((signal) => 128 + (osConstants.signals[signal] ?? 1)),
-    ]);
-    return receivedSignal === undefined ? result : 128 + (osConstants.signals[receivedSignal] ?? 1);
-  } finally {
-    try {
-      await lifecycle.shutdown(receivedSignal);
-    } finally {
-      for (const [signal, handler] of signalHandlers) {
-        process.off(signal, handler);
       }
     }
   }
