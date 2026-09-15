@@ -5,15 +5,15 @@ packages:
   - "!packages/cli/app"
 
 minimumReleaseAgeExclude:
-  - "@fraqjs/*"
-  - "@typescript/*"
-  - typescript
-  - tsdown
-  - rolldown-plugin-dts
-  - "@fumadocs/cli"
-  - fumadocs-ui
-  - ai
   - "@ai-sdk/*"
+  - "@fraqjs/*"
+  - "@fumadocs/*"
+  - "@fumari/*"
+  - ai
+  - fumadocs-*
+  - rolldown-plugin-dts
+  - tsdown
+  - typescript
 
 allowBuilds:
   esbuild: true

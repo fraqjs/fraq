@@ -49,7 +49,7 @@
     "domhandler": "^6.0.1",
     "htmlparser2": "^12.0.0",
     "xml-formatter": "^3.7.0",
-    "zod": "^4.5.4"
+    "zod": "^4.6.5"
   },
   "fraq": {
     "category": "infrastructure"
