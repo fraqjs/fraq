@@ -1,5 +1,18 @@
 # @fraqjs/cli
 
+## 1.1.0
+
+### Minor Changes
+
+- fb53d1e: 实现可恢复的 watch 模式，启动失败后自动回滚到上一个启动成功的配置
+- 2fefab0: 实现 cli-integration 插件，通过 WebUI 管理 Fraq CLI
+
+### Patch Changes
+
+- Updated dependencies [2fefab0]
+  - @fraqjs/cli-protocol@1.1.0
+  - @fraqjs/kernel@1.1.1
+
 ## 1.0.1
 
 ### Patch Changes
