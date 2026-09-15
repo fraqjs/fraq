@@ -15,5 +15,12 @@
     "build": "tsdown",
     "prepack": "pnpm build"
   },
+  "keywords": [],
+  "author": "fraqjs",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fraqjs/fraq.git"
+  },
+  "homepage": "https://fraq.dev/",
   "license": "MIT"
 }
