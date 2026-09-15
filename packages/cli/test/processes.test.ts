@@ -124,6 +124,12 @@ test('tees real child output into the bounded log cache while serving control IP
     script,
     `
     console.log('app output');
+    process.send(null);
+    process.send('unrelated message');
+    process.send({ type: 'fraq:control:response', version: 1, id: 'response' });
+    process.send({ type: 'fraq:control:request', version: 0, id: 'old', method: 'hello' });
+    process.send({ type: 'fraq:control:request', version: 1, method: 'hello' });
+    process.send({ type: 'fraq:control:request', version: 1, id: 42, method: 'hello' });
     process.send({ type: 'fraq:control:request', version: 1, id: 'hello', method: 'hello' });
     process.on('message', (message) => {
       if (message.type !== 'fraq:control:response') return;
@@ -137,17 +143,22 @@ test('tees real child output into the bounded log cache while serving control IP
   try {
     process.chdir(root);
     const logs = new LogRegistry();
+    const requestIds: string[] = [];
     const child = spawnAppProcess(script, 1000, {
       logs,
-      onRequest: async (request) => ({
-        type: 'fraq:control:response',
-        version: 1,
-        id: request.id,
-        result: { version: 1 },
-      }),
+      onRequest: async (request) => {
+        requestIds.push(request.id);
+        return {
+          type: 'fraq:control:response',
+          version: 1,
+          id: request.id,
+          result: { version: 1 },
+        };
+      },
     });
     await child.ready;
     assert.equal(await child.exit, 0);
+    assert.deepEqual(requestIds, ['hello']);
     assert.deepEqual(
       logs
         .read()

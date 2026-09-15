@@ -1,4 +1,4 @@
-import type { ControlRequest, ControlResponse } from '@fraqjs/cli-protocol';
+import { type ControlRequest, type ControlResponse, PROTOCOL_VERSION } from '@fraqjs/cli-protocol';
 import { execa, execaNode, type ResultPromise } from 'execa';
 
 import type { PackageManagerInfo } from '../package-manager';
@@ -89,6 +89,18 @@ export function spawnAppProcess(
     const handle = options.onRequest;
     void (async () => {
       for await (const message of child.getEachMessage({ reference: false })) {
+        if (
+          message === null ||
+          typeof message !== 'object' ||
+          !('type' in message) ||
+          message.type !== 'fraq:control:request' ||
+          !('version' in message) ||
+          message.version !== PROTOCOL_VERSION ||
+          !('id' in message) ||
+          typeof message.id !== 'string'
+        ) {
+          continue;
+        }
         // Serialize requests and responses: a child cannot grow an unbounded outbound queue.
         await child.sendMessage(await handle(message as ControlRequest));
       }
@@ -106,7 +118,7 @@ export function spawnAppProcess(
           'type' in message &&
           message.type === 'fraq:ready' &&
           'version' in message &&
-          message.version === 1,
+          message.version === PROTOCOL_VERSION,
       })
       .then(
         () => {},
