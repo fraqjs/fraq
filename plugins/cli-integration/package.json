@@ -1,7 +1,7 @@
 {
   "name": "@fraqjs/plugin-cli-integration",
   "type": "module",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "通过 WebUI 管理 Fraq CLI",
   "files": [
     "dist"

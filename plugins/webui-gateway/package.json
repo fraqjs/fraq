@@ -1,7 +1,7 @@
 {
   "name": "@fraqjs/plugin-webui-gateway",
   "type": "module",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "提供统一的 WebUI 挂载和鉴权入口",
   "files": [
     "dist"
