@@ -22,7 +22,13 @@ interface ValueLocation {
   stack: FileFrame[];
 }
 
-export type FileAccessHandler = (filePath: string) => void;
+export type FileAccessHandler = (filePath: string, kind?: 'tree' | 'text') => void;
+
+export interface ReferenceOptions {
+  onFileAccess?: FileAccessHandler;
+  readFile?: (filePath: string) => string;
+  onError?: (error: unknown) => void;
+}
 
 type StringPart = { type: 'text'; value: string } | { type: 'reference'; reference: Reference };
 
@@ -108,11 +114,11 @@ function resolveReferencePath(target: string, sourcePath: string): string {
   return path.isAbsolute(target) ? path.normalize(target) : path.resolve(path.dirname(sourcePath), target);
 }
 
-function readTextReference(reference: Reference, location: ValueLocation, onFileAccess?: FileAccessHandler): string {
+function readTextReference(reference: Reference, location: ValueLocation, options: ReferenceOptions): string {
   const referencedPath = resolveReferencePath(reference.target, location.filePath);
-  onFileAccess?.(referencedPath);
+  options.onFileAccess?.(referencedPath, 'text');
   try {
-    return readFileSync(referencedPath, 'utf-8').replace(/\r?\n$/, '');
+    return (options.readFile?.(referencedPath) ?? readFileSync(referencedPath, 'utf-8')).replace(/\r?\n$/, '');
   } catch (error) {
     throw referenceError(
       `Failed to read text reference ${JSON.stringify(reference.target)}: ${describeError(error)}`,
@@ -126,7 +132,7 @@ function resolveStringReference(
   reference: Reference,
   location: ValueLocation,
   resolveAllReferences: boolean,
-  onFileAccess?: FileAccessHandler,
+  options: ReferenceOptions,
 ): string {
   if (reference.type === 'tree') {
     throw referenceError(
@@ -144,27 +150,32 @@ function resolveStringReference(
     }
     return value;
   }
-  return readTextReference(reference, location, onFileAccess);
+  return readTextReference(reference, location, options);
 }
 
 function resolveString(
   value: string,
   location: ValueLocation,
   resolveAllReferences: boolean,
-  onFileAccess?: FileAccessHandler,
+  options: ReferenceOptions,
 ): unknown {
   const parts = splitString(value, location);
   if (parts.length === 1 && parts[0]?.type === 'reference' && parts[0].reference.type === 'tree') {
     const referencedPath = resolveReferencePath(parts[0].reference.target, location.filePath);
-    return parseStructuredFile(referencedPath, location.stack, resolveAllReferences, onFileAccess, location);
+    return parseStructuredFile(referencedPath, location.stack, resolveAllReferences, options, location);
   }
 
   return parts
-    .map((part) =>
-      part.type === 'text'
-        ? part.value
-        : resolveStringReference(part.reference, location, resolveAllReferences, onFileAccess),
-    )
+    .map((part) => {
+      if (part.type === 'text') return part.value;
+      try {
+        return resolveStringReference(part.reference, location, resolveAllReferences, options);
+      } catch (error) {
+        if (!options.onError) throw error;
+        options.onError(error);
+        return part.reference.expression;
+      }
+    })
     .join('');
 }
 
@@ -172,11 +183,17 @@ function resolveValue(
   value: unknown,
   location: ValueLocation,
   resolveAllReferences: boolean,
-  onFileAccess?: FileAccessHandler,
+  options: ReferenceOptions,
   ancestors = new WeakSet<object>(),
 ): unknown {
   if (typeof value === 'string') {
-    return resolveString(value, location, resolveAllReferences, onFileAccess);
+    try {
+      return resolveString(value, location, resolveAllReferences, options);
+    } catch (error) {
+      if (!options.onError) throw error;
+      options.onError(error);
+      return value;
+    }
   }
   if (Array.isArray(value)) {
     if (ancestors.has(value)) {
@@ -189,7 +206,7 @@ function resolveValue(
           item,
           { ...location, configPath: `${location.configPath}[${index}]` },
           resolveAllReferences,
-          onFileAccess,
+          options,
           ancestors,
         ),
       );
@@ -210,7 +227,7 @@ function resolveValue(
             item,
             { ...location, configPath: propertyPath(location.configPath, key) },
             resolveAllReferences,
-            onFileAccess,
+            options,
             ancestors,
           ),
         ]),
@@ -226,12 +243,12 @@ function parseStructuredFile(
   filePath: string,
   parentStack: FileFrame[],
   resolveAllReferences: boolean,
-  onFileAccess?: FileAccessHandler,
+  options: ReferenceOptions,
   source?: ValueLocation,
   contentOverride?: string,
 ): unknown {
   const resolvedPath = path.resolve(filePath);
-  onFileAccess?.(resolvedPath);
+  options.onFileAccess?.(resolvedPath, 'tree');
   const sourceLocation = source ?? { filePath: resolvedPath, configPath: '$', stack: parentStack };
   const extension = path.extname(resolvedPath).toLowerCase();
   if (extension !== '.json' && extension !== '.yml' && extension !== '.yaml') {
@@ -264,7 +281,7 @@ function parseStructuredFile(
 
   let content: string;
   try {
-    content = contentOverride ?? readFileSync(resolvedPath, 'utf-8');
+    content = contentOverride ?? options.readFile?.(resolvedPath) ?? readFileSync(resolvedPath, 'utf-8');
   } catch (error) {
     throw referenceError(
       `Failed to read structured file ${JSON.stringify(resolvedPath)}: ${describeError(error)}`,
@@ -284,7 +301,7 @@ function parseStructuredFile(
     );
   }
 
-  return resolveValue(parsed, { filePath: resolvedPath, configPath: '$', stack }, resolveAllReferences, onFileAccess);
+  return resolveValue(parsed, { filePath: resolvedPath, configPath: '$', stack }, resolveAllReferences, options);
 }
 
 export function parseConfigReferences(
@@ -292,9 +309,9 @@ export function parseConfigReferences(
   resolveAllReferences = false,
   onFileAccess?: FileAccessHandler,
 ): unknown {
-  return parseStructuredFile(filePath, [], resolveAllReferences, onFileAccess);
+  return parseStructuredFile(filePath, [], resolveAllReferences, { onFileAccess });
 }
 
-export function parseConfigText(content: string, filePath: string): unknown {
-  return parseStructuredFile(filePath, [], true, undefined, undefined, content);
+export function parseConfigText(content: string, filePath: string, options: ReferenceOptions = {}): unknown {
+  return parseStructuredFile(filePath, [], true, options, undefined, content);
 }

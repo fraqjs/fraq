@@ -1,14 +1,14 @@
 import { history, indentLess, indentMore, insertNewlineAndIndent, undo } from '@codemirror/commands';
 import { ensureSyntaxTree, indentUnit } from '@codemirror/language';
 import { EditorState, type Transaction } from '@codemirror/state';
-import type { ConfigDocument } from '@fraqjs/cli-protocol';
+import type { ConfigFile } from '@fraqjs/cli-protocol';
 
 import { configurationLanguage } from '../webui/src/configuration-language';
 
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-function createEditor(content: string, format: ConfigDocument['format'] = 'yaml') {
+function createEditor(content: string, format: ConfigFile['format'] = 'yaml') {
   const target = {
     state: EditorState.create({
       doc: content,
@@ -62,4 +62,11 @@ test('selects the YAML or JSON parser for syntax highlighting', () => {
   const json = createEditor('{"enabled": true}', 'json');
   assert.equal(ensureSyntaxTree(yaml.state, yaml.state.doc.length)?.topNode.name, 'Stream');
   assert.equal(ensureSyntaxTree(json.state, json.state.doc.length)?.topNode.name, 'JsonText');
+});
+
+test('keeps text references as plain text with their whitespace and literal expressions', () => {
+  const text = '\ufeff  literal ${{ env:NOT_EXPANDED }}\r\n';
+  const editor = createEditor(text, 'text');
+  assert.equal(editor.state.sliceDoc(), text);
+  assert.equal(ensureSyntaxTree(editor.state, editor.state.doc.length), null);
 });

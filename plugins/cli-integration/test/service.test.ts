@@ -21,9 +21,18 @@ test('protects APIs, accepts proxied writes and dispatches restart only after re
   const hono = new HonoService();
   const gateway = new WebuiGateway(hono, { accessToken: 'secret' }, root);
   const calls: Method[] = [];
+  const workspace = {
+    root: '/project',
+    revision: 'group-1',
+    files: [
+      { id: 'main', name: 'fraq.yml', format: 'yaml', main: true, editable: true, content: '# raw' },
+      { id: 'token', name: 'token.txt', format: 'text', main: false, editable: true, content: 'token' },
+    ],
+  };
   const client: ControlClient & { dispose(): void } = {
     async request(method, input) {
       calls.push(method);
+      if (method === 'configFiles' || method === 'saveFiles') return workspace as never;
       if (method === 'save' && input && 'revision' in input && input.revision === 'old')
         throw new ControlError('conflict', '配置已改变');
       if (method === 'status')
@@ -40,6 +49,8 @@ test('protects APIs, accepts proxied writes and dispatches restart only after re
   assert.equal((await hono.app.request(`${base}/logs/stream`)).status, 401);
   assert.equal((await hono.app.request(`${base}/config`, { method: 'PUT' })).status, 401);
   assert.equal((await hono.app.request(`${base}/restart`, { method: 'POST' })).status, 401);
+  assert.equal((await hono.app.request(`${base}/config/files`)).status, 401);
+  assert.equal((await hono.app.request(`${base}/config/files`, { method: 'PUT' })).status, 401);
   for (const page of ['config', 'logs']) {
     const route = `/webui/cli-integration/${page}`;
     const response = await hono.app.request(route, { headers: { Accept: 'text/html' } });
@@ -64,6 +75,39 @@ test('protects APIs, accepts proxied writes and dispatches restart only after re
     assert.equal(await response.text(), '<main>CLI</main>');
   }
   assert.equal((await hono.app.request(`${base}/config`, { headers })).status, 200);
+  assert.deepEqual(await (await hono.app.request(`${base}/config/files`, { headers })).json(), workspace);
+  for (const body of [
+    {},
+    { revision: 'r', files: [] },
+    { revision: 'r', files: [{ id: 'main', content: 42 }] },
+    {
+      revision: 'r',
+      files: [
+        { id: 'main', content: '' },
+        { id: 'main', content: '' },
+      ],
+    },
+  ]) {
+    const before: number = calls.length;
+    assert.equal(
+      (await hono.app.request(`${base}/config/files`, { method: 'PUT', headers, body: JSON.stringify(body) })).status,
+      400,
+    );
+    assert.equal(calls.length, before);
+  }
+  const savedFiles = await hono.app.request(`${base}/config/files`, {
+    method: 'PUT',
+    headers,
+    body: JSON.stringify({
+      revision: 'group-1',
+      files: [
+        { id: 'main', content: '# draft' },
+        { id: 'token', content: 'updated' },
+      ],
+    }),
+  });
+  assert.equal(savedFiles.status, 200);
+  assert.equal(calls.at(-1), 'saveFiles');
   assert.equal((await hono.app.request(`${base}/config`, { method: 'PUT', headers, body: '{}' })).status, 400);
   const conflict = await hono.app.request(`${base}/config`, {
     method: 'PUT',

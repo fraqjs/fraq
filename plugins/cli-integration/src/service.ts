@@ -1,4 +1,12 @@
-import { type ControlClient, ControlError, type LogCursor, MAX_CONFIG_BYTES } from '@fraqjs/cli-protocol';
+import {
+  type ConfigChanges,
+  type ControlClient,
+  ControlError,
+  type LogCursor,
+  MAX_CONFIG_BYTES,
+  MAX_CONFIG_FILES,
+  MAX_CONFIG_TOTAL_BYTES,
+} from '@fraqjs/cli-protocol';
 import { serviceToken } from '@fraqjs/kernel';
 import type { WebuiEnv } from '@fraqjs/plugin-webui-gateway';
 import type { Hono } from 'hono';
@@ -23,13 +31,44 @@ export class CliIntegrationService {
       c.header('Cache-Control', 'no-store');
       await next();
     });
-    app.use('*', bodyLimit({ maxSize: MAX_CONFIG_BYTES * 6 + 1024 }));
+    app.use('*', bodyLimit({ maxSize: MAX_CONFIG_TOTAL_BYTES * 6 + 65536 }));
     app.onError((error, c) => {
       const code = error instanceof ControlError ? error.code : 'internal';
       return c.json({ error: error.message, code }, statusCodes[code]);
     });
     app.get('/status', async (c) => c.json(await this.client.request('status', undefined)));
     app.get('/config', async (c) => c.json(await this.client.request('config', undefined)));
+    app.get('/config/files', async (c) => c.json(await this.client.request('configFiles', undefined)));
+    app.put('/config/files', async (c) => {
+      const input = (await c.req.json().catch(() => null)) as ConfigChanges | null;
+      if (
+        !input ||
+        typeof input.revision !== 'string' ||
+        !Array.isArray(input.files) ||
+        !input.files.length ||
+        input.files.length > MAX_CONFIG_FILES
+      ) {
+        throw new ControlError('invalid', '缺少文件内容或配置版本。');
+      }
+      let bytes = 0;
+      const ids = new Set<string>();
+      for (const file of input.files) {
+        if (!file || typeof file.id !== 'string' || typeof file.content !== 'string' || ids.has(file.id)) {
+          throw new ControlError('invalid', '文件参数无效或被重复提交。');
+        }
+        ids.add(file.id);
+        const size = Buffer.byteLength(file.content);
+        bytes += size;
+        if (size > MAX_CONFIG_BYTES || bytes > MAX_CONFIG_TOTAL_BYTES)
+          throw new ControlError('invalid', '保存内容超过大小限制。');
+      }
+      return c.json(
+        await this.client.request('saveFiles', {
+          revision: input.revision,
+          files: input.files.map(({ id, content }) => ({ id, content })),
+        }),
+      );
+    });
     app.put('/config', async (c) => {
       const input = (await c.req.json().catch(() => null)) as { content?: unknown; revision?: unknown } | null;
       if (!input || typeof input.content !== 'string' || typeof input.revision !== 'string') {

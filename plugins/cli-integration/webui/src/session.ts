@@ -1,4 +1,4 @@
-import type { AppStatus, ConfigDocument, LogCursor, LogEntry } from '@fraqjs/cli-protocol';
+import type { AppStatus, ConfigWorkspace, LogCursor, LogEntry } from '@fraqjs/cli-protocol';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useOutletContext } from 'react-router';
 
@@ -7,28 +7,27 @@ import { api } from './client';
 export function useSession() {
   const [status, setStatus] = useState<AppStatus>();
   const [connected, setConnected] = useState(false);
-  const [document, setDocument] = useState<ConfigDocument>();
-  const [content, setContent] = useState('');
+  const [workspace, setWorkspace] = useState<ConfigWorkspace>();
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [selectedFileId, selectFile] = useState<string>();
   const [busy, setBusy] = useState<'saving' | 'restarting' | null>(null);
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [gap, setGap] = useState(false);
   const [following, setFollowing] = useState(true);
-  const dirty = useRef(false);
-  const documentRef = useRef<ConfigDocument | undefined>(undefined);
+  const draftsRef = useRef<Record<string, string>>({});
   const cursor = useRef<LogCursor>({});
   const logScrollTop = useRef(0);
   const restartGeneration = useRef<number | undefined>(undefined);
   const restartTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const loadConfig = useCallback(async (discard = false) => {
     try {
-      const next = await api<ConfigDocument>('/config');
-      if (dirty.current && !discard) return;
-      documentRef.current = next;
-      setDocument(next);
-      setContent(next.content);
-      dirty.current = false;
+      const next = await api<ConfigWorkspace>('/config/files');
+      if (Object.keys(draftsRef.current).length && !discard) return;
+      setWorkspace(next);
+      draftsRef.current = {};
+      setDrafts({});
       setError('');
     } catch (error) {
       setError(error instanceof Error ? error.message : '无法读取配置。');
@@ -73,19 +72,22 @@ export function useSession() {
   }, [loadConfig]);
 
   const save = async () => {
-    if (!document) return;
+    if (!workspace) return;
     setBusy('saving');
     setError('');
     setNotice('');
     try {
-      const saved = await api<ConfigDocument>('/config', {
+      const saved = await api<ConfigWorkspace>('/config/files', {
         method: 'PUT',
-        body: JSON.stringify({ content, revision: document.revision }),
+        body: JSON.stringify({
+          revision: workspace.revision,
+          files: Object.entries(draftsRef.current).map(([id, content]) => ({ id, content })),
+        }),
       });
-      documentRef.current = saved;
-      setDocument(saved);
-      dirty.current = false;
-      setNotice('配置已保存。应用结果见运行状态和日志。');
+      setWorkspace(saved);
+      draftsRef.current = {};
+      setDrafts({});
+      setNotice('配置文件已保存。应用结果见运行状态和日志。');
     } catch (error) {
       setError(error instanceof Error ? error.message : '保存失败。');
     } finally {
@@ -112,16 +114,25 @@ export function useSession() {
     }
   };
   const disabled = Boolean(busy) || !connected || status?.busy;
-  const isDirty = document !== undefined && content !== document.content;
+  const document = workspace?.files.find((file) => file.id === selectedFileId) ?? workspace?.files[0];
+  const content = document?.editable ? (drafts[document.id] ?? document.content) : '';
+  const isDirty = Object.keys(drafts).length > 0;
 
   const edit = (value: string) => {
-    setContent(value);
-    dirty.current = value !== documentRef.current?.content;
+    if (!document?.editable) return;
+    const next = { ...draftsRef.current };
+    if (value === document.content) delete next[document.id];
+    else next[document.id] = value;
+    draftsRef.current = next;
+    setDrafts(next);
   };
 
   return {
     status,
     connected,
+    workspace,
+    drafts,
+    selectFile,
     document,
     content,
     busy,

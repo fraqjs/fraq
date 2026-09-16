@@ -26,7 +26,7 @@ export const CliIntegrationPlugin = defineCommonPlugin({
       const hello = await client.request('hello', undefined);
       if (
         hello.version !== PROTOCOL_VERSION ||
-        !['config', 'restart', 'logs'].every((value) => hello.capabilities.includes(value))
+        !['config', 'config-files', 'restart', 'logs'].every((value) => hello.capabilities.includes(value))
       ) {
         throw new Error('The CLI does not support this integration protocol.');
       }

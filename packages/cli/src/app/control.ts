@@ -30,13 +30,21 @@ export class CliControl {
       if (this.closed) throw new ControlError('unavailable', 'CLI 会话正在退出。');
       switch (request.method) {
         case 'hello':
-          response.result = { version: PROTOCOL_VERSION, capabilities: ['config', 'restart', 'logs'] };
+          response.result = { version: PROTOCOL_VERSION, capabilities: ['config', 'config-files', 'restart', 'logs'] };
           break;
         case 'status':
           response.result = this.getStatus();
           break;
         case 'config':
           response.result = this.editor.read();
+          break;
+        case 'configFiles':
+          response.result = this.editor.list();
+          break;
+        case 'saveFiles':
+          if (this.getStatus().busy) throw new ControlError('busy', '正在应用配置，请稍后保存。');
+          response.result = this.editor.saveFiles(request.input);
+          this.logs.message('Configuration files saved from WebUI; waiting for the watcher to apply them.');
           break;
         case 'logs':
           response.result = this.logs.read(request.input, MAX_LOG_BATCH_BYTES);

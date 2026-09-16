@@ -2,7 +2,7 @@ import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirro
 import { bracketMatching, defaultHighlightStyle, indentOnInput, syntaxHighlighting } from '@codemirror/language';
 import { Annotation, Compartment, EditorState, Text, Transaction } from '@codemirror/state';
 import { drawSelection, EditorView, highlightActiveLineGutter, keymap, lineNumbers } from '@codemirror/view';
-import type { ConfigDocument } from '@fraqjs/cli-protocol';
+import type { ConfigFile } from '@fraqjs/cli-protocol';
 import { useLayoutEffect, useRef, useState } from 'react';
 
 import { configurationLanguage } from '../configuration-language';
@@ -35,13 +35,13 @@ export function ConfigurationEditor({
   onChange,
 }: {
   value: string;
-  format: ConfigDocument['format'];
+  format: ConfigFile['format'];
   disabled: boolean;
   onChange: (content: string) => void;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const editor = useRef<EditorView | null>(null);
-  const currentFormat = useRef<ConfigDocument['format'] | undefined>(undefined);
+  const currentFormat = useRef<ConfigFile['format'] | undefined>(undefined);
   const onChangeRef = useRef(onChange);
   const [compartments] = useState(() => ({ language: new Compartment(), editing: new Compartment() }));
 
