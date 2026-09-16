@@ -23,7 +23,6 @@ jobs:
     outputs:
       published: ${{ steps.changesets.outputs.published }}
       published_packages: ${{ steps.changesets.outputs['published-packages'] }}
-      version: ${{ steps.release-version.outputs.version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -61,18 +60,6 @@ jobs:
           pr-title: "[release] Version packages"
           create-github-releases: true
           push-git-tags: true
-
-      - name: Resolve released version
-        id: release-version
-        if: steps.changesets.outputs.published == 'true'
-        run: |
-          node <<'NODE'
-          const { appendFileSync, readFileSync } = require("node:fs");
-
-          const { version } = JSON.parse(readFileSync("packages/fraq/package.json", "utf8"));
-          appendFileSync(process.env.GITHUB_OUTPUT, `version=${version}\n`);
-          console.log(`Released Fraq packages at ${version}.`);
-          NODE
 
   wait-for-registry:
     name: Wait for npm registry
@@ -141,8 +128,6 @@ jobs:
           - starter-template
           - plugin-template
           - plugin-template-webui
-    env:
-      FRAQ_VERSION: ${{ needs.release.outputs.version }}
     steps:
       - name: Check token
         env:
@@ -176,9 +161,9 @@ jobs:
         working-directory: template
         run: |
           node <<'NODE'
+          const { execFileSync } = require("node:child_process");
           const { readFileSync, writeFileSync } = require("node:fs");
 
-          const versionRange = `^${process.env.FRAQ_VERSION}`;
           const packagePath = "package.json";
           const packageJson = JSON.parse(readFileSync(packagePath, "utf8"));
           const dependencyFields = [
@@ -188,23 +173,34 @@ jobs:
             "optionalDependencies",
           ];
           const ignoredPackages = new Set(["@fraqjs/takumi-builtin-fonts"]);
-          const matchedPackages = new Set();
+          const versions = new Map();
 
           for (const field of dependencyFields) {
             for (const packageName of Object.keys(packageJson[field] ?? {})) {
               if (!packageName.startsWith("@fraqjs/") || ignoredPackages.has(packageName)) continue;
-              packageJson[field][packageName] = versionRange;
-              matchedPackages.add(packageName);
+              if (!versions.has(packageName)) {
+                const version = JSON.parse(execFileSync("npm", [
+                  "view", `${packageName}@latest`, "version", "--json",
+                  "--registry=https://registry.npmjs.org/",
+                ], { encoding: "utf8" }));
+                if (typeof version !== "string" || !version.trim()) {
+                  throw new Error(`No published version was found for ${packageName}.`);
+                }
+                versions.set(packageName, `^${version}`);
+              }
+              packageJson[field][packageName] = versions.get(packageName);
             }
           }
 
-          if (matchedPackages.size === 0) {
+          if (versions.size === 0) {
             console.error("No releasable @fraqjs dependency was found in package.json.");
             process.exit(1);
           }
 
           writeFileSync(packagePath, `${JSON.stringify(packageJson, null, 2)}\n`);
-          console.log(`Updated ${Array.from(matchedPackages).join(", ")} to ${versionRange}.`);
+          for (const [name, versionRange] of versions) {
+            console.log(`Updated ${name} to ${versionRange}.`);
+          }
           NODE
 
       - name: Update lockfile
@@ -215,12 +211,12 @@ jobs:
         working-directory: template
         run: |
           if git diff --quiet -- package.json pnpm-lock.yaml; then
-            echo "fraqjs/${{ matrix.repository }} already uses @fraqjs packages at ^${FRAQ_VERSION}."
+            echo "fraqjs/${{ matrix.repository }} already uses the latest published Fraq packages."
             exit 0
           fi
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add package.json pnpm-lock.yaml
-          git commit -m "chore: update Fraq packages to ${FRAQ_VERSION}"
+          git commit -m "chore: update Fraq packages to latest published versions"
           git push origin HEAD:main
