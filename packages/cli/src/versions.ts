@@ -1,5 +1,6 @@
 import YAML, { type Document } from 'yaml';
 
+import pkg from '../package.json';
 import type { ContextConfig } from './config';
 import { collectPluginNames } from './config/context';
 import { findConfigPath } from './config/shared';
@@ -11,6 +12,17 @@ import { isWorkspacePlugin } from './workspace-plugins';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 
 type VersionedContextConfig = ContextConfig & { workspacePlugins?: Record<string, string> };
+const cliIntegrationPlugin = 'fraqjs/cli-integration';
+
+export function bindCliPluginVersions(
+  config: VersionedContextConfig,
+  versions: Record<string, string>,
+): Record<string, string> {
+  if (collectPluginNames(config).has(cliIntegrationPlugin) && !isWorkspacePlugin(config, cliIntegrationPlugin)) {
+    return { ...versions, [cliIntegrationPlugin]: pkg.version };
+  }
+  return { ...versions };
+}
 
 function readVersionDocument(filePath: string): Document {
   const document = YAML.parseDocument(existsSync(filePath) ? readFileSync(filePath, 'utf-8') : '{}\n');
@@ -52,8 +64,9 @@ export function checkVersionsCompleteness(
   versions: Record<string, string>,
 ): VersionsCompleteness {
   const pluginNames = collectPluginNames(config);
+  const resolvedVersions = bindCliPluginVersions(config, versions);
   const missingPlugins = Array.from(pluginNames).filter(
-    (pluginName) => !isWorkspacePlugin(config, pluginName) && !versions[pluginName],
+    (pluginName) => !isWorkspacePlugin(config, pluginName) && !resolvedVersions[pluginName],
   );
   if (missingPlugins.length > 0) {
     return { status: 'missing', missingPlugins: missingPlugins.sort((a, b) => a.localeCompare(b)) };
@@ -115,12 +128,14 @@ export async function checkOutdatedVersions(
   await Promise.all(
     [
       { type: 'fraq' as const, name: 'Fraq', packageName: '@fraqjs/fraq', currentVersion: fraqVersion },
-      ...Object.entries(pluginVersions).map(([name, currentVersion]) => ({
-        type: 'plugin' as const,
-        name,
-        packageName: normalizePluginName(name),
-        currentVersion,
-      })),
+      ...Object.entries(pluginVersions)
+        .filter(([name]) => name !== cliIntegrationPlugin)
+        .map(([name, currentVersion]) => ({
+          type: 'plugin' as const,
+          name,
+          packageName: normalizePluginName(name),
+          currentVersion,
+        })),
     ].map(async ({ type, name, packageName, currentVersion }) => {
       try {
         const latestPackageJson = await getLatestPackageJson(packageName);
@@ -198,13 +213,14 @@ export async function completeAndSyncVersions(
   lockfileVersions: Record<string, string>,
 ): Promise<Record<string, string>> {
   const pluginNames = collectPluginNames(config);
+  const resolvedVersions = bindCliPluginVersions(config, lockfileVersions);
   const completedVersions: Record<string, string> = {};
 
   for (const pluginName of pluginNames) {
     if (isWorkspacePlugin(config, pluginName)) {
       continue;
     }
-    const version = lockfileVersions[pluginName];
+    const version = resolvedVersions[pluginName];
     if (typeof version === 'string' && version.trim().length > 0) {
       completedVersions[pluginName] = version;
       continue;

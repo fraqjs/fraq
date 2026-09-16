@@ -1,4 +1,4 @@
-import { checkVersionsCompleteness, checkVersionsConsistency, readVersions } from '../versions';
+import { bindCliPluginVersions, checkVersionsCompleteness, checkVersionsConsistency, readVersions } from '../versions';
 import type { FileAccessHandler } from './references';
 import * as v1 from './v1';
 
@@ -32,8 +32,8 @@ export async function loadProjectConfig(options: LoadConfigOptions = {}): Promis
   const config = options.resolveAllReferences
     ? await loadConfig({ ...options, resolveAllReferences: true, throwOnValidationError: true })
     : await loadConfig({ ...options, resolveAllReferences: false, throwOnValidationError: true });
-  const locked = readVersions();
-  config.versions = { ...locked, ...config.versions };
+  const locked = bindCliPluginVersions(config, readVersions());
+  config.versions = bindCliPluginVersions(config, { ...locked, ...config.versions });
   const completeness = checkVersionsCompleteness(config, config.versions);
   if (completeness.status === 'missing') {
     throw new Error(

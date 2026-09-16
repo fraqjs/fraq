@@ -1,4 +1,13 @@
-import { applyVersionUpdates, checkOutdatedVersions } from '../src/versions';
+import pkg from '../package.json';
+import { syncVersions } from '../src/app/configuration';
+import { generateAppPackageJson } from '../src/app/package-json';
+import { loadProjectConfig } from '../src/config';
+import {
+  applyVersionUpdates,
+  checkOutdatedVersions,
+  checkVersionsCompleteness,
+  completeAndSyncVersions,
+} from '../src/versions';
 
 import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
@@ -37,6 +46,7 @@ test('checks Fraq and plugin versions together', async () => {
     current: '1.0.0',
     old: '1.0.0',
     broken: '1.0.0',
+    'fraqjs/cli-integration': pkg.version,
   });
 
   assert.deepEqual(result.outdated, [
@@ -54,6 +64,59 @@ test('checks Fraq and plugin versions together', async () => {
     'https://registry.npmjs.org/fraq-plugin-current/latest',
     'https://registry.npmjs.org/fraq-plugin-old/latest',
   ]);
+});
+
+test('binds CLI integration to the CLI version without querying latest or rewriting the main config', async () => {
+  const plugin = 'fraqjs/cli-integration';
+  const config = {
+    configVersion: 1,
+    fraqVersion: '0.14.0',
+    milky: { url: 'http://localhost:3000' },
+    forks: { management: { plugins: { [plugin]: {} } } },
+  };
+  const previousFetch = globalThis.fetch;
+  globalThis.fetch = async () => {
+    assert.fail('CLI integration version resolution must not query the registry');
+  };
+  try {
+    assert.deepEqual(checkVersionsCompleteness(config, {}), { status: 'ok' });
+    assert.deepEqual(await completeAndSyncVersions(config, {}), { [plugin]: pkg.version });
+    assert.deepEqual(await completeAndSyncVersions(config, { [plugin]: '0.0.1' }), { [plugin]: pkg.version });
+
+    for (const versions of [undefined, { [plugin]: '0.0.2' }]) {
+      const fixturePath = mkdtempSync(path.join(testRoot, 'cli-binding-'));
+      process.chdir(fixturePath);
+      const originalConfig = JSON.stringify({ ...config, versions });
+      writeFileSync('fraq.json', originalConfig);
+      // Frozen loading also binds versions, including when the lockfile is stale or absent.
+      for (const lockfile of ['{}\n', `${plugin}: 0.0.1\n`]) {
+        writeFileSync('versions.yml', lockfile);
+        const loaded = await loadProjectConfig({ resolveAllReferences: true });
+        assert.equal(loaded.versions[plugin], pkg.version);
+        assert.equal(generateAppPackageJson(loaded).dependencies['@fraqjs/plugin-cli-integration'], pkg.version);
+        assert.equal(readFileSync('versions.yml', 'utf8'), lockfile);
+      }
+      assert.equal(await syncVersions({ silent: true }), true);
+      assert.equal(readFileSync('versions.yml', 'utf8'), `${plugin}: ${pkg.version}\n`);
+      assert.equal(await syncVersions({ silent: true }), false);
+      assert.equal(readFileSync('fraq.json', 'utf8'), originalConfig);
+    }
+
+    const workspaceConfig = { ...config, workspacePlugins: { [plugin]: '../cli-integration' } };
+    assert.deepEqual(await completeAndSyncVersions(workspaceConfig, { [plugin]: '0.0.1' }), {});
+    writeFileSync('fraq.json', JSON.stringify(workspaceConfig));
+    const local = await loadProjectConfig({ resolveAllReferences: true });
+    assert.equal(
+      generateAppPackageJson(local).dependencies['@fraqjs/plugin-cli-integration'],
+      'file:../../cli-integration',
+    );
+
+    writeFileSync('fraq.json', JSON.stringify({ ...config, forks: undefined }));
+    writeFileSync('versions.yml', '{}\n');
+    assert.deepEqual((await loadProjectConfig()).versions, {});
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
 });
 
 test('updates version scalars without replacing their surrounding YAML nodes', () => {
