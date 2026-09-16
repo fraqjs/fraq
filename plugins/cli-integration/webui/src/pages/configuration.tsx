@@ -1,31 +1,42 @@
 import { LoaderCircleIcon, SaveIcon } from 'lucide-react';
+import { lazy, Suspense } from 'react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { useCliSession } from '../session';
+
+const ConfigurationEditor = lazy(() =>
+  import('@/components/configuration-editor').then((module) => ({ default: module.ConfigurationEditor })),
+);
 
 export function ConfigurationPage() {
   const { document, content, busy, disabled, isDirty, loadConfig, save, edit } = useCliSession();
   return (
     <section className="min-w-0 overflow-hidden rounded-lg border bg-card" aria-label="配置编辑">
       <div className="flex h-12 items-center justify-between gap-3 border-b px-4">
-        <Label htmlFor="configuration">{document?.name ?? '主配置'}</Label>
+        <Label id="configuration-label">{document?.name ?? '主配置'}</Label>
         <Badge variant="secondary" className="rounded-md font-normal">
           {isDirty ? '未保存' : document?.format.toUpperCase()}
         </Badge>
       </div>
-      <Textarea
-        id="configuration"
-        className="block h-[clamp(280px,57vh,650px)] resize-y rounded-none border-0 bg-transparent p-4 font-mono text-xs leading-7 shadow-none [field-sizing:fixed] focus-visible:ring-inset sm:p-5 md:text-[13px]"
-        value={content}
-        spellCheck={false}
-        autoCapitalize="off"
-        autoCorrect="off"
-        disabled={!document || Boolean(busy)}
-        onChange={(event) => edit(event.target.value)}
-      />
+      <Suspense
+        fallback={
+          <div
+            className="flex h-[clamp(280px,57vh,650px)] items-center justify-center text-sm text-muted-foreground"
+            role="status"
+          >
+            正在加载编辑器…
+          </div>
+        }
+      >
+        <ConfigurationEditor
+          value={content}
+          format={document?.format ?? 'yaml'}
+          disabled={!document || Boolean(busy)}
+          onChange={edit}
+        />
+      </Suspense>
       <div className="flex flex-col justify-end gap-3 border-t px-4 py-3.5 sm:flex-row sm:items-center sm:gap-5">
         <div className="flex gap-2">
           <Button variant="outline" className="rounded-md" disabled={disabled} onClick={() => void loadConfig(true)}>
