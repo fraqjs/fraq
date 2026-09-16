@@ -21,11 +21,6 @@ export class CliIntegrationService {
   routes(app: Hono<WebuiEnv>): void {
     app.use('*', async (c, next) => {
       c.header('Cache-Control', 'no-store');
-      if (c.req.method !== 'GET' && c.req.method !== 'HEAD') {
-        if (c.req.header('Origin') !== new URL(c.req.url).origin || c.req.header('Sec-Fetch-Site') === 'cross-site') {
-          return c.json({ error: '仅允许同源操作。' }, 403);
-        }
-      }
       await next();
     });
     app.use('*', bodyLimit({ maxSize: MAX_CONFIG_BYTES * 6 + 1024 }));
