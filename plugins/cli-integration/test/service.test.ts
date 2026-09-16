@@ -40,6 +40,12 @@ test('protects APIs, accepts proxied writes and dispatches restart only after re
   assert.equal((await hono.app.request(`${base}/logs/stream`)).status, 401);
   assert.equal((await hono.app.request(`${base}/config`, { method: 'PUT' })).status, 401);
   assert.equal((await hono.app.request(`${base}/restart`, { method: 'POST' })).status, 401);
+  for (const page of ['config', 'logs']) {
+    const route = `/webui/cli-integration/${page}`;
+    const response = await hono.app.request(route, { headers: { Accept: 'text/html' } });
+    assert.equal(response.status, 302);
+    assert.equal(response.headers.get('location'), `/webui/login/?returnTo=${encodeURIComponent(route)}`);
+  }
   assert.equal(calls.length, 0);
   const auth = await hono.app.request('/webui/auth/login', {
     method: 'POST',
@@ -49,6 +55,14 @@ test('protects APIs, accepts proxied writes and dispatches restart only after re
   const cookie = auth.headers.get('set-cookie')?.split(';')[0];
   assert.ok(cookie);
   const headers = { Cookie: cookie, 'Content-Type': 'application/json' };
+  for (const page of ['config', 'logs']) {
+    const response = await hono.app.request(`/webui/cli-integration/${page}`, {
+      headers: { Cookie: cookie, Accept: 'text/html' },
+    });
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get('content-type') ?? '', /text\/html/);
+    assert.equal(await response.text(), '<main>CLI</main>');
+  }
   assert.equal((await hono.app.request(`${base}/config`, { headers })).status, 200);
   assert.equal((await hono.app.request(`${base}/config`, { method: 'PUT', headers, body: '{}' })).status, 400);
   const conflict = await hono.app.request(`${base}/config`, {
