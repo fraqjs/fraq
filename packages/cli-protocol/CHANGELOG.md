@@ -1,5 +1,11 @@
 # @fraqjs/cli-protocol
 
+## 1.1.1
+
+### Patch Changes
+
+- d61eda9: 实现配置文件树编辑器
+
 ## 1.1.0
 
 ### Minor Changes

@@ -1,5 +1,14 @@
 # @fraqjs/cli
 
+## 1.1.1
+
+### Patch Changes
+
+- 8de7206: 将 cli-integration 插件（若有）的版本绑定到自身版本
+- d61eda9: 实现配置文件树编辑器
+- Updated dependencies [d61eda9]
+  - @fraqjs/cli-protocol@1.1.1
+
 ## 1.1.0
 
 ### Minor Changes
