@@ -15,7 +15,7 @@
     "@radix-ui/react-accordion": "^1.2.20",
     "class-variance-authority": "^0.7.1",
     "fumadocs-core": "^16.15.11",
-    "fumadocs-mdx": "^15.4.0",
+    "fumadocs-mdx": "^15.4.1",
     "fumadocs-ui": "^16.15.11",
     "lucide-react": "^1.46.0",
     "markdown-to-jsx": "^9.10.2",
