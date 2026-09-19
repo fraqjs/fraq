@@ -34,7 +34,7 @@
     "node": ">=22"
   },
   "dependencies": {
-    "@ai-sdk/alibaba": "^2.0.42",
+    "@ai-sdk/alibaba": "^2.0.46",
     "@ai-sdk/anthropic": "^4.0.50",
     "@ai-sdk/bytedance": "^2.0.40",
     "@ai-sdk/deepseek": "^3.0.40",
