@@ -44,7 +44,7 @@
     "@ai-sdk/openai-compatible": "^3.0.45",
     "@ai-sdk/provider": "^4.0.11",
     "@ai-sdk/xai": "^4.0.55",
-    "ai": "^7.0.94",
+    "ai": "^7.0.102",
     "dom-serializer": "^3.1.1",
     "domhandler": "^6.0.1",
     "htmlparser2": "^12.0.0",
