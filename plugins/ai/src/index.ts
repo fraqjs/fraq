@@ -25,6 +25,7 @@ export interface AiPluginOptions {
   aliases?: Record<string, string>;
   defaultModel?: string;
   defaultImageModel?: string;
+  disableGlobalWarnings?: boolean;
 }
 
 export const AiPlugin = definePlugin({
@@ -40,6 +41,15 @@ export const AiPlugin = definePlugin({
       ctx.logger.warn(
         `Milky package version mismatch between framework and plugin: ${rootMilkyPackageVersion} (framework) vs ${localMilkyPackageVersion} (plugin). Please ensure both are using the same version.`,
       );
+    }
+    if (options?.disableGlobalWarnings) {
+      globalThis.AI_SDK_LOG_WARNINGS = false;
+    } else {
+      globalThis.AI_SDK_LOG_WARNINGS = ({ warnings, provider, model }) => {
+        for (const warning of warnings) {
+          ctx.logger.warn(`[${provider}/${model}] ${warning}`);
+        }
+      };
     }
 
     const languageModels: Record<string, LanguageModel> = {};
