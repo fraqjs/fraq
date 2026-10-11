@@ -1,5 +1,11 @@
 # @fraqjs/plugin-ai
 
+## 1.1.0
+
+### Minor Changes
+
+- dd39518: 增加禁用 AI SDK 警告输出的配置项
+
 ## 1.0.1
 
 ### Patch Changes
