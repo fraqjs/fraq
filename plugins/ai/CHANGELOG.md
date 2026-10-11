@@ -1,5 +1,11 @@
 # @fraqjs/plugin-ai
 
+## 1.1.1
+
+### Patch Changes
+
+- 1c37a44: 将 AI SDK 的警告信息输出到控制台，不再经手 ctx.logger
+
 ## 1.1.0
 
 ### Minor Changes
