@@ -134,15 +134,39 @@ test('xmlify keys refer to the same resource at every maxForwardDepth', async ()
   assert.match(shallow.xmlContent, /<forward id="forward-50.1-1" title="inner">\(Too deeply nested\)<\/forward>/);
 });
 
-test('a message xmlified on its own shares keys with its thread rendering', async () => {
+test('a message xmlified with inThread renders exactly as inside xmlifyThread', async () => {
   const ctx = createMockContext();
   const focused = friendMessage(3, [imageSegment('c')]);
-  const resourceIndex = createResourceIndex();
 
-  const single = await xmlify(ctx, focused, { resourceIndex });
-  const thread = await xmlifyThread(ctx, [friendMessage(2, [imageSegment('b')]), focused], { resourceIndex });
+  const single = await xmlify(ctx, focused, { inThread: true });
+  const thread = await xmlifyThread(ctx, [friendMessage(2, [imageSegment('b')]), focused]);
 
+  assert.match(single.xmlContent, /^<message seq="3" sender_id="10001" time="1700000003">/);
+  const indented = single.xmlContent
+    .split('\n')
+    .map((line) => `  ${line}`)
+    .join('\n');
+  assert.ok(thread.xmlContent.includes(indented), 'thread should embed the standalone rendering verbatim');
   assert.deepEqual(single.resources, { 'image-3-1': { url: 'https://example.com/c.png' } });
   assert.deepEqual(thread.resources['image-3-1'], single.resources['image-3-1']);
   assert.deepEqual(thread.resources['image-2-1'], { url: 'https://example.com/b.png' });
+});
+
+test('xmlify renders standalone attributes unless inThread is set', async () => {
+  const ctx = createMockContext();
+  const message = friendMessage(3, []);
+
+  const standalone = await xmlify(ctx, message);
+  assert.match(standalone.xmlContent, /^<message scene="friend" peer_id="10001" seq="3" /);
+
+  const explicit = await xmlify(ctx, message, { inThread: false, resourceIndex: createResourceIndex() });
+  assert.match(explicit.xmlContent, /^<message scene="friend" /, 'an explicit inThread wins over the deprecated alias');
+});
+
+test('the deprecated resourceIndex option still enables thread mode', async () => {
+  const ctx = createMockContext();
+  const legacy = await xmlify(ctx, friendMessage(3, []), { resourceIndex: createResourceIndex() });
+  const modern = await xmlify(ctx, friendMessage(3, []), { inThread: true });
+
+  assert.equal(legacy.xmlContent, modern.xmlContent);
 });

@@ -325,11 +325,18 @@ const { xmlContent } = await xmlifyThread(ctx, messages);
 
 在 `xmlifyThread` 中，每个 `<message>` 元素只保留 `seq`、`sender_id`、`time` 属性，场景与对端信息统一由外层 `<thread>` 携带。
 
+如果需要逐条处理对话历史（例如把每条消息放进单独的内容块），可以对每条消息调用 `xmlify` 并传入 `inThread: true`，得到的 `<message>` 与它在 `xmlifyThread` 输出中的内容一致（仅缩进不同）：
+
+```typescript
+const parts = await Promise.all(messages.map((message) => xmlify(ctx, message, { inThread: true })));
+```
+
 ### 配置项
 
 `xmlify` 和 `xmlifyThread` 的第三个参数是一个可选的 `XmlifyOptions` 对象，支持以下配置项：
 
 - `maxForwardDepth`：合并转发消息的展开深度，默认为 `0`。为 `0` 时，合并转发不会被展开，仅输出一个 `id` 及占位文本；大于 `0` 时，会通过 `ctx.client.get_forwarded_messages` 拉取转发内容，并递归展开到指定深度，展开后的 `<forward>` 同样带有 `id`。超出 `maxForwardDepth` 的嵌套层级会以 `(Too deeply nested)` 占位，同样包含一个 `id`，避免无限制地拉取深层转发内容。
+- `inThread`：是否按对话历史中的消息输出，默认为 `false`。为 `true` 时，`<message>` 只保留 `seq`、`sender_id`、`time` 属性，与 `xmlifyThread` 中的输出一致；`xmlifyThread` 总是启用此项。
 - `serialize`：传递给 `dom-serializer` 的序列化选项，默认使用 `encodeEntities: 'utf8'`。
 - `format`：传递给 `xml-formatter` 的格式化选项，默认使用两个空格缩进。
 

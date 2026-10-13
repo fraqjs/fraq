@@ -18,9 +18,15 @@ export interface XmlifyOptions {
   serialize?: DomSerializerOptions;
   format?: XMLFormatterOptions;
   /**
-   * Marks the message as part of a thread, so `<message>` only carries `seq`, `sender_id` and `time`.
+   * Renders the message as part of a thread: `<message>` only carries `seq`, `sender_id` and `time`,
+   * leaving the scene and peer to the enclosing `<thread>`. `xmlifyThread` always sets this.
    *
-   * @deprecated Resource keys are now derived from the message seq and no longer consume this counter.
+   * @default false
+   */
+  inThread?: boolean;
+  /**
+   * @deprecated Resource keys are now derived from the message seq. Passing this only enables
+   * `inThread` and will be removed in the next major version; use `inThread: true` instead.
    */
   resourceIndex?: ResourceIndex;
 }
@@ -34,13 +40,19 @@ export interface ResourceIndex {
   forward: number;
 }
 
+type ResourceType = 'image' | 'record' | 'video' | 'file' | 'forward';
+
+function createResourceCounts(): Record<ResourceType, number> {
+  return { image: 0, record: 0, video: 0, file: 0, forward: 0 };
+}
+
 /** Numbering space for the resources at one level of a message: the message itself or one forward inside it. */
 interface ResourceScope {
   /** Message seq followed by the forward number at each level, e.g. `50.1.2`. */
   path: string;
   /** Depth a forward found in this scope would have. */
   forwardDepth: number;
-  counts: ResourceIndex;
+  counts: Record<ResourceType, number>;
 }
 
 export interface XmlifyContext {
@@ -90,14 +102,17 @@ function buildTaggedTextNode(tag: string, text: string, attrs?: object) {
   return element;
 }
 
-/** @deprecated Resource keys are now derived from the message seq. */
+/**
+ * @deprecated Resource keys are now derived from the message seq. Will be removed in the next major
+ * version; pass `inThread: true` instead of a resource index.
+ */
 export function createResourceIndex(): ResourceIndex {
-  return { image: 0, record: 0, video: 0, file: 0, forward: 0 };
+  return createResourceCounts();
 }
 
 export async function xmlifyToElement(ctx: Context, message: milky.IncomingMessage, options?: XmlifyOptions) {
   const maxForwardDepth = options?.maxForwardDepth ?? 0;
-  const inThread = options?.resourceIndex !== undefined;
+  const inThread = options?.inThread ?? options?.resourceIndex !== undefined;
 
   const root = buildAttributedElement(
     'message',
@@ -124,7 +139,7 @@ export async function xmlifyToElement(ctx: Context, message: milky.IncomingMessa
   // which keeps the serialized history stable for prompt caching. Each forward opens its own scope
   // (`50` -> `50.1` -> `50.1.2`), so a key never depends on how deeply forwards are expanded:
   // expanding a level only adds keys inside that level and never renumbers its siblings.
-  function newResourceKey(scope: ResourceScope, type: keyof ResourceIndex): string {
+  function newResourceKey(scope: ResourceScope, type: ResourceType): string {
     scope.counts[type]++;
     return `${type}-${scope.path}-${scope.counts[type]}`;
   }
@@ -198,7 +213,7 @@ export async function xmlifyToElement(ctx: Context, message: milky.IncomingMessa
         const innerScope: ResourceScope = {
           path: `${scope.path}.${scope.counts.forward}`,
           forwardDepth: scope.forwardDepth + 1,
-          counts: createResourceIndex(),
+          counts: createResourceCounts(),
         };
         const { messages: fwdMsgs } = await ctx.client.get_forwarded_messages({ forward_id });
         for (const fwdMsg of fwdMsgs) {
@@ -260,7 +275,7 @@ export async function xmlifyToElement(ctx: Context, message: milky.IncomingMessa
   const messageScope: ResourceScope = {
     path: String(message.message_seq),
     forwardDepth: 1,
-    counts: createResourceIndex(),
+    counts: createResourceCounts(),
   };
   for (const segment of message.segments) {
     const element = await buildElementFromSegment(segment, messageScope);
@@ -341,7 +356,6 @@ export async function xmlifyThread(
     scene: messages[0].message_scene,
     peer_id: messages[0].peer_id,
   });
-  const resourceIndex: ResourceIndex = options?.resourceIndex ?? createResourceIndex();
   const resources: Record<string, { url: string }> = {};
   const files: Record<string, milky.IncomingFileSegment['data']> = {};
   const forwards: Record<string, milky.IncomingForwardSegment['data']> = {};
@@ -353,7 +367,7 @@ export async function xmlifyThread(
       forwards: msgForwards,
     } = await xmlifyToElement(ctx, message, {
       ...options,
-      resourceIndex, // marks thread mode; keys are unique because each embeds its message seq
+      inThread: true, // keys stay unique across the thread because each embeds its message seq
     });
     hp2.DomUtils.appendChild(threadNode, node);
     Object.assign(resources, msgResources);
