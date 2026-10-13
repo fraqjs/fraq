@@ -1,5 +1,15 @@
 # @fraqjs/plugin-ai
 
+## 1.2.0
+
+### Minor Changes
+
+- f7fa9dd: xmlify 新增 `inThread` 选项，并弃用 `resourceIndex`
+
+### Patch Changes
+
+- 3322840: xmlify 的资源键改为由消息 seq 派生
+
 ## 1.1.1
 
 ### Patch Changes
