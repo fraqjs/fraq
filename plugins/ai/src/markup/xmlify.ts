@@ -17,15 +17,30 @@ export interface XmlifyOptions {
   maxForwardDepth?: number;
   serialize?: DomSerializerOptions;
   format?: XMLFormatterOptions;
+  /**
+   * Marks the message as part of a thread, so `<message>` only carries `seq`, `sender_id` and `time`.
+   *
+   * @deprecated Resource keys are now derived from the message seq and no longer consume this counter.
+   */
   resourceIndex?: ResourceIndex;
 }
 
+/** @deprecated Resource keys are now derived from the message seq. */
 export interface ResourceIndex {
   image: number;
   record: number;
   video: number;
   file: number;
   forward: number;
+}
+
+/** Numbering space for the resources at one level of a message: the message itself or one forward inside it. */
+interface ResourceScope {
+  /** Message seq followed by the forward number at each level, e.g. `50.1.2`. */
+  path: string;
+  /** Depth a forward found in this scope would have. */
+  forwardDepth: number;
+  counts: ResourceIndex;
 }
 
 export interface XmlifyContext {
@@ -75,6 +90,7 @@ function buildTaggedTextNode(tag: string, text: string, attrs?: object) {
   return element;
 }
 
+/** @deprecated Resource keys are now derived from the message seq. */
 export function createResourceIndex(): ResourceIndex {
   return { image: 0, record: 0, video: 0, file: 0, forward: 0 };
 }
@@ -82,7 +98,6 @@ export function createResourceIndex(): ResourceIndex {
 export async function xmlifyToElement(ctx: Context, message: milky.IncomingMessage, options?: XmlifyOptions) {
   const maxForwardDepth = options?.maxForwardDepth ?? 0;
   const inThread = options?.resourceIndex !== undefined;
-  const resourceIndex: ResourceIndex = options?.resourceIndex ?? createResourceIndex();
 
   const root = buildAttributedElement(
     'message',
@@ -105,14 +120,18 @@ export async function xmlifyToElement(ctx: Context, message: milky.IncomingMessa
   const resources: Record<string, { url: string }> = {};
   const forwards: Record<string, milky.IncomingForwardSegment['data']> = {};
   const files: Record<string, milky.IncomingFileSegment['data']> = {};
-  function newResourceKey(type: keyof ResourceIndex): string {
-    resourceIndex[type]++;
-    return `${type}${resourceIndex[type]}`;
+  // Keys depend only on the message itself, so the same message renders identically in any window,
+  // which keeps the serialized history stable for prompt caching. Each forward opens its own scope
+  // (`50` -> `50.1` -> `50.1.2`), so a key never depends on how deeply forwards are expanded:
+  // expanding a level only adds keys inside that level and never renumbers its siblings.
+  function newResourceKey(scope: ResourceScope, type: keyof ResourceIndex): string {
+    scope.counts[type]++;
+    return `${type}-${scope.path}-${scope.counts[type]}`;
   }
 
   async function buildElementFromSegment(
     segment: milky.IncomingSegment,
-    forwardDepth: number = 1,
+    scope: ResourceScope,
   ): Promise<Element | null> {
     switch (segment.type) {
       case 'text': {
@@ -139,49 +158,54 @@ export async function xmlifyToElement(ctx: Context, message: milky.IncomingMessa
       }
       case 'image': {
         const { resource_id, temp_url, summary, ...rest } = segment.data;
-        const resourceKey = newResourceKey('image');
+        const resourceKey = newResourceKey(scope, 'image');
         const imageNode = buildTaggedTextNode('image', summary, { id: resourceKey, ...rest });
         resources[resourceKey] = { url: segment.data.temp_url };
         return imageNode;
       }
       case 'record': {
         const { resource_id, temp_url, ...rest } = segment.data;
-        const resourceKey = newResourceKey('record');
+        const resourceKey = newResourceKey(scope, 'record');
         resources[resourceKey] = { url: segment.data.temp_url };
         return buildAttributedElement('record', { id: resourceKey, ...rest });
       }
       case 'video': {
         const { resource_id, temp_url, ...rest } = segment.data;
-        const resourceKey = newResourceKey('video');
+        const resourceKey = newResourceKey(scope, 'video');
         resources[resourceKey] = { url: segment.data.temp_url };
         return buildAttributedElement('video', { id: resourceKey, ...rest });
       }
       case 'file': {
         const { file_name, file_size } = segment.data;
-        const resourceKey = newResourceKey('file');
+        const resourceKey = newResourceKey(scope, 'file');
         files[resourceKey] = segment.data;
         return buildTaggedTextNode('file', file_name, { id: resourceKey, size: file_size });
       }
       case 'forward': {
         const { forward_id, title } = segment.data;
+        // Every forward takes a key whether or not it is expanded, so its siblings keep their numbers.
+        const resourceKey = newResourceKey(scope, 'forward');
+        forwards[resourceKey] = segment.data;
         if (maxForwardDepth === 0) {
-          const resourceKey = newResourceKey('forward');
-          forwards[resourceKey] = segment.data;
           return buildTaggedTextNode('forward', '(Forwarded message)', { id: resourceKey, title });
         }
-        if (forwardDepth > maxForwardDepth) {
-          const resourceKey = newResourceKey('forward');
-          forwards[resourceKey] = segment.data;
+        if (scope.forwardDepth > maxForwardDepth) {
           return buildTaggedTextNode('forward', '(Too deeply nested)', { id: resourceKey, title });
         }
-        const forwardNode = buildAttributedElement('forward', { depth: forwardDepth, title });
+        const forwardNode = buildAttributedElement('forward', { id: resourceKey, depth: scope.forwardDepth, title });
 
+        // All nodes of this forward share one scope, numbered after the forward's own position.
+        const innerScope: ResourceScope = {
+          path: `${scope.path}.${scope.counts.forward}`,
+          forwardDepth: scope.forwardDepth + 1,
+          counts: createResourceIndex(),
+        };
         const { messages: fwdMsgs } = await ctx.client.get_forwarded_messages({ forward_id });
         for (const fwdMsg of fwdMsgs) {
           const { sender_name, time } = fwdMsg;
           const fwdContentNode = buildAttributedElement('node', { sender_name, time });
           for (const fwdSegment of fwdMsg.segments) {
-            const fwdElement = await buildElementFromSegment(fwdSegment, forwardDepth + 1);
+            const fwdElement = await buildElementFromSegment(fwdSegment, innerScope);
             if (fwdElement) {
               hp2.DomUtils.appendChild(fwdContentNode, fwdElement);
             }
@@ -233,8 +257,13 @@ export async function xmlifyToElement(ctx: Context, message: milky.IncomingMessa
     // return null;
   }
 
+  const messageScope: ResourceScope = {
+    path: String(message.message_seq),
+    forwardDepth: 1,
+    counts: createResourceIndex(),
+  };
   for (const segment of message.segments) {
-    const element = await buildElementFromSegment(segment);
+    const element = await buildElementFromSegment(segment, messageScope);
     if (element) {
       hp2.DomUtils.appendChild(contentNode, element);
     }
@@ -324,7 +353,7 @@ export async function xmlifyThread(
       forwards: msgForwards,
     } = await xmlifyToElement(ctx, message, {
       ...options,
-      resourceIndex, // reuse across all messages in the thread to ensure unique resource keys
+      resourceIndex, // marks thread mode; keys are unique because each embeds its message seq
     });
     hp2.DomUtils.appendChild(threadNode, node);
     Object.assign(resources, msgResources);

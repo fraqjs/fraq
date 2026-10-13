@@ -252,7 +252,7 @@ ctx.on('message_receive', async ({ data }) => {
 <message scene="friend" peer_id="10001" seq="1" sender_id="10001" time="1700000000">
   <content>
     <text>你好，看看这只猫</text>
-    <image id="image1" width="800" height="600" sub_type="normal">[图片]</image>
+    <image id="image-1-1" width="800" height="600" sub_type="normal">[图片]</image>
   </content>
   <friend>
     <user_id>10001</user_id>
@@ -265,15 +265,35 @@ ctx.on('message_receive', async ({ data }) => {
 返回对象（`XmlifyContext`）包含以下字段：
 
 - `xmlContent`：格式化后的 XML 字符串。
-- `resources`：资源键到临时 URL 的映射，例如 `{ image1: { url: 'https://...' } }`。其中 `image`、`record`、`video` 类型的消息段会分别以 `image1`、`record1`、`video1` 等递增编号作为键。
+- `resources`：资源键到临时 URL 的映射，例如 `{ 'image-1-1': { url: 'https://...' } }`。资源键的格式见下文[资源键](#资源键)。
 - `files`：资源键到文件数据的映射，对应 `file` 类型的消息段。
-- `forward`：资源键到转发消息的映射，对应 `forward` 类型的消息段。
+- `forwards`：资源键到转发消息段数据的映射，对应 `forward` 类型的消息段，无论该转发是否被展开。
 
 `<message>` 根元素上会附带 `scene`、`peer_id`、`seq`、`sender_id`、`time` 等属性；根据消息场景，还会包含 `<friend>`、`<group>`、`<group_member>` 等子元素，描述发送者与会话的上下文信息。
 
+### 资源键
+
+资源键的格式为 `<类型>-<作用域>-<序号>`，类型为 `image`、`record`、`video`、`file` 或 `forward`，序号是该类型资源在所属作用域内的出现次序，从 1 开始：
+
+- 消息本身的消息段属于作用域 `<消息 seq>`，例如 seq 为 `50` 的消息中的第一张图片为 `image-50-1`。
+- 每个合并转发都会占用一个 `forward` 序号，无论是否展开。转发展开后，其中所有节点的消息段属于一个新的作用域，即在外层作用域后追加该转发的序号：`forward-50-1` 内的图片为 `image-50.1-1`，它内部嵌套的第一个转发为 `forward-50.1-1`，再往内的图片为 `image-50.1.1-1`。
+
+例如 seq 为 `50` 的消息依次包含图片 X、转发 outer、图片 Y，其中 outer 的第一个节点包含转发 inner 和图片 B，inner 中包含图片 A：
+
+| 资源 | 键 |
+| --- | --- |
+| 图片 X | `image-50-1` |
+| 转发 outer | `forward-50-1` |
+| 转发 inner | `forward-50.1-1` |
+| 图片 A | `image-50.1.1-1` |
+| 图片 B | `image-50.1-1` |
+| 图片 Y | `image-50-2` |
+
+资源键只取决于资源在消息中的位置，与对话窗口的范围以及 `maxForwardDepth` 无关：展开更深的转发只会增加内层的键，不会改变已有的键。因此同一条消息无论单独转换、处于哪段对话历史中，还是以不同深度展开，同一个键都指向同一个资源，可以安全地合并多次转换的结果，并且输出保持稳定，便于模型提供商复用提示词缓存。
+
 ### 转换多条消息
 
-`xmlifyThread` 用于将多条消息合并为一个 `<thread>` 元素，适合将一段对话历史整体提供给模型。它会复用同一个资源编号空间，确保所有消息中的 `image`、`record`、`video`、`file`、`forward` 键互不冲突：
+`xmlifyThread` 用于将多条消息合并为一个 `<thread>` 元素，适合将一段对话历史整体提供给模型。由于资源键包含消息 seq，同一会话中不同消息的 `image`、`record`、`video`、`file`、`forward` 键不会冲突；对话窗口滑动时，已有消息的输出也保持不变：
 
 ```typescript
 import { xmlifyThread } from '@fraqjs/plugin-ai';
@@ -309,7 +329,7 @@ const { xmlContent } = await xmlifyThread(ctx, messages);
 
 `xmlify` 和 `xmlifyThread` 的第三个参数是一个可选的 `XmlifyOptions` 对象，支持以下配置项：
 
-- `maxForwardDepth`：合并转发消息的展开深度，默认为 `0`。为 `0` 时，合并转发不会被展开，仅输出一个 `id` 及占位文本；大于 `0` 时，会通过 `ctx.client.get_forwarded_messages` 拉取转发内容，并递归展开到指定深度。超出 `maxForwardDepth` 的嵌套层级会以 `(Too deeply nested)` 占位，同样包含一个 `id`，避免无限制地拉取深层转发内容。
+- `maxForwardDepth`：合并转发消息的展开深度，默认为 `0`。为 `0` 时，合并转发不会被展开，仅输出一个 `id` 及占位文本；大于 `0` 时，会通过 `ctx.client.get_forwarded_messages` 拉取转发内容，并递归展开到指定深度，展开后的 `<forward>` 同样带有 `id`。超出 `maxForwardDepth` 的嵌套层级会以 `(Too deeply nested)` 占位，同样包含一个 `id`，避免无限制地拉取深层转发内容。
 - `serialize`：传递给 `dom-serializer` 的序列化选项，默认使用 `encodeEntities: 'utf8'`。
 - `format`：传递给 `xml-formatter` 的格式化选项，默认使用两个空格缩进。
 
