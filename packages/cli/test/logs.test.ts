@@ -37,18 +37,20 @@ test('caps individual lines, total bytes and replay cursors', async () => {
   assert.equal(logs.read().entries[0]?.truncated, true);
   assert.ok((logs.read().entries[0]?.bytes ?? Infinity) <= MAX_LOG_LINE_BYTES);
   const cursor = logs.read().cursor;
-  for (let index = 0; index < 400; index++) stdout.write(`${'x'.repeat(MAX_LOG_LINE_BYTES)}\n`);
+  const largeLineCount = Math.ceil(MAX_LOG_BYTES / MAX_LOG_LINE_BYTES) + 1;
+  for (let index = 0; index < largeLineCount; index++) stdout.write(`${'x'.repeat(MAX_LOG_LINE_BYTES)}\n`);
   const batch = logs.read({ session: logs.session, after: cursor });
   assert.equal(batch.gap, true);
   assert.ok(batch.entries.reduce((sum, entry) => sum + entry.bytes, 0) <= MAX_LOG_BYTES);
   assert.equal(logs.read({ session: logs.session, after: batch.cursor }).entries.length, 0);
   assert.equal(logs.read({ session: 'old-session', after: batch.cursor }).gap, true);
   assert.equal(logs.read({ session: logs.session, after: batch.cursor + 1 }).gap, true);
-  for (let index = 0; index < 1100; index++) stdout.write(`${index}\n`);
+  const overflow = 10;
+  for (let index = 0; index < MAX_LOG_LINES + overflow; index++) stdout.write(`${index}\n`);
   stdout.end();
   await finished(stdout);
   assert.equal(logs.read().entries.length, MAX_LOG_LINES);
-  assert.equal(logs.read().entries[0]?.text, '100');
+  assert.equal(logs.read().entries[0]?.text, String(overflow));
 });
 
 test('preserves an exact-size line and pages replay by encoded IPC size', async () => {

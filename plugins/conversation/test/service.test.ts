@@ -75,43 +75,37 @@ test('command builder captures command parameters', async () => {
   assert.equal(captured, 'weather');
 });
 
-test('open tracks active conversations independently by sender, scene, and peer', async () => {
+test('open tracks active conversations independently by sender, scene, and peer', async (t) => {
   const ctx = createMockContext();
+  t.after(() => ctx.stop());
   const conversation = new ConversationService(ctx, { defaultTimeout: 1000 });
-  const results = new Map<number, Promise<number | null>>();
-
-  conversation.command({
-    name: 'ask',
-    pattern: {},
-    execute(session, _params, { open }) {
-      results.set(
-        session.raw.sender_id,
-        open<number>(
-          ({ router, done }) => {
-            router.command({
-              name: 'yes',
-              pattern: {},
-              execute(answerSession) {
-                done(answerSession.raw.sender_id);
-              },
-            });
-          },
-          { timeout: 1000 },
-        ),
-      );
-    },
+  const results: Array<Promise<string | null>> = [];
+  conversation.command('ask').execute((_session, _params, { open }) => {
+    const result = open<string>(({ router, done }) => {
+      router
+        .command('answer')
+        .arg('label', param.str())
+        .execute((_answer, { label }) => done(label));
+    });
+    results.push(result);
+    void result.catch(() => {});
   });
-
+  // Each pair differs in just one part of the conversation identity.
+  const receive = [
+    (text: string) => ctx.mock.receiveGroup({ groupId: 10, userId: 1 }, inmsg`${text}`),
+    (text: string) => ctx.mock.receiveGroup({ groupId: 10, userId: 2 }, inmsg`${text}`),
+    (text: string) => ctx.mock.receiveGroup({ groupId: 20, userId: 1 }, inmsg`${text}`),
+    (text: string) => ctx.mock.receiveFriend({ userId: 1 }, inmsg`${text}`),
+    (text: string) => ctx.mock.receiveTemp({ userId: 1 }, inmsg`${text}`),
+  ];
   await ctx.start();
-  await ctx.mock.receiveFriend({ userId: 1 }, inmsg`ask`);
-  await ctx.mock.receiveFriend({ userId: 2 }, inmsg`ask`);
-  await tick();
-
-  await ctx.mock.receiveFriend({ userId: 2 }, inmsg`yes`);
-  await ctx.mock.receiveFriend({ userId: 1 }, inmsg`yes`);
-
-  assert.equal(await results.get(1), 1);
-  assert.equal(await results.get(2), 2);
+  for (const send of receive) await send('ask');
+  assert.equal(results.length, receive.length);
+  for (let index = receive.length - 1; index >= 0; index--) await receive[index](`answer scope${index}`);
+  assert.deepEqual(
+    await Promise.all(results),
+    receive.map((_send, index) => `scope${index}`),
+  );
 });
 
 test('open resolves null when the conversation times out', async () => {

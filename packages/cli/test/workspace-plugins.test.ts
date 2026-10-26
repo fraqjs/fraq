@@ -1,10 +1,10 @@
 import { generateAppPackageJson } from '../src/app/package-json';
-import { buildStartScript } from '../src/app/start-script';
 import type { Config } from '../src/config';
 import { ConfigV1 } from '../src/config/v1';
 import { getPluginDependencyDiagnostic, normalizePluginName } from '../src/dependency';
 import { checkVersionsCompleteness, completeAndSyncVersions } from '../src/versions';
 import { getWorkspacePluginEntryPoint } from '../src/workspace-plugins';
+import { runGeneratedApp } from './generated-app';
 
 import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
@@ -145,7 +145,7 @@ test('reads workspace package metadata for plugin dependency diagnostics', async
   assert.deepEqual(accessedFiles, new Set([path.resolve('plugins/consumer/package.json')]));
 });
 
-test('resolves the effective published entry point for watch mode', () => {
+test('resolves and imports the effective published entry point for watch mode', async (t) => {
   const fixturePath = createFixture();
   process.chdir(fixturePath);
   writePluginPackage(fixturePath, 'plugins/local', {
@@ -164,7 +164,13 @@ test('resolves the effective published entry point for watch mode', () => {
     getWorkspacePluginEntryPoint(config, 'local', normalizePluginName('local')),
     path.resolve('plugins/local/dist/index.mjs'),
   );
-  assert.match(buildStartScript(config), /await import\("\.\/node_modules\/fraq-plugin-local\/dist\/index\.mjs"\)/);
+  const directory = path.resolve('plugins/local');
+  mkdirSync(path.join(directory, 'dist'));
+  mkdirSync(path.join(directory, 'src'));
+  writeFileSync(path.join(directory, 'src/index.ts'), 'export default { name: "wrong-source-entry" };');
+  writeFileSync(path.join(directory, 'dist/index.mjs'), 'export default { name: "published-entry" };');
+  const result = await runGeneratedApp(t, config, { modules: { [normalizePluginName('local')]: directory } });
+  assert.deepEqual(result.plugins, ['published-entry']);
 });
 
 test('rejects a workspace package whose name does not match the plugin name', async () => {

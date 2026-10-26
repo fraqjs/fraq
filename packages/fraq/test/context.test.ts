@@ -140,7 +140,6 @@ test('forked contexts receive filtered root events and call through the same bas
     no_cache: false,
   });
 
-  assert.notEqual(child.client, ctx.client);
   assert.equal(ctx.mock.startEventCalls, 1);
   assert.equal(childMessageEvents, 1);
   assert.deepEqual(ctx.mock.apiCalls.at(-1), {
@@ -186,13 +185,19 @@ test('session replies through the client API', async () => {
   ]);
 });
 
-test('creates contexts from URLs with the default client', () => {
-  const ctx = Context.fromUrl(new URL('http://localhost:30001/'), {
-    accessToken: 'token',
+test('URL contexts normalize API URLs and send the configured access token', async (t) => {
+  const requests: Request[] = [];
+  t.mock.method(globalThis, 'fetch', async (input: string | URL | Request, init?: RequestInit) => {
+    requests.push(new Request(input, init));
+    return Response.json({ status: 'ok', retcode: 0, data: { uin: 123, nickname: 'bot' } });
   });
-
-  assert.equal(ctx instanceof Context, true);
-  assert.equal((ctx.client as unknown as { baseUrl: string }).baseUrl, 'http://localhost:30001');
+  const ctx = Context.fromUrl(new URL('http://localhost:30001/'), { accessToken: 'token', installEventSource: false });
+  t.after(() => ctx.stop());
+  assert.deepEqual(await ctx.client.get_login_info({}), { uin: 123, nickname: 'bot' });
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].url, 'http://localhost:30001/api/get_login_info');
+  assert.equal(requests[0].method, 'POST');
+  assert.equal(requests[0].headers.get('Authorization'), 'Bearer token');
 });
 
 test('session replies prepend quote and mention without mutating the supplied segments', async () => {

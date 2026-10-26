@@ -6,27 +6,6 @@ import { mockImageModel, mockLanguageModel } from './util/mock';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-test('AiPlugin provides AiService through the context', async () => {
-  const ctx = createMockContext();
-
-  ctx.install(AiPlugin, {
-    providers: {
-      test: {
-        models: {
-          model: mockLanguageModel('from plugin'),
-        },
-      },
-    },
-  });
-  await ctx.start();
-
-  const result = await ai.generateText({ model: ctx.resolve(AiService).model(), prompt: 'hi' });
-
-  assert.equal(result.text, 'from plugin');
-
-  await ctx.stop();
-});
-
 test('AiPlugin registers multiple provider aliases, default model, and all concrete models', async () => {
   const ctx = createMockContext();
   const primary = mockLanguageModel('from primary');
@@ -65,6 +44,7 @@ test('AiPlugin registers multiple provider aliases, default model, and all concr
   assert.equal(service.model('claude'), sonnet);
   assert.equal(service.hasModel('default'), true);
   assert.equal(service.hasModel('anthropic/sonnet'), true);
+  assert.equal(service.hasModel('missing'), false);
 
   const result = await ai.generateText({ model: service.model('fast'), prompt: 'hi' });
   assert.equal(result.text, 'from mini');
@@ -75,6 +55,7 @@ test('AiPlugin registers multiple provider aliases, default model, and all concr
 test('AiPlugin registers image models from direct provider instances', async () => {
   const ctx = createMockContext();
   const dalle = mockImageModel('aGVsbG8=');
+  const imagen = mockImageModel('d29ybGQ=');
 
   ctx.install(AiPlugin, {
     providers: {
@@ -86,9 +67,13 @@ test('AiPlugin registers image models from direct provider instances', async () 
           'gpt-image-2': dalle,
         },
       },
+      google: {
+        imageModels: { imagen },
+      },
     },
     aliases: {
       art: 'openai/gpt-image-2',
+      alternative: 'google/imagen',
     },
     defaultImageModel: 'art',
   });
@@ -96,10 +81,15 @@ test('AiPlugin registers image models from direct provider instances', async () 
 
   const service = ctx.resolve(AiService);
 
-  assert.deepEqual(service.images(), ['openai/gpt-image-2']);
+  assert.deepEqual(new Set(service.images()), new Set(['openai/gpt-image-2', 'google/imagen']));
   assert.equal(service.image(), dalle);
+  assert.equal(service.image('openai/gpt-image-2'), dalle);
   assert.equal(service.image('art'), dalle);
+  assert.equal(service.image('google/imagen'), imagen);
+  assert.equal(service.image('alternative'), imagen);
   assert.equal(service.hasImage('art'), true);
+  assert.equal(service.hasImage('google/imagen'), true);
+  assert.equal(service.hasImage('missing'), false);
 
   const result = await ai.generateImage({ model: service.image(), prompt: 'a cat' });
   assert.equal(result.image.base64, 'aGVsbG8=');

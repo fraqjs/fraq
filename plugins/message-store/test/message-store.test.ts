@@ -1,5 +1,5 @@
 import type { Context, milky } from '@fraqjs/fraq';
-import KyselyPlugin, { KyselyService } from '@fraqjs/plugin-kysely';
+import KyselyPlugin from '@fraqjs/plugin-kysely';
 import { createMockContext, inmsg } from '@fraqjs/plugin-mock';
 
 import MessageStorePlugin, { type MessageStorePluginOptions, MessageStoreService } from '../src';
@@ -214,71 +214,69 @@ test('does not intercept mark_message_as_read', async () => {
 });
 
 test('flushes expired records when the plugin starts', async (t) => {
-  const tempDir = await mkdtemp(join(tmpdir(), 'fraq-message-store-flush-'));
+  const tempDir = await mkdtemp(join(tmpdir(), 'fraq-message-store-expiry-'));
+  const sqliteUrl = join(tempDir, 'messages.sqlite');
+  let now = Date.UTC(2025, 0, 1);
+  t.mock.method(Date, 'now', () => now);
+  const contexts: Context[] = [];
   t.after(async () => {
+    for (const ctx of contexts) await ctx.stop();
     await rm(tempDir, { recursive: true, force: true });
   });
-  const sqliteUrl = join(tempDir, 'messages.sqlite');
-
   const firstCtx = createMockContext();
+  contexts.push(firstCtx);
   installMessageStore(firstCtx, sqliteUrl, { autoFlush: { enabled: false } });
   await firstCtx.start();
-  const received = await firstCtx.mock.receiveFriend({ userId: 10001 }, inmsg`expired`);
+  const received = await firstCtx.mock.receiveFriend({ userId: 10001 }, inmsg`expires tomorrow`);
   await tick();
-  await firstCtx
-    .resolve(KyselyService)
-    .db.updateTable('message_store_messages')
-    .set({ stored_at: Date.now() - 1_000 })
-    .execute();
-  await firstCtx.stop();
-
-  const secondCtx = createMockContext();
-  installMessageStore(secondCtx, sqliteUrl, {
-    autoFlush: { maxAgeDays: 0, intervalMinutes: 1 },
-  });
-  await secondCtx.start();
-
-  const stored = await secondCtx.resolve(MessageStoreService).getMessage({
+  const identity = {
     message_scene: received.message_scene,
     peer_id: received.peer_id,
     message_seq: received.message_seq,
-  });
-
+  };
+  assert.deepEqual(await firstCtx.resolve(MessageStoreService).getMessage(identity), { message: received });
+  await firstCtx.stop();
+  now += 2 * 24 * 60 * 60 * 1000;
+  const secondCtx = createMockContext();
+  contexts.push(secondCtx);
+  installMessageStore(secondCtx, sqliteUrl, { autoFlush: { enabled: true, maxAgeDays: 1 } });
+  await secondCtx.start();
+  const stored = await secondCtx.resolve(MessageStoreService).getMessage(identity);
   assert.equal(stored, undefined);
-  await secondCtx.stop();
 });
 
 test('allows automatic expiration flushing to be disabled', async (t) => {
-  const tempDir = await mkdtemp(join(tmpdir(), 'fraq-message-store-no-flush-'));
+  const tempDir = await mkdtemp(join(tmpdir(), 'fraq-message-store-expiry-'));
+  const sqliteUrl = join(tempDir, 'messages.sqlite');
+  let now = Date.UTC(2025, 0, 1);
+  t.mock.method(Date, 'now', () => now);
+  const contexts: Context[] = [];
   t.after(async () => {
+    for (const ctx of contexts) await ctx.stop();
     await rm(tempDir, { recursive: true, force: true });
   });
-  const sqliteUrl = join(tempDir, 'messages.sqlite');
   const firstCtx = createMockContext();
+  contexts.push(firstCtx);
   installMessageStore(firstCtx, sqliteUrl, { autoFlush: { enabled: false } });
   await firstCtx.start();
-
-  const received = await firstCtx.mock.receiveFriend({ userId: 10001 }, inmsg`retained`);
+  const received = await firstCtx.mock.receiveFriend({ userId: 10001 }, inmsg`expires tomorrow`);
   await tick();
-  await firstCtx
-    .resolve(KyselyService)
-    .db.updateTable('message_store_messages')
-    .set({ stored_at: Date.now() - 1_000 })
-    .execute();
-  await firstCtx.stop();
-
-  const secondCtx = createMockContext();
-  installMessageStore(secondCtx, sqliteUrl, { autoFlush: { enabled: false } });
-  await secondCtx.start();
-
-  const stored = await secondCtx.resolve(MessageStoreService).getMessage({
+  const identity = {
     message_scene: received.message_scene,
     peer_id: received.peer_id,
     message_seq: received.message_seq,
-  });
-
+  };
+  assert.deepEqual(await firstCtx.resolve(MessageStoreService).getMessage(identity), { message: received });
+  await firstCtx.stop();
+  now += 2 * 24 * 60 * 60 * 1000;
+  const secondCtx = createMockContext();
+  contexts.push(secondCtx);
+  installMessageStore(secondCtx, sqliteUrl, { autoFlush: { enabled: false, maxAgeDays: 1 } });
+  await secondCtx.start();
+  const stored = await secondCtx.resolve(MessageStoreService).getMessage(identity);
   assert.deepEqual(stored, { message: received });
-  await secondCtx.stop();
+  assert.equal(await secondCtx.resolve(MessageStoreService).flushExpired(24 * 60 * 60 * 1000), 1);
+  assert.equal(await secondCtx.resolve(MessageStoreService).getMessage(identity), undefined);
 });
 
 test('preserves stored messages across context restarts', async (t) => {

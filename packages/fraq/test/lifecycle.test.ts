@@ -58,11 +58,6 @@ class ScopedDisposableService implements Disposable {
   }
 }
 
-function snapshotLog(message: LogMessage): Omit<LogMessage, 'time'> {
-  const { time: _time, ...rest } = message;
-  return rest;
-}
-
 async function flushTimers(): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, 0));
 }
@@ -266,23 +261,25 @@ test('stops child context timers before waiting for the parent event stream to s
   assert.equal(calls, 0);
 });
 
-test('stopping clears pending timeouts but does not revisit completed timeouts', async (t) => {
+test('stopping cancels pending timeouts without rerunning completed callbacks', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
   const ctx = createMockContext();
   t.after(() => ctx.stop());
-  let completed!: NodeJS.Timeout;
-
+  let completed = 0;
+  let pending = 0;
   await ctx.start();
-  await new Promise<void>((resolve) => {
-    completed = ctx.timeout(0, resolve);
+  ctx.timeout(10, () => {
+    completed++;
   });
-  const pending = ctx.timeout(60_000, () => {});
-  const clearTimer = t.mock.method(globalThis, 'clearTimeout');
-
+  ctx.timeout(60_000, () => {
+    pending++;
+  });
+  t.mock.timers.tick(10);
+  assert.equal(completed, 1);
   await ctx.stop();
-
-  const cleared = clearTimer.mock.calls.map((call) => call.arguments[0]);
-  assert.equal(cleared.includes(completed), false);
-  assert.equal(cleared.includes(pending), true);
+  t.mock.timers.tick(60_000);
+  assert.equal(completed, 1);
+  assert.equal(pending, 0);
 });
 
 test('logs timer callback errors', async () => {
@@ -301,12 +298,7 @@ test('logs timer callback errors', async () => {
   await flushTimers();
   await ctx.stop();
 
-  assert.deepEqual(logs.map(snapshotLog).at(-1), {
-    level: 'error',
-    module: 'context:root',
-    message: 'Error handling timer callback',
-    error,
-  });
+  assert.ok(logs.some((message) => message.level === 'error' && message.error === error));
 });
 
 test('applies the context tree before starting plugins from parents to children', async () => {

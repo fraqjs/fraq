@@ -61,41 +61,21 @@ test('logger emits structured log messages', () => {
   );
 });
 
-test('plugin receives a logger proxy scoped to the plugin name', async () => {
+test('plugin logs keep their scope without changing the parent logger', async (t) => {
   const logs: LogMessage[] = [];
   const parent = createTestContext(logs);
+  t.after(() => parent.stop());
   const child = parent.fork('child');
-  let pluginLogger: Context['logger'] | undefined;
-
   child.install(
     definePlugin({
       name: 'logger',
       apply(ctx) {
-        pluginLogger = ctx.logger;
-
-        assert.equal(ctx.logger, pluginLogger);
-        assert.notEqual(ctx.logger, child.logger);
-
         ctx.logger.info('plugin message');
       },
     }),
   );
-
   await child.start();
-
-  assert.ok(pluginLogger);
-  assert.deepEqual(logs.map(snapshot), [
-    {
-      level: 'info',
-      module: 'context:child',
-      message: 'Applying plugin logger',
-      error: undefined,
-    },
-    {
-      level: 'info',
-      module: 'plugin:child/logger',
-      message: 'plugin message',
-      error: undefined,
-    },
-  ]);
+  child.logger.info('context message');
+  assert.equal(logs.find((message) => message.message === 'plugin message')?.module, 'plugin:child/logger');
+  assert.equal(logs.find((message) => message.message === 'context message')?.module, 'context:child');
 });

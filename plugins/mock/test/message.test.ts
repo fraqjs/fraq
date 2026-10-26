@@ -42,13 +42,6 @@ test('inmsg interpolates primitives as text', () => {
   ]);
 });
 
-test('inseg factories apply sensible defaults', () => {
-  assert.equal(inseg.mention(10001).data.name, 'user_10001');
-  assert.equal(inseg.image().data.summary, '[image]');
-  assert.equal(inseg.face(1).data.face_id, '1');
-  assert.equal(inseg.face(1).data.is_large, false);
-});
-
 test('mock inbox increments message sequence and time per conversation', () => {
   const inbox = createMockInbox({
     baseTime: 1000,
@@ -90,10 +83,10 @@ test('reply segments can be created from previously generated messages', () => {
 
   assert.ok(replySegment);
   assert.equal(replySegment.type, 'reply');
-  assert.deepEqual(replySegment.data, {
+  const { sender_name: _senderName, ...replyData } = replySegment.data;
+  assert.deepEqual(replyData, {
     message_seq: origin.message_seq,
     sender_id: origin.sender_id,
-    sender_name: undefined,
     time: origin.time,
     segments: origin.segments,
   });
@@ -117,10 +110,10 @@ test('history and event helpers expose stored messages', () => {
   const event = inbox.event(second);
 
   assert.deepEqual(inbox.history(conversationKey), [first, second]);
-  assert.equal(inbox.lastMessage(conversationKey), second);
-  assert.equal(inbox.message(conversationKey, second.message_seq), second);
+  assert.deepEqual(inbox.lastMessage(conversationKey), second);
+  assert.deepEqual(inbox.message(conversationKey, second.message_seq), second);
   assert.equal(event.self_id, 54321);
-  assert.equal(event.data, second);
+  assert.deepEqual(event.data, second);
 });
 
 test('reset clears stored conversations and entities', () => {

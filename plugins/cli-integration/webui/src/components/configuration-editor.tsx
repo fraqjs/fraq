@@ -1,10 +1,11 @@
-import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
+import { history } from '@codemirror/commands';
 import { bracketMatching, defaultHighlightStyle, indentOnInput, syntaxHighlighting } from '@codemirror/language';
 import { Annotation, Compartment, EditorState, Text, Transaction } from '@codemirror/state';
 import { drawSelection, EditorView, highlightActiveLineGutter, keymap, lineNumbers } from '@codemirror/view';
 import type { ConfigFile } from '@fraqjs/cli-protocol';
 import { useLayoutEffect, useRef, useState } from 'react';
 
+import { configurationKeymap } from '../configuration-keymap';
 import { configurationLanguage } from '../configuration-language';
 
 const externalUpdate = Annotation.define<boolean>();
@@ -66,7 +67,7 @@ export function ConfigurationEditor({
           indentOnInput(),
           syntaxHighlighting(defaultHighlightStyle),
           EditorView.lineWrapping,
-          keymap.of([indentWithTab, ...defaultKeymap, ...historyKeymap]),
+          keymap.of(configurationKeymap),
           EditorView.updateListener.of((update) => {
             if (
               update.docChanged &&

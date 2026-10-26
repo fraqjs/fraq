@@ -44,6 +44,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Check Fraq test types
+        run: pnpm exec tsc -p packages/fraq/tsconfig.json --noEmit
+
       - name: Test packages
         run: pnpm test
 

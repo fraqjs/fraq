@@ -156,11 +156,12 @@ test('orders plugins by services and creates the plugin proxy during apply', asy
     }),
   );
 
-  assert.equal(applyContext, undefined);
+  assert.deepEqual(calls, ['wire:root']);
   await context.start();
 
-  assert.notEqual(applyContext, context);
-  assert.equal(startContext, applyContext);
+  assert.equal(applyContext?.pluginLabel, 'plugin:consumer');
+  assert.equal(startContext?.pluginLabel, 'plugin:consumer');
+  assert.equal(context.pluginLabel, 'context');
   assert.deepEqual(calls, [
     'wire:root',
     'start:root',

@@ -1,5 +1,6 @@
 import type { milky } from '@fraqjs/fraq';
 import { createMockContext, createRandomFriend } from '@fraqjs/plugin-mock';
+import { DomUtils, parseDocument } from 'htmlparser2';
 
 import { createResourceIndex, xmlify, xmlifyThread } from '../src';
 
@@ -130,8 +131,19 @@ test('xmlify keys refer to the same resource at every maxForwardDepth', async ()
   }
 
   const shallow = await xmlify(ctx, message, { maxForwardDepth: 1 });
-  assert.match(shallow.xmlContent, /<forward id="forward-50-1" depth="1" title="outer">/);
-  assert.match(shallow.xmlContent, /<forward id="forward-50.1-1" title="inner">\(Too deeply nested\)<\/forward>/);
+  const forwards = DomUtils.getElementsByTagName(
+    'forward',
+    parseDocument(shallow.xmlContent, { xmlMode: true }).children,
+  );
+  const outer = forwards.find((node) => node.attribs.id === 'forward-50-1');
+  const inner = forwards.find((node) => node.attribs.id === 'forward-50.1-1');
+  assert.ok(outer);
+  assert.ok(inner);
+  assert.equal(outer.attribs.depth, '1');
+  assert.equal(outer.attribs.title, 'outer');
+  assert.equal(inner.attribs.title, 'inner');
+  assert.equal(DomUtils.getElementsByTagName('node', inner.children).length, 0);
+  assert.ok(DomUtils.textContent(inner).trim());
 });
 
 test('a message xmlified with inThread renders exactly as inside xmlifyThread', async () => {
@@ -141,7 +153,11 @@ test('a message xmlified with inThread renders exactly as inside xmlifyThread', 
   const single = await xmlify(ctx, focused, { inThread: true });
   const thread = await xmlifyThread(ctx, [friendMessage(2, [imageSegment('b')]), focused]);
 
-  assert.match(single.xmlContent, /^<message seq="3" sender_id="10001" time="1700000003">/);
+  const [messageNode] = DomUtils.getElementsByTagName(
+    'message',
+    parseDocument(single.xmlContent, { xmlMode: true }).children,
+  );
+  assert.deepEqual(messageNode.attribs, { seq: '3', sender_id: '10001', time: '1700000003' });
   const indented = single.xmlContent
     .split('\n')
     .map((line) => `  ${line}`)
@@ -155,12 +171,16 @@ test('a message xmlified with inThread renders exactly as inside xmlifyThread', 
 test('xmlify renders standalone attributes unless inThread is set', async () => {
   const ctx = createMockContext();
   const message = friendMessage(3, []);
-
-  const standalone = await xmlify(ctx, message);
-  assert.match(standalone.xmlContent, /^<message scene="friend" peer_id="10001" seq="3" /);
-
-  const explicit = await xmlify(ctx, message, { inThread: false, resourceIndex: createResourceIndex() });
-  assert.match(explicit.xmlContent, /^<message scene="friend" /, 'an explicit inThread wins over the deprecated alias');
+  for (const options of [undefined, { inThread: false, resourceIndex: createResourceIndex() }, { inThread: true }]) {
+    const rendered = await xmlify(ctx, message, options);
+    const [node] = DomUtils.getElementsByTagName(
+      'message',
+      parseDocument(rendered.xmlContent, { xmlMode: true }).children,
+    );
+    assert.equal(node.attribs.seq, '3');
+    assert.equal(node.attribs.scene, options?.inThread ? undefined : 'friend');
+    assert.equal(node.attribs.peer_id, options?.inThread ? undefined : '10001');
+  }
 });
 
 test('the deprecated resourceIndex option still enables thread mode', async () => {

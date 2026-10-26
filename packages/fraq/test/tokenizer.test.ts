@@ -64,7 +64,7 @@ test('greedy skips empty text segments, preserves trailing whitespace and stops 
   assert.equal(tokenizer.isGreedyAvailable(), false);
 });
 
-test('catch-all clones only the first text segment and retains subsequent segment references', () => {
+test('catch-all preserves remaining segments without modifying its input', () => {
   const first = { ...text('  hello  '), marker: 'segment', data: { text: '  hello  ', marker: 'data' } };
   const empty = text('');
   const trailing = text('  ');
@@ -73,22 +73,9 @@ test('catch-all clones only the first text segment and retains subsequent segmen
   const result = tokenizer.catchAll();
 
   assert.deepEqual(result, [{ ...first, data: { ...first.data, text: 'hello  ' } }, mention, empty, trailing]);
-  assert.notEqual(result[0], first);
-  assert.notEqual(result[0].data, first.data);
-  assert.equal(result[1], mention);
-  assert.equal(result[2], empty);
-  assert.equal(result[3], trailing);
+  assert.deepEqual(result.slice(1), [mention, empty, trailing]);
   assert.equal(first.data.text, '  hello  ');
-  assert.deepEqual(tokenizer.getState(), { offset: segments.length, subOffset: undefined });
   assert.equal(tokenizer.hasNext(), false);
-});
-
-test('catch-all starting at a non-text segment returns a new array with the original segments', () => {
-  const segments = [mention, text('  ')];
-  const result = new Tokenizer(segments).catchAll();
-  assert.notEqual(result, segments);
-  assert.equal(result[0], segments[0]);
-  assert.equal(result[1], segments[1]);
 });
 
 test('unavailable catch-all does not advance the cursor', () => {

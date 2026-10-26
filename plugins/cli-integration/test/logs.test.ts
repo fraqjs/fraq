@@ -37,37 +37,52 @@ test('browser log retention deduplicates replay, caps memory and replaces a prev
   assert.equal(mergeLogs(first, { ...batch([]), session: 'new' }).length, 0);
 });
 
-test('SSE polls sequentially and releases its subscription on cancellation', async () => {
-  let calls = 0;
-  let closed = false;
+test('SSE waits for each poll and cancels without scheduling more work', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const pending: Array<ReturnType<typeof Promise.withResolvers<LogBatch>>> = [];
+  let closed = 0;
   const client: ControlClient = {
-    request: async () => {
-      calls++;
-      return { session: 'session', entries: [entry(calls)], cursor: calls, gap: false } as never;
+    request: () => {
+      const result = Promise.withResolvers<LogBatch>();
+      pending.push(result);
+      return result.promise as never;
     },
   };
   const stream = createLogStream(
     client,
     {},
     {
-      expiresAt: Date.now() + 1000,
+      expiresAt: Date.now() + 60_000,
       signal: new AbortController().signal,
       onClose: () => {
-        closed = true;
+        closed++;
       },
       pollMs: 10,
     },
   );
   const reader = stream.body.getReader();
-  const frame = await reader.read();
-  assert.match(new TextDecoder().decode(frame.value), /id: session:1/);
+  t.after(() => reader.cancel());
+  await Promise.resolve();
+  assert.equal(pending.length, 1);
+  t.mock.timers.tick(1000);
+  await Promise.resolve();
+  assert.equal(pending.length, 1, 'an unfinished poll must prevent overlapping requests');
+  pending[0].resolve({ session: 'session', entries: [entry(1)], cursor: 1, gap: false });
+  assert.match(new TextDecoder().decode((await reader.read()).value), /id: session:1/);
+  t.mock.timers.tick(10);
+  await Promise.resolve();
+  assert.equal(pending.length, 2);
   await reader.cancel();
-  await new Promise((resolve) => setTimeout(resolve, 30));
-  assert.equal(calls, 1);
-  assert.equal(closed, true);
+  pending[1].resolve({ session: 'session', entries: [entry(2)], cursor: 2, gap: false });
+  await Promise.resolve();
+  t.mock.timers.tick(1000);
+  await Promise.resolve();
+  assert.equal(pending.length, 2);
+  assert.equal(closed, 1);
 });
 
-test('SSE disconnects a slow reader instead of accumulating queued log batches', async () => {
+test('SSE bounds queued output and disconnects a reader that makes no progress', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
   let calls = 0;
   let closed = false;
   const client: ControlClient = {
@@ -80,7 +95,7 @@ test('SSE disconnects a slow reader instead of accumulating queued log batches',
     client,
     {},
     {
-      expiresAt: Date.now() + 1000,
+      expiresAt: Date.now() + 60_000,
       signal: new AbortController().signal,
       onClose: () => {
         closed = true;
@@ -88,10 +103,19 @@ test('SSE disconnects a slow reader instead of accumulating queued log batches',
       pollMs: 1,
     },
   );
-  await new Promise((resolve) => setTimeout(resolve, 100));
+  t.after(() => stream.body.cancel());
+  // Drive time without consuming: a bounded stream must close, regardless of its exact batch threshold.
+  for (let index = 0; index < 32 && !closed; index++) {
+    await Promise.resolve();
+    await Promise.resolve();
+    t.mock.timers.tick(1);
+  }
   assert.equal(closed, true);
-  assert.equal(calls, 2);
-  await stream.body.cancel();
+  assert.ok(calls > 0);
+  const stoppedAt = calls;
+  t.mock.timers.tick(1000);
+  await Promise.resolve();
+  assert.equal(calls, stoppedAt);
 });
 
 test('SSE ends an expired session without requesting logs', async () => {

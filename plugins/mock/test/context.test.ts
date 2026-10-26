@@ -59,23 +59,6 @@ test('createMockContext forwards injected events to ctx.on subscribers', async (
   await ctx.stop();
 });
 
-test('createMockContext answers inbox read APIs through ctx.client', async () => {
-  const ctx = createMockContext();
-  await ctx.start();
-
-  await ctx.mock.receiveGroup({ groupId: 20001, userId: 10002 }, inmsg`hello`);
-  const info = await ctx.client.get_group_member_info({
-    group_id: 20001,
-    user_id: 10002,
-    no_cache: false,
-  });
-
-  assert.equal(info.member.user_id, 10002);
-  assert.equal(info.member.group_id, 20001);
-
-  await ctx.stop();
-});
-
 test('a terminal ctx.hookApi stub overrides the response and bypasses the mock', async () => {
   const ctx = createMockContext();
   // Terminal hook (no next()): it fully replaces the mock for this endpoint,

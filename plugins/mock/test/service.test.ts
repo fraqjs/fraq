@@ -9,18 +9,6 @@ function call<E extends keyof milky.ApiEndpoints>(endpoint: E, params: unknown):
   return { endpoint, params } as AnyApiCall;
 }
 
-test('handleApiCall records every call it receives', () => {
-  const service = new MockService();
-
-  service.handleApiCall(call('send_private_message', { user_id: 1, message: [] }));
-  service.handleApiCall(call('send_group_message', { group_id: 2, message: [] }));
-
-  assert.deepEqual(service.apiCalls, [
-    { endpoint: 'send_private_message', params: { user_id: 1, message: [] } },
-    { endpoint: 'send_group_message', params: { group_id: 2, message: [] } },
-  ]);
-});
-
 test('handleApiCall answers read-side endpoints from the inbox', () => {
   const inbox = new MockInbox({ baseTime: 100 });
   const service = new MockService({ inbox });
@@ -45,14 +33,6 @@ test('handleApiCall answers read-side endpoints from the inbox', () => {
   assert.deepEqual(memberInfo, { member: second.group_member });
 });
 
-test('handleApiCall resolves unknown endpoints to an empty object', () => {
-  const service = new MockService();
-
-  const result = service.handleApiCall(call('send_private_message', { user_id: 1, message: [] }));
-
-  assert.deepEqual(result, {});
-});
-
 test('reset clears recorded calls and inbox state', async () => {
   const service = new MockService();
   service.handleApiCall(call('send_private_message', { user_id: 1, message: [] }));
@@ -74,6 +54,7 @@ test('start delivers injected events and stop closes the subscription', async ()
   await service.receiveFriend({ userId: 10001 }, inmsg`ping`);
   await subscription.stop();
   await subscription.closed;
+  await service.receiveFriend({ userId: 10001 }, inmsg`after stop`);
 
   assert.equal(received.length, 1);
   assert.equal(received[0]?.event_type, 'message_receive');
@@ -90,24 +71,4 @@ test('failNextStart makes the next start throw once', async () => {
   const subscription = await service.start(() => {});
   await subscription.stop();
   assert.equal(service.startEventCalls, 2);
-});
-
-test('emitEvent is a no-op when no handler is subscribed', async () => {
-  const service = new MockService();
-  await service.emitEvent({ event_type: 'message_receive', time: 0, self_id: 1, data: {} } as milky.Event);
-  // No throw, nothing recorded.
-  assert.deepEqual(service.apiCalls, []);
-});
-
-test('receive helpers return the stored message', async () => {
-  const service = new MockService();
-
-  const friend = await service.receiveFriend({ userId: 10001 }, inmsg`hi`);
-  const group = await service.receiveGroup({ groupId: 20001, userId: 10001 }, inmsg`yo`);
-  const temp = await service.receiveTemp({ userId: 10001 }, inmsg`psst`);
-
-  assert.equal(friend.message_scene, 'friend');
-  assert.equal(group.message_scene, 'group');
-  assert.equal(temp.message_scene, 'temp');
-  assert.equal(service.inbox.history().length, 3);
 });

@@ -35,16 +35,6 @@ class ScopedService {
   constructor(readonly scope: ServiceScope) {}
 }
 
-test('provides and resolves service instances by class', () => {
-  const ctx = createMockContext();
-  const alpha = new AlphaService();
-
-  ctx.provide(AlphaService, alpha);
-
-  const resolved: AlphaService = ctx.resolve(AlphaService);
-  assert.equal(resolved, alpha);
-});
-
 test('resolves services with an independently created token', () => {
   const ctx = createMockContext();
   const alpha = new AlphaService();
@@ -74,16 +64,6 @@ test('rejects duplicate service tokens in the same context', () => {
   assert.throws(() => ctx.provide(AlternateAlphaService, new AlternateAlphaService()), /already been provided/);
 });
 
-test('sub contexts inherit parent services', () => {
-  const parent = createMockContext();
-  const child = parent.fork('child');
-  const alpha = new AlphaService();
-
-  parent.provide(AlphaService, alpha);
-
-  assert.equal(child.resolve(AlphaService), alpha);
-});
-
 test('sub contexts can override parent services without affecting parent', () => {
   const parent = createMockContext();
   const child = parent.fork('child');
@@ -95,29 +75,6 @@ test('sub contexts can override parent services without affecting parent', () =>
 
   assert.equal(parent.resolve(AlphaService), parentAlpha);
   assert.equal(child.resolve(AlphaService), childAlpha);
-});
-
-test('injects existing services onto plugin context proxies', async () => {
-  const ctx = createMockContext();
-  const alpha = new AlphaService();
-  let injectedAlpha: AlphaService | undefined;
-
-  ctx.provide(AlphaService, alpha);
-  ctx.install(
-    definePlugin({
-      name: 'alpha-consumer',
-      inject: {
-        alpha: AlphaService,
-      },
-      apply(ctx) {
-        injectedAlpha = ctx.alpha;
-      },
-    }),
-  );
-
-  await ctx.start();
-
-  assert.equal(injectedAlpha, alpha);
 });
 
 test('uses injected services to order and apply plugin dependencies', async () => {

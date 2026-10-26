@@ -113,6 +113,24 @@ test('creates a signed session and exposes it to a Hono app mounted under /api',
   const sessionBody = (await session.json()) as { authenticated: boolean; webuis: string[] };
   assert.equal(sessionBody.authenticated, true);
   assert.deepEqual(sessionBody.webuis, ['example']);
+
+  // Corrupt a signature byte, not merely a cookie delimiter or payload format.
+  const separator = cookie.indexOf('=');
+  const signedValue = decodeURIComponent(cookie.slice(separator + 1));
+  const signatureStart = signedValue.lastIndexOf('.') + 1;
+  assert.ok(signatureStart > 0);
+  const tamperedValue =
+    signedValue.slice(0, signatureStart) +
+    (signedValue[signatureStart] === 'A' ? 'B' : 'A') +
+    signedValue.slice(signatureStart + 1);
+  const tamperedCookie = cookie.slice(0, separator + 1) + encodeURIComponent(tamperedValue);
+  assert.equal(
+    (await hono.app.request('/webui/example/api/session', { headers: { Cookie: tamperedCookie } })).status,
+    401,
+  );
+  const expiredAt = Date.now() + 61_000;
+  t.mock.method(Date, 'now', () => expiredAt);
+  assert.equal((await hono.app.request('/webui/example/api/session', { headers: { Cookie: cookie } })).status, 401);
 });
 
 test('serves the WebUI index after login when no destination is specified', async (t) => {
@@ -228,7 +246,18 @@ test('logout clears an existing session', async (t) => {
     headers: { Cookie: cookie },
   });
   assert.equal(response.status, 200);
-  assert.match(response.headers.get('Set-Cookie') ?? '', /fraq_webui_session=;/);
+  const cleared = response.headers.get('Set-Cookie');
+  assert.ok(cleared);
+  const [pair, ...attributes] = cleared.split(';').map((part) => part.trim());
+  assert.equal(pair, cookie.slice(0, cookie.indexOf('=') + 1));
+  const options = new Map(
+    attributes.map((attribute) => {
+      const separator = attribute.indexOf('=');
+      return [attribute.slice(0, separator).toLowerCase(), attribute.slice(separator + 1)];
+    }),
+  );
+  assert.equal(options.get('path'), '/webui');
+  assert.ok(options.get('max-age') === '0' || Date.parse(options.get('expires') ?? '') <= Date.now());
 });
 
 test('provides a specialized service to each plugin while sharing one Hono app', async (t) => {

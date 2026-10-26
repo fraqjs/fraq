@@ -10,11 +10,12 @@ test('random friends are deterministic for the same user id', () => {
   assert.deepEqual(first, second);
 });
 
-test('random friends differ across user ids', () => {
+test('random friends preserve distinct user identities and reproducible profiles', () => {
   const first = createRandomFriend(10001);
   const second = createRandomFriend(10002);
 
-  assert.notEqual(first.nickname, second.nickname);
+  assert.deepEqual(first, createRandomFriend(10001));
+  assert.deepEqual(second, createRandomFriend(10002));
   assert.equal(first.user_id, 10001);
   assert.equal(second.user_id, 10002);
 });
@@ -52,18 +53,6 @@ test('random group members reuse stable user profile fields', () => {
   assert.equal(member.sex, friend.sex);
   assert.equal(member.group_id, 20001);
   assert.equal(member.join_time <= member.last_sent_time, true);
-});
-
-test('random group members support overrides', () => {
-  const member = createRandomGroupMember(20001, 10001, {
-    role: 'owner',
-    card: 'Captain',
-    shut_up_end_time: null,
-  });
-
-  assert.equal(member.role, 'owner');
-  assert.equal(member.card, 'Captain');
-  assert.equal(member.shut_up_end_time, null);
 });
 
 test('entity factories reject unsafe integer seeds', () => {

@@ -61,29 +61,44 @@ test('returns the generated application exit code', async () => {
   }
 });
 
-test('recognizes only the versioned readiness message and preserves later exit codes', async () => {
+test('recognizes only the versioned readiness message and preserves later exit codes', async (t) => {
   const { spawnAppProcess } = await import('../src/app/processes');
   const root = await mkdtemp(path.join(os.tmpdir(), 'fraq-ready-'));
   const script = path.join(root, 'ready.cjs');
+  await mkdir(path.join(root, 'app'));
   await writeFile(
     script,
     `
+    process.on('message', message => {
+      if (message.type !== 'fraq:control:response') return;
+      process.send({ type: 'fraq:ready', version: 1 }, () => process.exit(9));
+    });
     process.send({ type: 'fraq:ready', version: 0 });
-    setTimeout(() => process.send({ type: 'fraq:ready', version: 1 }), 30);
-    setTimeout(() => process.exit(9), 60);
+    process.send({ type: 'fraq:control:request', version: 1, id: 'barrier', method: 'hello' });
   `,
   );
   const originalCwd = process.cwd();
-  await mkdir(path.join(root, 'app'));
-  try {
-    process.chdir(root);
-    const child = spawnAppProcess(script);
-    await child.ready;
-    assert.equal(await child.exit, 9);
-  } finally {
+  process.chdir(root);
+  let ready = false;
+  let readyAtBarrier: boolean | undefined;
+  const child = spawnAppProcess(script, 5_000, {
+    async onRequest(request) {
+      await Promise.resolve();
+      readyAtBarrier = ready;
+      return { type: 'fraq:control:response', version: 1, id: request.id, result: {} };
+    },
+  });
+  t.after(async () => {
+    child.kill('SIGKILL');
+    await child.exit;
     process.chdir(originalCwd);
     await rm(root, { recursive: true, force: true });
-  }
+  });
+  await child.ready.then(() => {
+    ready = true;
+  });
+  assert.equal(readyAtBarrier, false, 'v0 must not make the child ready before the IPC barrier');
+  assert.equal(await child.exit, 9);
 });
 
 test('rejects readiness on early exit and times out a hung startup', async () => {

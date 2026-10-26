@@ -1,53 +1,11 @@
 import { createMockContext } from '@fraqjs/plugin-mock';
 
 import { AiService, ai, milkyToolset } from '../src';
+import { zodApiEndpoints } from '../src/protocol/types-zod';
 import { mockImageModel, mockLanguageModel, mockToolCallModel } from './util/mock';
 
 import assert from 'node:assert/strict';
 import test from 'node:test';
-
-test('AiService resolves models by name and alias', () => {
-  const primary = mockLanguageModel('primary');
-  const fallback = mockLanguageModel('fallback');
-  const service = new AiService({
-    languageModels: {
-      'openai/gpt-4o': primary,
-      'anthropic/claude-sonnet': fallback,
-    },
-    imageModels: {},
-    aliases: {
-      openai: 'openai/gpt-4o',
-      claude: 'anthropic/claude-sonnet',
-    },
-    defaultModel: 'anthropic/claude-sonnet',
-  });
-
-  assert.equal(service.model(), fallback);
-  assert.equal(service.model('openai/gpt-4o'), primary);
-  assert.equal(service.model('openai'), primary);
-  assert.equal(service.model('claude'), fallback);
-  assert.equal(service.hasModel('openai/gpt-4o'), true);
-  assert.equal(service.hasModel('openai'), true);
-  assert.equal(service.hasModel('missing'), false);
-});
-
-test('AiService exposes a list of all model names', () => {
-  const first = mockLanguageModel('first');
-  const second = mockLanguageModel('second');
-  const service = new AiService({
-    languageModels: {
-      'test/first': first,
-      'test/second': second,
-    },
-    imageModels: {},
-    aliases: {
-      first: 'test/first',
-    },
-    defaultModel: 'test/first',
-  });
-
-  assert.deepEqual(service.models(), ['test/first', 'test/second']);
-});
 
 test('AiService throws for unknown model names', () => {
   const service = new AiService({
@@ -94,34 +52,16 @@ test('AiService constructor rejects an invalid default model', () => {
   );
 });
 
-test('the exposed model works with the raw streamText function', async () => {
-  const service = new AiService({
-    languageModels: {
-      'test/model': mockLanguageModel('streamed text'),
-    },
-    imageModels: {},
-    aliases: {},
-    defaultModel: 'test/model',
-  });
-
-  const result = ai.streamText({ model: service.model(), prompt: 'hi' });
-
-  let collected = '';
-  for await (const part of result.textStream) {
-    collected += part;
-  }
-
-  assert.equal(collected, 'streamed text');
-});
-
 test('AiService creates tools from the selected Milky endpoint metadata', async () => {
   const ctx = createMockContext();
 
   const tools = milkyToolset(ctx, ['get_login_info', 'set_nickname']);
 
   assert.deepEqual(Object.keys(tools), ['get_login_info', 'set_nickname']);
-  assert.equal(tools.get_login_info.description, '获取登录信息');
-  assert.equal(tools.set_nickname.description, '设置 QQ 账号昵称');
+  for (const endpoint of ['get_login_info', 'set_nickname'] as const) {
+    assert.ok(tools[endpoint].description);
+    assert.equal(tools[endpoint].description, zodApiEndpoints[endpoint].description);
+  }
 
   const loginInput = await ai.asSchema(tools.get_login_info.inputSchema).validate?.({});
   assert.deepEqual(loginInput, { success: true, value: {} });
@@ -206,63 +146,6 @@ test('toolset tools normalize empty API responses to an object', async () => {
   ]);
 });
 
-test('AiService exposes the configured image model', () => {
-  const image = mockImageModel('aGVsbG8=');
-  const service = new AiService({
-    languageModels: {},
-    imageModels: {
-      'test/dall-e': image,
-    },
-    aliases: {},
-  });
-
-  assert.equal(service.image(), image);
-});
-
-test('AiService resolves image models by name and alias', () => {
-  const primary = mockImageModel('aGVsbG8=');
-  const fallback = mockImageModel('d29ybGQ=');
-  const service = new AiService({
-    languageModels: {
-      'openai/gpt-4o': mockLanguageModel('text'),
-    },
-    imageModels: {
-      'openai/gpt-image-2': primary,
-      'google/imagen': fallback,
-    },
-    aliases: {
-      art: 'openai/gpt-image-2',
-      google: 'google/imagen',
-    },
-    defaultModel: 'openai/gpt-4o',
-    defaultImageModel: 'google/imagen',
-  });
-
-  assert.equal(service.image(), fallback);
-  assert.equal(service.image('openai/gpt-image-2'), primary);
-  assert.equal(service.image('art'), primary);
-  assert.equal(service.image('google'), fallback);
-  assert.equal(service.hasImage('art'), true);
-  assert.equal(service.hasImage('openai/gpt-image-2'), true);
-  assert.equal(service.hasImage('missing'), false);
-});
-
-test('AiService exposes a list of all image model names', () => {
-  const service = new AiService({
-    languageModels: {
-      'test/model': mockLanguageModel('text'),
-    },
-    imageModels: {
-      'test/dall-e': mockImageModel('aGVsbG8='),
-      'test/imagen': mockImageModel('d29ybGQ='),
-    },
-    aliases: {},
-    defaultModel: 'test/model',
-  });
-
-  assert.deepEqual(service.images(), ['test/dall-e', 'test/imagen']);
-});
-
 test('AiService throws for unknown image model names', () => {
   const service = new AiService({
     languageModels: {},
@@ -300,22 +183,6 @@ test('AiService rejects an alias pointing to an image model when accessed via mo
   });
 
   assert.throws(() => service.model('art'), /Model not found: art/);
-});
-
-test('AiService constructor accepts a defaultImage alias', () => {
-  const image = mockImageModel('aGVsbG8=');
-  const service = new AiService({
-    languageModels: {},
-    imageModels: {
-      'test/dall-e': image,
-    },
-    aliases: {
-      art: 'test/dall-e',
-    },
-    defaultImageModel: 'art',
-  });
-
-  assert.equal(service.image(), image);
 });
 
 test('AiService constructor rejects an invalid defaultImage', () => {

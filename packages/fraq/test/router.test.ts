@@ -85,7 +85,6 @@ test('dispatches a command registered with the builder syntax', async () => {
   const handled = await dispatch(router, inmsg`add 3 apples`);
 
   assert.equal(command.name, 'add');
-  assert.deepEqual(Object.keys(command.pattern), ['count', 'label']);
   assert.equal(handled, true);
   assert.deepEqual(captured, { count: 3, label: 'apples' });
 });
@@ -426,10 +425,24 @@ test('matches grouped branches with their group path', () => {
   assert.deepEqual(match.params, { userId: 42 });
 });
 
-test('returns the same router for repeated group names', () => {
+test('commands added through repeated group lookups share the group route', async () => {
   const router = new Router();
-
-  assert.equal(router.group('admin'), router.group('admin'));
+  const calls: string[] = [];
+  router
+    .group('admin')
+    .command('first')
+    .execute(() => {
+      calls.push('first');
+    });
+  router
+    .group('admin')
+    .command('second')
+    .execute(() => {
+      calls.push('second');
+    });
+  assert.equal(await dispatch(router, inmsg`admin first`), true);
+  assert.equal(await dispatch(router, inmsg`admin second`), true);
+  assert.deepEqual(calls, ['first', 'second']);
 });
 
 test('runs filtered routes only when the predicate accepts the session', async () => {
@@ -604,7 +617,7 @@ test('dispatches raw patterns registered with the builder syntax', async () => {
   const router = new Router();
   let captured = '';
 
-  const rawPattern = router
+  router
     .rawPattern()
     .arg('content', param.greedy())
     .execute((_session, { content }) => {
@@ -613,7 +626,6 @@ test('dispatches raw patterns registered with the builder syntax', async () => {
 
   const handled = await dispatch(router, inmsg`anything goes here`);
 
-  assert.deepEqual(Object.keys(rawPattern.pattern), ['content']);
   assert.equal(handled, true);
   assert.equal(captured, 'anything goes here');
 });
@@ -821,22 +833,6 @@ test('raw pattern catch-all captures a mixed message', async () => {
   assert.deepEqual(captured, [inseg.text('hello '), target]);
 });
 
-test('builder preserves command metadata with optional hiding', () => {
-  for (const hidden of [false, true]) {
-    const router = new Router();
-    const builder = router.command('info').describe('Shows information about the bot').alias('i', 'about');
-    if (hidden) {
-      builder.hide();
-    }
-    const command = builder.execute(() => {});
-
-    assert.equal(command.name, 'info');
-    assert.equal(command.description, 'Shows information about the bot');
-    assert.deepEqual(command.aliases, ['i', 'about']);
-    assert.equal(command.hidden, hidden ? true : undefined);
-  }
-});
-
 test('preserves object command metadata and dispatches by alias', async () => {
   const router = new Router();
   let called = false;
@@ -890,7 +886,11 @@ test('refine filters captured parameter values and narrows their type', async ()
       userId: param.num().refine((userId): userId is number & { readonly __positive: true } => userId > 0),
     },
     execute(_session, params) {
-      calls.push(params);
+      const positive: number & { readonly __positive: true } = params.userId;
+      // @ts-expect-error The refined value must not lose its numeric type (including to any).
+      const text: string = params.userId;
+      void text;
+      calls.push({ userId: positive });
     },
   });
 
@@ -926,24 +926,6 @@ test('matches command by name when name matches an earlier alias entry', async (
   assert.deepEqual(calls, ['b']);
 });
 
-test('match returns the matched command and params for alias dispatch', () => {
-  const router = new Router();
-
-  router.command({
-    name: 'greet',
-    aliases: ['g'],
-    pattern: { name: param.str() },
-    execute() {},
-  });
-
-  const raw = message(inmsg`g world`);
-  const match = router.match(session(raw), raw);
-
-  assert.equal(match?.type, 'command');
-  assert.equal(match.command.name, 'greet');
-  assert.deepEqual(match.params, { name: 'world' });
-});
-
 test('aliasesOf handles registered commands, missing aliases, and unknown names', () => {
   const router = new Router();
 
@@ -975,102 +957,72 @@ test('aliasesOf only searches the queried router level', () => {
   assert.deepEqual(admin.aliasesOf('ban'), ['block']);
 });
 
-test('removes alias from existing command when new command name conflicts', () => {
-  const warnings: string[] = [];
-  const originalWarn = console.warn;
-  console.warn = (...args: unknown[]) => {
-    warnings.push(args.join(' '));
-  };
-
-  try {
-    const router = new Router();
-
-    router.command({
-      name: 'first',
-      aliases: ['f', 'common'],
-      pattern: {},
-      execute() {},
-    });
-
-    router.command({
-      name: 'common',
-      pattern: {},
-      execute() {},
-    });
-
-    assert.deepEqual(router.aliasesOf('first'), ['f']);
-    assert.deepEqual(router.aliasesOf('common'), []);
-    assert.equal(warnings.length, 1);
-    assert.ok(warnings[0].includes('conflicts with alias'));
-    assert.ok(warnings[0].includes('first'));
-    assert.ok(warnings[0].includes('common'));
-  } finally {
-    console.warn = originalWarn;
-  }
+test('removes alias from existing command when new command name conflicts', async (t) => {
+  const warn = t.mock.method(console, 'warn', () => {});
+  const router = new Router();
+  const calls: string[] = [];
+  router.command({
+    name: 'first',
+    aliases: ['f', 'common'],
+    pattern: {},
+    execute() {
+      calls.push('first');
+    },
+  });
+  router.command('common').execute(() => {
+    calls.push('common');
+  });
+  assert.equal(await dispatch(router, inmsg`common`), true);
+  assert.equal(await dispatch(router, inmsg`f`), true);
+  assert.deepEqual(calls, ['common', 'first']);
+  assert.ok(warn.mock.callCount() > 0);
 });
 
-test('drops new alias that conflicts with an existing command name', () => {
-  const warnings: string[] = [];
-  const originalWarn = console.warn;
-  console.warn = (...args: unknown[]) => {
-    warnings.push(args.join(' '));
-  };
-
-  try {
-    const router = new Router();
-
-    router.command({
-      name: 'existing',
-      pattern: {},
-      execute() {},
-    });
-
-    router.command({
-      name: 'new',
-      aliases: ['existing', 'n'],
-      pattern: {},
-      execute() {},
-    });
-
-    assert.deepEqual(router.aliasesOf('new'), ['n']);
-    assert.equal(warnings.length, 1);
-    assert.ok(warnings[0].includes('has been dropped'));
-  } finally {
-    console.warn = originalWarn;
-  }
+test('drops new alias that conflicts with an existing command name', async (t) => {
+  const warn = t.mock.method(console, 'warn', () => {});
+  const router = new Router();
+  const calls: string[] = [];
+  router.command('existing').execute(() => {
+    calls.push('existing');
+  });
+  router.command({
+    name: 'new',
+    aliases: ['existing', 'n'],
+    pattern: {},
+    execute() {
+      calls.push('new');
+    },
+  });
+  assert.equal(await dispatch(router, inmsg`existing`), true);
+  assert.equal(await dispatch(router, inmsg`n`), true);
+  assert.deepEqual(calls, ['existing', 'new']);
+  assert.ok(warn.mock.callCount() > 0);
 });
 
-test('removes alias from existing command when new alias conflicts', () => {
-  const warnings: string[] = [];
-  const originalWarn = console.warn;
-  console.warn = (...args: unknown[]) => {
-    warnings.push(args.join(' '));
-  };
-
-  try {
-    const router = new Router();
-
-    router.command({
-      name: 'alpha',
-      aliases: ['x'],
-      pattern: {},
-      execute() {},
-    });
-
-    router.command({
-      name: 'beta',
-      aliases: ['x'],
-      pattern: {},
-      execute() {},
-    });
-
-    assert.deepEqual(router.aliasesOf('alpha'), []);
-    assert.deepEqual(router.aliasesOf('beta'), ['x']);
-    assert.equal(warnings.length, 1);
-    assert.ok(warnings[0].includes('removed'));
-  } finally {
-    console.warn = originalWarn;
-  }
+test('removes alias from existing command when new alias conflicts', async (t) => {
+  const warn = t.mock.method(console, 'warn', () => {});
+  const router = new Router();
+  const calls: string[] = [];
+  router.command({
+    name: 'alpha',
+    aliases: ['x'],
+    pattern: {},
+    execute() {
+      calls.push('alpha');
+    },
+  });
+  router.command({
+    name: 'beta',
+    aliases: ['x'],
+    pattern: {},
+    execute() {
+      calls.push('beta');
+    },
+  });
+  assert.equal(await dispatch(router, inmsg`x`), true);
+  assert.equal(await dispatch(router, inmsg`alpha`), true);
+  assert.deepEqual(calls, ['beta', 'alpha']);
+  assert.ok(warn.mock.callCount() > 0);
 });
 
 test('hidden commands stay dispatchable but unlisted with either registration syntax', async () => {

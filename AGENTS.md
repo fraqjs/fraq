@@ -84,3 +84,12 @@ pnpm exec biome check packages/fraq/src/core/context/index.ts packages/fraq/src/
 ```
 
 Adjust the file list to match the current change. Avoid broad checks unless the change genuinely needs them.
+
+### Test Quality
+
+- Test meaningful contracts and failure modes, not the current implementation.
+- Assert observable behavior. Avoid locking internal calls, object identity, log wording, or generated code formatting unless they are intentional contracts.
+- Derive expectations independently; do not repeat the implementation in the test or mock away the behavior being verified.
+- Check that plausible broken implementations would fail. Prefer controlled inputs and explicit completion signals over arbitrary sleeps or probabilistic assertions.
+- Keep valuable tests, rewrite brittle or insufficient ones, and delete redundant or mechanical checks. Do not add tests merely to cover every function or branch.
+- Investigate failures: fix regressions, update intentional contract changes, and remove unnecessary constraints. Never weaken a valid test just to make it pass.
